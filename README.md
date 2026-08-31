@@ -49,7 +49,8 @@ One dependency, `golang.org/x/term`, for reading arrow keys.
 
 ## Use
 
-Run `bough` on its own and it asks which project:
+Run `bough` on its own and it asks which project, then opens it in your
+browser:
 
 ```
   ╭──────────────────────────────────────────────────────────╮
@@ -66,14 +67,22 @@ Run `bough` on its own and it asks which project:
 The project you are standing in comes first. Or name one directly:
 
 ```
-bough taggity          read a project by name
+bough taggity          open a project by name
+bough --text           write to the terminal instead
 bough --list           show every project with history
-bough -v               include every prompt
+bough -v               include every prompt in the text view
 bough --json           write the graph as JSON
 ```
 
+Anything piped or redirected is written as text, so `bough > notes.txt` and
+`bough | less` behave as you would expect rather than opening a window.
+
 `--json` gives you the whole structure to do something else with. It carries no
-colours, sizes or positions, only what is true about the work.
+colours, sizes or positions, only what is true about the work; the page works
+those out for itself.
+
+The page is served from 127.0.0.1 and nothing else can reach it. Everything it
+needs is inside it, so it keeps working with the network unplugged.
 
 ## What it does
 
@@ -142,8 +151,10 @@ internal/segment prompts into tasks
 internal/rollup  tasks into sittings, and the links between them
 internal/metrics how long, how much, how hard
 internal/graph   the finished structure, ready to serialise
+internal/server  the local page, served on loopback only
 internal/pick    the list you choose a project from
 internal/banner  the mark it opens with
+assets           the artwork, and the script that sizes it for the page
 ```
 
 Nothing above `internal/agent` knows which agent the history came from, and a

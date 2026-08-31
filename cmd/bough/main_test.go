@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -201,5 +202,47 @@ func TestNamingAProjectSkipsTheList(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "example") {
 		t.Errorf("expected the project's output, got:\n%s", out.String())
+	}
+}
+
+// The page is the default, but only when somebody is watching. Anything
+// redirected or piped has to keep behaving as it did before, or reading bough
+// into a file starts opening windows.
+func TestBrowserOnlyWhenSomebodyIsWatching(t *testing.T) {
+	tests := []struct {
+		name    string
+		text    bool
+		outFile string
+		stdout  io.Writer
+		want    bool
+	}{
+		{"piped somewhere", false, "", &bytes.Buffer{}, false},
+		{"asked for text", true, "", &bytes.Buffer{}, false},
+		{"writing to a file", false, "graph.txt", &bytes.Buffer{}, false},
+		{"text wins over a file too", true, "graph.txt", &bytes.Buffer{}, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := useBrowser(tc.text, tc.outFile, tc.stdout); got != tc.want {
+				t.Errorf("useBrowser() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// A pipe must produce the same text it always did, with no server and no wait.
+func TestPipedOutputIsStillText(t *testing.T) {
+	root := history(t, "example")
+	var out, errs bytes.Buffer
+
+	if err := run([]string{"example", "--root", root}, &out, &errs); err != nil {
+		t.Fatal(err)
+	}
+	body := out.String()
+	if !strings.Contains(body, "example") || !strings.Contains(body, "prompt") {
+		t.Errorf("expected the text view, got:\n%s", body)
+	}
+	if strings.Contains(body, "<html") || strings.Contains(errs.String(), "http://") {
+		t.Error("a browser was opened for output that is not going to a screen")
 	}
 }

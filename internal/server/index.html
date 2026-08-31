@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} — bough</title>
+<link rel="icon" href="/img/icon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="/img/icon-180.png">
+<style>{{.CSS}}</style>
+</head>
+<body>
+
+<header class="masthead">
+  <img class="logo" src="/img/logo.png" alt="bough" width="220">
+  <div class="project">
+    <h1 id="project-name"></h1>
+    <p id="project-path" class="path"></p>
+  </div>
+  <dl class="totals" id="totals"></dl>
+</header>
+
+<div class="filters" id="filters">
+  <label class="filter">
+    <span>Files</span>
+    <input type="search" id="filter-file" placeholder="name a file" autocomplete="off">
+  </label>
+
+  <label class="filter">
+    <span>From</span>
+    <input type="date" id="filter-from">
+  </label>
+
+  <label class="filter">
+    <span>To</span>
+    <input type="date" id="filter-to">
+  </label>
+
+  <label class="filter check">
+    <input type="checkbox" id="filter-size">
+    <span>Only substantial sittings</span>
+  </label>
+
+  <label class="filter check">
+    <input type="checkbox" id="filter-struggle">
+    <span>Show where it was hard
+      <em title="Worked out from how often one file was rewritten and how densely the prompts came. It has not been checked against anyone's memory of their own work, so treat it as a hint.">unproven</em>
+    </span>
+  </label>
+
+  <button type="button" id="filter-clear" hidden>Clear</button>
+</div>
+
+<main id="tree"></main>
+
+<p class="empty" id="empty" hidden></p>
+
+<footer>
+  <span id="footprint"></span>
+  <span>Read from your machine. Nothing was sent anywhere.</span>
+</footer>
+
+<script>window.BOUGH = {{.Graph}};</script>
+<script>{{.JS}}</script>
+</body>
+</html>

@@ -1,0 +1,315 @@
+/* The palette is the one the terminal already uses, so the two read as the
+   same product: parchment letters, olive frame, bark for the connections. */
+:root {
+  --bark:      #3b2b1a;
+  --bark-soft: #6b4f2f;
+  --parchment: #f4e7c8;
+  --paper:     #fbf5e6;
+  --olive:     #869a48;
+  --olive-dim: #aab27a;
+  --deep:      #4a5c2a;
+  --ink:       #2e2a20;
+  --ink-soft:  #6a6152;
+  --rule:      #ddd0ae;
+  --warm:      #c2703a;
+
+  --sitting-gap: 2.2rem;
+  --stem: 1.4rem;
+}
+
+* { box-sizing: border-box; }
+
+html { background: #efe6cf; }
+
+body {
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 4rem;
+  max-width: 62rem;
+  font: 15px/1.55 ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  color: var(--ink);
+  background: var(--paper);
+  min-height: 100vh;
+}
+
+/* ---- masthead ---------------------------------------------------------- */
+
+.masthead {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.4rem 1.4rem;
+  align-items: center;
+  padding-bottom: 1.4rem;
+  border-bottom: 2px solid var(--rule);
+}
+
+.logo {
+  grid-row: span 2;
+  height: auto;
+  /* The artwork is pixel art, and browsers otherwise smear it when scaling. */
+  image-rendering: -webkit-optimize-contrast;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+}
+
+.path {
+  margin: 0.15rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+.totals {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.6rem;
+  margin: 0.6rem 0 0;
+}
+
+.totals div { display: flex; gap: 0.4rem; align-items: baseline; }
+.totals dt { color: var(--ink-soft); font-size: 0.8rem; }
+.totals dd { margin: 0; font-weight: 600; }
+
+/* ---- filters ----------------------------------------------------------- */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1.2rem;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.82rem;
+}
+
+.filter { display: flex; align-items: center; gap: 0.45rem; color: var(--ink-soft); }
+.filter.check { cursor: pointer; }
+
+.filter input[type="search"],
+.filter input[type="date"] {
+  font: inherit;
+  color: var(--ink);
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--paper);
+}
+
+.filter input[type="search"] { width: 11rem; }
+.filter input:focus-visible { outline: 2px solid var(--olive); outline-offset: 1px; }
+
+/* The struggle score is a guess, and the interface should say so rather than
+   presenting it with the same confidence as a count of edits. */
+.filter em {
+  font-style: normal;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--warm);
+  border-bottom: 1px dotted var(--warm);
+  cursor: help;
+  margin-left: 0.3rem;
+}
+
+#filter-clear {
+  font: inherit;
+  color: var(--ink-soft);
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.25rem 0.6rem;
+  cursor: pointer;
+}
+
+#filter-clear:hover { color: var(--ink); border-color: var(--olive); }
+
+/* ---- the tree ---------------------------------------------------------- */
+
+main { padding-top: 1.6rem; }
+
+.sitting {
+  position: relative;
+  padding-left: var(--stem);
+  margin-bottom: var(--sitting-gap);
+}
+
+/* The limb every task hangs from. */
+.sitting::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0.55rem;
+  bottom: 0.4rem;
+  width: 2px;
+  background: var(--bark-soft);
+  border-radius: 1px;
+}
+
+.sitting-head { display: flex; align-items: baseline; gap: 0.8rem; flex-wrap: wrap; }
+
+.period {
+  font-weight: 700;
+  color: var(--deep);
+  white-space: nowrap;
+}
+
+.sitting-label {
+  flex: 1 1 20rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sitting-figures { color: var(--ink-soft); font-size: 0.8rem; white-space: nowrap; }
+
+.churn {
+  display: block;
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: var(--warm);
+}
+
+/* ---- tasks ------------------------------------------------------------- */
+
+.tasks { list-style: none; margin: 0.7rem 0 0; padding: 0; }
+
+.task { position: relative; margin: 0; }
+
+/* The short branch joining a task to the limb. */
+.task::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--stem) * -1 + 4px);
+  top: 1.05rem;
+  width: 0.85rem;
+  height: 2px;
+  background: var(--bark-soft);
+  opacity: 0.65;
+}
+
+.task-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+  cursor: pointer;
+}
+
+.task-head:hover { background: #f2ead4; }
+.task-head:focus-visible { outline: 2px solid var(--olive); outline-offset: -2px; }
+
+.marker { color: var(--olive); font-size: 0.7rem; width: 0.8rem; flex: none; }
+
+.task-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-figures { color: var(--ink-soft); font-size: 0.78rem; white-space: nowrap; flex: none; }
+
+/* Struggle is shown as a weight on the branch rather than as a number, since
+   the number is not trustworthy enough to print. */
+.hard .task-label { color: var(--bark); }
+.hard::before { background: var(--warm); opacity: 1; height: 3px; }
+
+/* ---- prompts ----------------------------------------------------------- */
+
+.turns {
+  list-style: none;
+  margin: 0.1rem 0 0.8rem;
+  padding: 0 0 0 1.3rem;
+  border-left: 1px dashed var(--rule);
+}
+
+.turn { display: flex; gap: 0.8rem; padding: 0.3rem 0; align-items: baseline; }
+
+.when { color: var(--ink-soft); font-size: 0.74rem; white-space: nowrap; flex: none; }
+
+/* Prompts are the reason to open a task, so they are shown whole rather than
+   cut to fit a column. */
+.said { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+
+.turn-figures { color: var(--ink-soft); font-size: 0.74rem; white-space: nowrap; flex: none; }
+
+.handoff {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--deep);
+  font-size: 0.8rem;
+}
+
+.handoff::before { content: "handed off  "; color: var(--ink-soft); }
+
+/* ---- links between sittings -------------------------------------------- */
+
+.came-back {
+  margin: 0.5rem 0 0;
+  padding: 0.35rem 0 0.35rem 0.6rem;
+  border-left: 3px solid var(--bark-soft);
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+/* ---- states ------------------------------------------------------------ */
+
+.hidden { display: none; }
+
+.empty {
+  margin: 3rem 0;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #191710;
+    --parchment: #221f16;
+    --ink: #ece3cd;
+    --ink-soft: #9a917c;
+    --rule: #3a3427;
+    --olive: #9db057;
+    --deep: #b9c98a;
+    --bark-soft: #8a6a44;
+    --warm: #d98a52;
+  }
+  html { background: #12100b; }
+  .task-head:hover { background: #221f16; }
+}
+
+@media (max-width: 40rem) {
+  body { padding: 1.5rem 1rem 3rem; }
+  .masthead { grid-template-columns: 1fr; }
+  .logo { grid-row: auto; width: 170px; }
+  .totals { grid-column: 1; }
+}
+
+@media print {
+  .filters, footer { display: none; }
+  body { max-width: none; }
+}

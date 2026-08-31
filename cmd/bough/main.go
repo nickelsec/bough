@@ -2,21 +2,26 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"golang.org/x/term"
 
 	"github.com/nickelsec/bough/internal/agent"
 	"github.com/nickelsec/bough/internal/agent/claude"
 	"github.com/nickelsec/bough/internal/banner"
 	"github.com/nickelsec/bough/internal/graph"
 	"github.com/nickelsec/bough/internal/pick"
+	"github.com/nickelsec/bough/internal/server"
 )
 
 // version is set at build time. Untagged builds say so.
@@ -35,6 +40,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 
 	var (
 		asJSON  = fs.Bool("json", false, "write the graph as JSON instead of text")
+		asText  = fs.Bool("text", false, "write to the terminal instead of opening a browser")
 		list    = fs.Bool("list", false, "list the projects with history and stop")
 		verbose = fs.Bool("v", false, "include every prompt in the text output")
 		root    = fs.String("root", "", "read history from here instead of the usual location")
@@ -99,7 +105,40 @@ func run(args []string, stdout, stderr io.Writer) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(g)
 	}
+
+	if useBrowser(*asText, *out, stdout) {
+		return browse(g, stderr)
+	}
 	return graph.WriteText(w, g, *verbose)
+}
+
+// useBrowser decides between the page and the terminal.
+//
+// The page is the default because it is what the tool exists to show, but only
+// when there is somebody watching. Anything redirected or piped gets text, so
+// that reading bough into a file or through less behaves as it always has
+// rather than opening a window and hanging on a port.
+func useBrowser(textWanted bool, outFile string, stdout io.Writer) bool {
+	if textWanted || outFile != "" {
+		return false
+	}
+	f, ok := stdout.(*os.File)
+	return ok && term.IsTerminal(int(f.Fd()))
+}
+
+// browse serves the graph and waits for the reader to finish with it.
+func browse(g graph.Graph, stderr io.Writer) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	err := server.Serve(ctx, g, func(url string) {
+		fmt.Fprintf(stderr, "bough is showing %s at %s\n", g.Project.Name, url)
+		fmt.Fprintf(stderr, "press ctrl-c when you are done\n")
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // splitArgs separates the project name from the flags, so either order works.
@@ -272,10 +311,14 @@ func writeList(w io.Writer, src agent.Source, projects []agent.Project) error {
 
 const usage = `bough shows the shape of the work in a project's AI coding history.
 
-  bough              read the project in the current directory
-  bough taggity      read a project by name
+  bough              choose a project and open it in a browser
+  bough taggity      open a project by name
+  bough --text       write to the terminal instead
   bough --list       show which projects have history
   bough --json       write the graph as JSON
+
+Anything piped or redirected is written as text, so bough > notes.txt and
+bough | less behave as you would expect.
 
 Options:
 `
