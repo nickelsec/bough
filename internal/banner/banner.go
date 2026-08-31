@@ -14,18 +14,8 @@ import (
 	"golang.org/x/term"
 )
 
-// The wordmark, drawn in block characters. The shading characters carry the
-// depth, so this reads as carved rather than flat even without colour.
-var wordmark = []string{
-	` ██████   ██████  ██    ██  ██████  ██   ██`,
-	` ██░░░██ ██░░░░██ ██    ██ ██░░░░░  ██   ██`,
-	` ██████  ██    ██ ██    ██ ██  ███  ███████`,
-	` ██░░░██ ██░░░░██ ██░░░░██ ██░░░██  ██░░░██`,
-	` ██████   ██████   ██████   █████   ██   ██`,
-}
-
-// The bough itself, hanging under the name and centred on it, so the mark
-// reads as one piece rather than two stacked things.
+// The bough hanging under the name, centred on it and spreading as it falls,
+// so the two read as one drawing.
 var bough = []string{
 	`               ╭─────❧─────╮`,
 	`            ❧───╯         ╰───❧`,
@@ -34,20 +24,26 @@ var bough = []string{
 // rgb is a colour in the terminal's truecolor space.
 type rgb struct{ r, g, b uint8 }
 
-// The palette runs from parchment at the top of the letters to the green of
-// new growth at the branch, so the mark reads as light falling on a tree.
+// The palette. Light falls from the top left, so the lit faces of the letters
+// are parchment and the bodies are the olive and green the picker frame and
+// the bough are drawn in.
+var palette = map[byte]rgb{
+	'L': {242, 224, 184}, // lit face
+	'S': {170, 162, 118}, // the dry olive it falls away to
+	'B': {150, 172, 84},  // leaf green
+	'D': {74, 92, 42},    // the deeper green beneath
+}
+
+// leaf and deep colour the bough, which is drawn plainly rather than per cell.
 var (
-	top    = rgb{242, 224, 184}
-	bottom = rgb{198, 190, 140}
-	leaf   = rgb{134, 154, 72}
-	deep   = rgb{96, 116, 54}
+	leaf = rgb{134, 154, 72}
+	deep = rgb{96, 116, 54}
 )
 
 // Write draws the banner.
 //
 // Nothing is drawn when the output is not a terminal, so a banner never lands
-// in a file or a pipe, and nothing is drawn when NO_COLOR is set beyond the
-// plain text itself.
+// in a file or a pipe.
 func Write(w io.Writer, tagline string) {
 	if !isTerminal(w) {
 		return
@@ -64,9 +60,8 @@ func WriteTo(w io.Writer, tagline string) {
 // writeWith draws the mark at a stated colour depth.
 func writeWith(w io.Writer, tagline string, colour depth) {
 	fmt.Fprintln(w)
-	for i, line := range wordmark {
-		shade := blend(top, bottom, float64(i)/float64(len(wordmark)-1))
-		fmt.Fprintf(w, "  %s\n", paint(line, shade, colour))
+	for _, row := range art {
+		fmt.Fprintf(w, "  %s\n", paintRow(row, colour))
 	}
 	for i, line := range bough {
 		// The branch darkens as it hangs, the way the underside of one does.
@@ -74,9 +69,89 @@ func writeWith(w io.Writer, tagline string, colour depth) {
 		fmt.Fprintf(w, "  %s\n", paint(line, shade, colour))
 	}
 	if tagline != "" {
-		fmt.Fprintf(w, "\n  %s\n", paint(tagline, blend(bottom, leaf, 0.5), colour))
+		fmt.Fprintf(w, "\n  %s\n", paint(tagline, palette['S'], colour))
 	}
 	fmt.Fprintln(w)
+}
+
+// paintRow colours a line of the wordmark cell by cell.
+//
+// Runs of cells sharing a colour are emitted together rather than one escape
+// sequence per character, which keeps the output to a fraction of the size and
+// stops slower terminals from tearing as it draws.
+func paintRow(row artRow, colour depth) string {
+	if colour == plain {
+		return row.glyphs
+	}
+
+	glyphs := []rune(row.glyphs)
+	var b strings.Builder
+	var openFG, openBG byte
+
+	for i, g := range glyphs {
+		fg, bg := key(row.fg, i), key(row.bg, i)
+		if fg != openFG || bg != openBG {
+			if openFG != 0 || openBG != 0 {
+				b.WriteString(reset)
+			}
+			b.WriteString(style(fg, bg, colour))
+			openFG, openBG = fg, bg
+		}
+		b.WriteRune(g)
+	}
+	if openFG != 0 || openBG != 0 {
+		b.WriteString(reset)
+	}
+	return b.String()
+}
+
+// key reads the colour for one cell, treating a short line as empty rather
+// than reaching past its end.
+func key(s string, i int) byte {
+	if i >= len(s) {
+		return '_'
+	}
+	return s[i]
+}
+
+// style is the escape sequence for one pair of colours.
+func style(fg, bg byte, colour depth) string {
+	var b strings.Builder
+	if c, ok := palette[fg]; ok {
+		b.WriteString(ink(c, false, colour))
+	}
+	if c, ok := palette[bg]; ok {
+		b.WriteString(ink(c, true, colour))
+	}
+	return b.String()
+}
+
+// ink writes a colour, as foreground or as background.
+func ink(c rgb, background bool, colour depth) string {
+	layer := 38
+	if background {
+		layer = 48
+	}
+	if colour == truecolor {
+		return fmt.Sprintf("\x1b[%d;2;%d;%d;%dm", layer, c.r, c.g, c.b)
+	}
+	// Sixteen colours cannot hold the palette, so only the foreground is set
+	// and the backgrounds are dropped. Filling cells with an approximate
+	// colour looks worse than leaving them alone.
+	if background {
+		return ""
+	}
+	return fmt.Sprintf("\x1b[%dm", nearest(c))
+}
+
+const reset = "\x1b[0m"
+
+// paint puts a whole line in one colour.
+func paint(s string, c rgb, d depth) string {
+	if d == plain {
+		return s
+	}
+	return ink(c, false, d) + s + reset
 }
 
 // blend mixes two colours, with t running from 0 at the first to 1 at the second.
@@ -94,27 +169,13 @@ const (
 	truecolor
 )
 
-// paint puts a line in colour, or leaves it alone where colour is not available.
-func paint(s string, c rgb, d depth) string {
-	switch d {
-	case truecolor:
-		return fmt.Sprintf("\x1b[38;2;%d;%d;%dm%s\x1b[0m", c.r, c.g, c.b, s)
-	case basic:
-		// Without truecolor the gradient collapses, so the whole mark takes the
-		// nearest of the sixteen colours rather than banding awkwardly.
-		return fmt.Sprintf("\x1b[%dm%s\x1b[0m", nearest(c), s)
-	default:
-		return s
-	}
-}
-
 // nearest picks between the two colours the palette is built from, since a
 // sixteen colour terminal has nothing closer.
 func nearest(c rgb) int {
-	if c.g > c.b && c.r < 180 {
-		return 32 // green, for the branch
+	if c.g > c.b && c.r < 200 {
+		return 32 // green, for the body of the letters
 	}
-	return 33 // yellow, for the name
+	return 33 // yellow, for the lit faces
 }
 
 // colourDepth works out what the terminal can show.

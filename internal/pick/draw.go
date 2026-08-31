@@ -49,7 +49,7 @@ const (
 const labelWidth = 22
 
 // hint sits below the frame, with a blank line between them.
-const hint = "↑↓ move    ↵ choose    esc cancel"
+const hint = "↑↓ Move    ↵ Choose    ESC Cancel"
 
 // draw renders the list and returns how many lines it used, so the next pass
 // can rewrite exactly those and nothing else.
