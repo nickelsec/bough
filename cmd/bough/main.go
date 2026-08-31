@@ -14,6 +14,7 @@ import (
 
 	"github.com/nickelsec/bough/internal/agent"
 	"github.com/nickelsec/bough/internal/agent/claude"
+	"github.com/nickelsec/bough/internal/banner"
 	"github.com/nickelsec/bough/internal/graph"
 	"github.com/nickelsec/bough/internal/pick"
 )
@@ -163,6 +164,10 @@ func choose(projects []agent.Project, arg string, out io.Writer) (agent.Project,
 
 // offer asks which project to read, with the one you are standing in first.
 func offer(projects []agent.Project) (agent.Project, error) {
+	// The mark only appears when there is a question to ask. Naming a project
+	// means you know what you want, and a banner would be in the way.
+	banner.Write(os.Stderr, "what did you actually build?")
+
 	projects, here := currentFirst(projects)
 
 	items := make([]pick.Item, len(projects))
