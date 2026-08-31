@@ -121,3 +121,9 @@ func numbered(out io.Writer, in io.Reader, title string, items []Item) (int, err
 	}
 	return n - 1, nil
 }
+
+// Preview draws the list once, without waiting for a key. It exists so the
+// look can be checked without a terminal attached.
+func Preview(w io.Writer, title string, items []Item, selected int) {
+	draw(w, title, items, selected, detailWidth(items), 0)
+}

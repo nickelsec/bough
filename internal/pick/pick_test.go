@@ -17,20 +17,97 @@ func TestDrawShowsEveryRowAndOneHighlight(t *testing.T) {
 	lines := draw(&buf, "Which project?", sample, 1, detailWidth(sample), 0)
 
 	out := buf.String()
-	if lines != len(sample)+2 {
-		t.Errorf("used %d lines, want title, %d rows and a hint", lines, len(sample))
+	// Title, a blank line, the frame, the rows, the closing frame, a blank
+	// line and the hint.
+	if want := len(sample) + 6; lines != want {
+		t.Errorf("used %d lines, want %d", lines, want)
 	}
 	for _, it := range sample {
 		if !strings.Contains(out, it.Label) {
 			t.Errorf("row %q is missing", it.Label)
 		}
 	}
-	if got := strings.Count(out, reversed); got != 1 {
-		t.Errorf("%d rows highlighted, want exactly 1", got)
+	if got := strings.Count(out, onGround); got != 1 {
+		t.Errorf("%d rows filled, want exactly 1", got)
 	}
-	if !strings.Contains(out, "> chaff-app") {
-		t.Error("the marker is not on the selected row")
+	if got := strings.Count(out, bulletOn); got != 1 {
+		t.Errorf("%d rows carry the chosen marker, want exactly 1", got)
 	}
+	if got := strings.Count(out, bulletOff); got != len(sample)-1 {
+		t.Errorf("%d rows carry the empty marker, want %d", got, len(sample)-1)
+	}
+}
+
+// The frame only holds together if every row is exactly as wide as the border
+// above it. Anything that changes a row's width shears the near edge.
+func TestEveryRowMatchesTheBorderWidth(t *testing.T) {
+	var buf bytes.Buffer
+	draw(&buf, "Which project?", sample, 1, detailWidth(sample), 0)
+
+	var widths []int
+	for _, line := range strings.Split(buf.String(), "\n") {
+		plain := strings.TrimSpace(stripEscapes(line))
+		if plain == "" || !strings.ContainsAny(plain, "\u2502\u256d\u2570") {
+			continue
+		}
+		widths = append(widths, len([]rune(plain)))
+	}
+	if len(widths) != len(sample)+2 {
+		t.Fatalf("found %d framed lines, want %d", len(widths), len(sample)+2)
+	}
+	for i, w := range widths {
+		if w != widths[0] {
+			t.Errorf("framed line %d is %d wide, the border is %d", i, w, widths[0])
+		}
+	}
+}
+
+// Emoji would be the obvious thing to decorate rows with, and they are the one
+// thing that cannot be used: terminals draw them two columns wide while Go
+// counts them as one, so the frame shears. This guards against someone adding
+// them later without knowing that.
+func TestRowMarkersAreSingleWidth(t *testing.T) {
+	for _, r := range []string{bulletOn, bulletOff, bar, cornerTL, cornerTR, cornerBL, cornerBR, horizontal} {
+		runes := []rune(r)
+		if len(runes) != 1 {
+			t.Errorf("%q is %d runes, want 1", r, len(runes))
+		}
+		if wide(runes[0]) {
+			t.Errorf("%q is drawn two columns wide, which will shear the frame", r)
+		}
+	}
+}
+
+// wide reports whether a rune occupies two terminal columns. The ranges are
+// the emoji and CJK blocks, which is where the problem lives.
+func wide(r rune) bool {
+	switch {
+	case r >= 0x1100 && r <= 0x115F, // hangul
+		r >= 0x2E80 && r <= 0xA4CF, // CJK
+		r >= 0xAC00 && r <= 0xD7A3, // hangul syllables
+		r >= 0xF900 && r <= 0xFAFF, // CJK compatibility
+		r >= 0xFE30 && r <= 0xFE6F,
+		r >= 0xFF00 && r <= 0xFF60,   // fullwidth forms
+		r >= 0x1F300 && r <= 0x1FAFF, // emoji
+		r >= 0x1F900 && r <= 0x1F9FF:
+		return true
+	}
+	return false
+}
+
+// stripEscapes measures a line as it appears rather than as it is written.
+func stripEscapes(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == 0x1b {
+			for i < len(s) && s[i] != 'm' {
+				i++
+			}
+			continue
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
 }
 
 // Redrawing has to step back over exactly what it wrote, or the list walks down

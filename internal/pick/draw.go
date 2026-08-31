@@ -14,49 +14,106 @@ const (
 	clearLine  = "\x1b[2K"
 	lineUp     = "\x1b[1A"
 
-	dim      = "\x1b[2m"
-	bold     = "\x1b[1m"
-	reversed = "\x1b[7m"
-	reset    = "\x1b[0m"
+	dim   = "\x1b[2m"
+	bold  = "\x1b[1m"
+	reset = "\x1b[0m"
+
+	// The frame takes the olive the mark ends on, so the two belong together.
+	// The selected row turns that colour into its ground.
+	frame    = "\x1b[38;2;134;154;72m"
+	onGround = "\x1b[48;2;134;154;72m\x1b[38;2;24;28;16m\x1b[1m"
+	onDetail = "\x1b[48;2;134;154;72m\x1b[38;2;48;56;28m"
 )
+
+// The pieces the frame is built from.
+//
+// Every one is a single column wide in every terminal, which emoji are not:
+// most render double width, a few render single, and terminals disagree about
+// which. That difference shears the right hand edge of a frame, and a picker
+// that looks broken on someone else's machine is worse than a plain one that
+// always lines up. These carry the same meaning without the risk.
+const (
+	cornerTL   = "╭"
+	cornerTR   = "╮"
+	cornerBL   = "╰"
+	cornerBR   = "╯"
+	horizontal = "─"
+	bar        = "│"
+
+	// bulletOn and bulletOff stand in for a radio button.
+	bulletOn  = "◉"
+	bulletOff = "○"
+)
+
+// labelWidth is the column the details line up against.
+const labelWidth = 22
+
+// hint sits below the frame, with a blank line between them.
+const hint = "↑↓ move    ↵ choose    esc cancel"
 
 // draw renders the list and returns how many lines it used, so the next pass
 // can rewrite exactly those and nothing else.
-func draw(out io.Writer, title string, items []Item, selected, width, previous int) int {
+func draw(out io.Writer, title string, items []Item, selected, detail, previous int) int {
 	if previous > 0 {
 		// Step back over what was drawn last time and overwrite it. Redrawing
 		// in place keeps the list from scrolling away as the user moves.
 		fmt.Fprint(out, strings.Repeat(lineUp+clearLine, previous))
 	}
 
+	inner := labelWidth + detail + 7
 	lines := 0
+
 	if title != "" {
-		fmt.Fprintf(out, "%s%s%s\n", bold, title, reset)
-		lines++
+		fmt.Fprintf(out, "  %s%s%s\n\n", bold, title, reset)
+		lines += 2
 	}
+
+	fmt.Fprintf(out, "  %s%s%s%s%s\n", frame, cornerTL, strings.Repeat(horizontal, inner), cornerTR, reset)
+	lines++
 
 	for i, it := range items {
-		marker := "  "
-		style, end := "", ""
-		if i == selected {
-			marker = "> "
-			style, end = reversed, reset
-		}
-		detail := it.Detail
-		if detail != "" {
-			detail = fmt.Sprintf("%s%*s%s", dim, width, detail, reset)
-			if i == selected {
-				// Reversed text with dim inside it renders unevenly across
-				// terminals, so the highlighted row keeps one style throughout.
-				detail = fmt.Sprintf("%*s", width, it.Detail)
-			}
-		}
-		fmt.Fprintf(out, "%s%s%-24s %s%s\n", style, marker, it.Label, detail, end)
+		fmt.Fprintf(out, "  %s\n", row(it, i == selected, detail, inner))
 		lines++
 	}
 
-	fmt.Fprintf(out, "%sarrows to move, enter to choose, esc to cancel%s\n", dim, reset)
+	fmt.Fprintf(out, "  %s%s%s%s%s\n\n", frame, cornerBL, strings.Repeat(horizontal, inner), cornerBR, reset)
+	lines += 2
+
+	fmt.Fprintf(out, "  %s%s%s\n", dim, hint, reset)
 	return lines + 1
+}
+
+// row draws one item between the frame's edges.
+//
+// The selected row is filled rather than merely marked, so it is obvious at a
+// glance which one enter would take.
+func row(it Item, selected bool, detail, inner int) string {
+	bullet, body := bulletOff, fmt.Sprintf("%-*s  %*s", labelWidth, it.Label, detail, it.Detail)
+	if selected {
+		bullet = bulletOn
+	}
+
+	// One space of breathing room inside each edge.
+	content := fmt.Sprintf(" %s  %s ", bullet, body)
+	content = fit(content, inner)
+
+	if selected {
+		return fmt.Sprintf("%s%s%s%s%s%s%s%s", frame, bar, reset, onGround, content, reset, frame, bar+reset)
+	}
+	return fmt.Sprintf("%s%s%s%s%s%s%s%s", frame, bar, reset, dim, content, reset, frame, bar+reset)
+}
+
+// fit pads or trims a row so every one is the same width and the frame's near
+// edge stays straight.
+func fit(s string, w int) string {
+	r := []rune(s)
+	switch {
+	case len(r) > w:
+		return string(r[:w-1]) + "…"
+	case len(r) < w:
+		return s + strings.Repeat(" ", w-len(r))
+	}
+	return s
 }
 
 // clear removes the list once a choice is made, so the chosen output starts on
@@ -71,7 +128,7 @@ func clear(out io.Writer, lines int) {
 func detailWidth(items []Item) int {
 	w := 0
 	for _, it := range items {
-		if n := len(it.Detail); n > w {
+		if n := len([]rune(it.Detail)); n > w {
 			w = n
 		}
 	}
