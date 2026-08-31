@@ -10,10 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/nickelsec/bough/internal/agent"
 	"github.com/nickelsec/bough/internal/agent/claude"
 	"github.com/nickelsec/bough/internal/graph"
+	"github.com/nickelsec/bough/internal/pick"
 )
 
 // version is set at build time. Untagged builds say so.
@@ -62,7 +64,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return writeList(stdout, src, projects)
 	}
 
-	target, err := pick(projects, name)
+	target, err := choose(projects, name, stderr)
 	if err != nil {
 		return err
 	}
@@ -123,21 +125,20 @@ func splitArgs(args []string) (name string, flags []string) {
 // valueFlags are the flags that take a separate value.
 var valueFlags = map[string]bool{"root": true, "o": true}
 
-// pick chooses which project to read.
+// choose decides which project to read.
 //
-// With no argument it uses the current directory, which is the common case:
-// someone runs this inside the project they have been working on.
-func pick(projects []agent.Project, arg string) (agent.Project, error) {
+// Running inside a project reads that one, since that is the common case and
+// asking would be a pointless step. Otherwise the projects are offered as a
+// list to move through, because arriving at an error telling you to run
+// --list is a poor way to meet a tool for the first time.
+func choose(projects []agent.Project, arg string, out io.Writer) (agent.Project, error) {
 	if arg == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return agent.Project{}, err
+		if cwd, err := os.Getwd(); err == nil {
+			if p, ok := byPath(projects, cwd); ok {
+				return p, nil
+			}
 		}
-		if p, ok := byPath(projects, cwd); ok {
-			return p, nil
-		}
-		return agent.Project{}, fmt.Errorf(
-			"no history for %s; run with a project name, or --list to see what is there", cwd)
+		return offer(projects)
 	}
 
 	if p, ok := byPath(projects, arg); ok {
@@ -161,6 +162,59 @@ func pick(projects []agent.Project, arg string) (agent.Project, error) {
 			names = append(names, m.Name)
 		}
 		return agent.Project{}, fmt.Errorf("%q matches several projects: %s", arg, strings.Join(names, ", "))
+	}
+}
+
+// offer asks which project to read.
+func offer(projects []agent.Project) (agent.Project, error) {
+	items := make([]pick.Item, len(projects))
+	for i, p := range projects {
+		items[i] = pick.Item{Label: p.Name, Detail: describe(p)}
+	}
+
+	i, err := pick.Choose("Which project?", items)
+	if errors.Is(err, pick.ErrCancelled) {
+		// Backing out is a decision, not a failure.
+		os.Exit(0)
+	}
+	if err != nil {
+		return agent.Project{}, err
+	}
+	return projects[i], nil
+}
+
+// describe is the dimmer text beside a project name, enough to tell which one
+// is wanted without reading any of the history.
+func describe(p agent.Project) string {
+	size := ""
+	switch {
+	case p.Bytes >= 1<<20:
+		size = fmt.Sprintf("%d MB", p.Bytes>>20)
+	case p.Bytes > 0:
+		size = fmt.Sprintf("%d KB", p.Bytes>>10)
+	}
+	if p.LastWorked.IsZero() {
+		return size
+	}
+	return fmt.Sprintf("%s, %s", size, ago(p.LastWorked))
+}
+
+// ago says how long ago something happened, the way a person would.
+func ago(t time.Time) string {
+	d := time.Since(t)
+	switch {
+	case d < time.Hour:
+		return "just now"
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%d hours ago", int(d.Hours()))
+	case d < 48*time.Hour:
+		return "yesterday"
+	case d < 14*24*time.Hour:
+		return fmt.Sprintf("%d days ago", int(d.Hours()/24))
+	case d < 60*24*time.Hour:
+		return fmt.Sprintf("%d weeks ago", int(d.Hours()/24/7))
+	default:
+		return t.Format("Jan 2006")
 	}
 }
 

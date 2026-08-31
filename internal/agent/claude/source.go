@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/nickelsec/bough/internal/agent"
 )
@@ -74,11 +75,14 @@ func (s Source) Detect() ([]agent.Project, error) {
 			name = e.Name()
 		}
 
+		last, size := extent(transcripts)
 		projects = append(projects, agent.Project{
-			Name:   name,
-			Path:   path,
-			Source: "claude-code",
-			Ref:    dir,
+			Name:       name,
+			Path:       path,
+			Source:     "claude-code",
+			Ref:        dir,
+			LastWorked: last,
+			Bytes:      size,
 		})
 	}
 	sort.Slice(projects, func(i, j int) bool { return projects[i].Name < projects[j].Name })
@@ -145,6 +149,25 @@ func transcriptFiles(dir string) ([]string, error) {
 	}
 	sort.Strings(out)
 	return out, nil
+}
+
+// extent reports when a project was last worked on and how much history it
+// holds, taken from the files themselves so that listing projects does not
+// mean parsing them.
+func extent(files []string) (time.Time, int64) {
+	var last time.Time
+	var size int64
+	for _, fp := range files {
+		info, err := os.Stat(fp)
+		if err != nil {
+			continue
+		}
+		size += info.Size()
+		if info.ModTime().After(last) {
+			last = info.ModTime()
+		}
+	}
+	return last, size
 }
 
 // workingDirectory recovers the real project path from the records.

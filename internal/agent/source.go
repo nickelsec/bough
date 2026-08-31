@@ -43,6 +43,16 @@ type Project struct {
 	// Ref locates the project inside the agent's own storage. Its meaning is
 	// private to the Source that produced it.
 	Ref string
+
+	// LastWorked is when the history was last added to. It comes from the
+	// files rather than from their contents, so listing projects stays cheap
+	// even on a large history.
+	LastWorked time.Time
+
+	// Bytes is roughly how much history there is, again from the files rather
+	// than their contents. It says which projects are substantial, not how
+	// many prompts they hold.
+	Bytes int64
 }
 
 // Session is one continuous stretch of work as the agent recorded it.
