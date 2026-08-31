@@ -5,80 +5,70 @@
  */
 
 :root {
-  /* Warm and dry, taken from the artwork rather than picked to be tasteful. */
-  --ground:  #f7f2e6;
-  --raised:  #ede4d0;
-  --sunk:    #e4d9c0;
-  --rule:    #d9cca9;
+  /* One light world, taken from the artwork rather than picked to be
+     tasteful. The mark is olive on cream with near-black outlines, and the
+     page is built from the same three things.
 
+     The neutrals lean warm on purpose. A grey mid-tone against a beige ground
+     reads as an oversight; these are browned so the text belongs to the same
+     surface it sits on. */
+  --ground:  #f6f1e4;
+  --raised:  #efe7d4;
+  --sunk:    #e5dac0;
+  --rule:    #d6c9a8;
+
+  /* Olive is the working colour, straight off the mark. */
+  --leaf:    #7c8a46;
+  --deep:    #4a5522;
+
+  /* Brown for the days, since a date is the sturdy part of the diagram. */
   --bark:    #6b4f2f;
   --bark-lo: #8a6a44;
-  --leaf:    #869a48;
-  --deep:    #4a5c2a;
 
   /* The one accent. It appears where the work was hard and nowhere else, so
-     it means something wherever it shows. */
-  --warm:    #c2703a;
+     it means something wherever it shows.
 
-  --ink:     #2e2a20;
-  --ink-mid: #6a6152;
-  --ink-low: #9a9080;
+     Two values for one colour, because it does two jobs. On the drawing it is
+     an outline and wants to stay bright. As words in the panel it has to be
+     read, and 3.5 to 1 is not enough for that, so the text version is taken
+     down to 4.7. */
+  --warm:      #be6a31;
+  --warm-text: #9c5122;
+
+  --ink:     #241f17;
+  --ink-mid: #6b6151;
+  /* Quiet, but still above 4.5 to 1. Figures along the foot and timestamps in
+     the panel are set in this, and they are there to be read. */
+  --ink-low: #6e6455;
 
   /* The grid has to be felt rather than seen. Past about a tenth it starts
      reading as graph paper and competes with the drawing. */
-  --grid:     rgba(107, 79, 47, 0.055);
-  --grid-big: rgba(107, 79, 47, 0.085);
+  --grid:     rgba(74, 85, 34, 0.05);
+  --grid-big: rgba(74, 85, 34, 0.08);
 
   --display: "Bough Display", Georgia, "Iowan Old Style", serif;
   --mono: "Bough Mono", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
 
-  --rail: 3rem;
   --drawer: 30rem;
   --ease: cubic-bezier(0.32, 0.72, 0.28, 1);
-}
 
-/* Dark is designed rather than inverted: the ground becomes the bark it was
-   drawn on, and the greens lift to stay legible against it. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --ground:  #17140e;
-    --raised:  #211d14;
-    --sunk:    #100e09;
-    --rule:    #362f22;
+/* The page carries its own hand cursor.
 
-    --bark:    #a07c4e;
-    --bark-lo: #6f573a;
-    --leaf:    #a3b862;
-    --deep:    #cbd89a;
-    --warm:    #dd8b4e;
+   Windows draws the standard grab cursor as a pale open glove, which on a
+   light beige ground is very nearly invisible: it reads as the pointer having
+   disappeared. This one is filled in the page's own cream and outlined in its
+   ink, so it stays visible on any ground it crosses. The system cursor is
+   still named after it, in case the image ever fails to load. */
+  --hand: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 26 26'%3E%3Cpath d='M7.5 13.2V5.9a1.25 1.25 0 0 1 2.5 0v5.2m0-5.2V4.2a1.25 1.25 0 0 1 2.5 0v6.8m0-6.8a1.25 1.25 0 0 1 2.5 0v6.8m0-4.8a1.25 1.25 0 0 1 2.5 0v7.1c0 3.2-2.1 5.3-5.3 5.3-2.6 0-4-.9-5.1-2.6l-2.4-3.8a1.35 1.35 0 0 1 2.1-1.6l1.2 1.3' fill='%23f6f1e4' stroke='%23241f17' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 9 6, grab;
+  --fist: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 26 26'%3E%3Cpath d='M7.5 12V9a1.15 1.15 0 0 1 2.3 0v2.2m0-2.2V7.6a1.15 1.15 0 0 1 2.3 0v3m0-2.2a1.15 1.15 0 0 1 2.3 0v2.4m0-1.4a1.15 1.15 0 0 1 2.3 0v4.2c0 3-1.9 5-4.9 5-2.4 0-3.8-.9-4.9-2.6l-2.2-3.5a1.25 1.25 0 0 1 1.9-1.5l1.1 1.3' fill='%23f6f1e4' stroke='%23241f17' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 9 8, grabbing;
 
-    --ink:     #ece3cd;
-    --ink-mid: #9a9078;
-    --ink-low: #6b6454;
+  /* Set on the svg by the renderer, since only it knows how long the spine
+     is. Declared here so the load sequence has a value if it ever is not. */
+  --run: 0;
 
-    --grid:     rgba(236, 227, 205, 0.045);
-    --grid-big: rgba(236, 227, 205, 0.07);
-  }
-}
-
-:root[data-theme="dark"] {
-  --ground:  #17140e;
-  --raised:  #211d14;
-  --sunk:    #100e09;
-  --rule:    #362f22;
-
-  --bark:    #a07c4e;
-  --bark-lo: #6f573a;
-  --leaf:    #a3b862;
-  --deep:    #cbd89a;
-  --warm:    #dd8b4e;
-
-  --ink:     #ece3cd;
-  --ink-mid: #9a9078;
-  --ink-low: #6b6454;
-
-  --grid:     rgba(236, 227, 205, 0.045);
-  --grid-big: rgba(236, 227, 205, 0.07);
+  /* The page is one light design rather than two. Saying so stops the browser
+     painting its own dark scrollbars and form controls over it. */
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -87,6 +77,15 @@ html, body {
   height: 100%;
   margin: 0;
   overflow: hidden;
+}
+
+/* The fonts are inlined into this stylesheet, so there is a moment on load
+   before any of it applies. Painting the ground and the cursor on html means
+   that moment looks like the page rather than like a blank white document
+   with a default arrow on it. */
+html {
+  background: var(--ground);
+  cursor: var(--hand);
 }
 
 body {
@@ -104,11 +103,17 @@ body {
   position: fixed;
   inset: 0;
   overflow: hidden;
-  cursor: grab;
+  cursor: var(--hand);
+  /* Dragging across the canvas panned and selected the dates at the same
+     time. The drawing is something you move around, not text you read off
+     the screen, so nothing in it takes a selection. The record in the panel
+     still does, since copying a prompt out is worth having. */
+  user-select: none;
+  -webkit-user-select: none;
   transition: right 320ms var(--ease);
 }
 
-#stage.dragging { cursor: grabbing; }
+#stage.dragging { cursor: var(--fist); }
 body.reading #stage { right: var(--drawer); }
 
 /* The grid moves with the drawing, so panning feels like crossing a surface
@@ -139,26 +144,35 @@ body.reading #stage { right: var(--drawer); }
   left: 1.6rem;
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.9rem;
   z-index: 20;
   pointer-events: none;
 }
 
+/* The wordmark, at a size that keeps the pixels crisp. */
 .mark img {
-  width: 28px;
-  height: 28px;
+  display: block;
+  width: 96px;
+  height: auto;
   image-rendering: pixelated;
+}
+
+/* A hairline between the mark and the project, so the two read as the
+   product and the thing it is looking at rather than one long title. */
+.mark-who {
+  padding-left: 0.9rem;
+  border-left: 1px solid var(--rule);
 }
 
 .mark h1 {
   margin: 0;
-  font: 600 1.15rem/1 var(--display);
+  font: 600 1.05rem/1.15 var(--display);
   letter-spacing: 0.01em;
   color: var(--ink);
 }
 
 .mark .where {
-  margin: 0.2rem 0 0;
+  margin: 0.15rem 0 0;
   font-size: 0.7rem;
   color: var(--ink-low);
 }
@@ -208,68 +222,125 @@ body.nothing .empty { display: flex; }
   }
 }
 
-/* ---- the tree ---------------------------------------------------------- */
+/* ---- the diagram ------------------------------------------------------- */
 
-/* Weight is meaning here: a thick limb is a heavy day. Letting the browser
-   scale the strokes would turn that into a hairline the moment the whole tree
-   is fitted to a window, so they hold their width at every zoom. */
+/* A diagram you would draw on paper: squares for the days, circles for the
+   prompts, and plain straight lines joining each one to its parent. */
+
+/* Weight is meaning here: a fat line is a heavy day. Letting the browser scale
+   the strokes would turn that into a hairline the moment the whole diagram is
+   fitted to a window, so they hold their width at every zoom. */
+#tree line,
 #tree path,
+#tree rect,
 #tree circle {
   vector-effect: non-scaling-stroke;
 }
 
-.trunk {
-  fill: none;
-  stroke: var(--bark);
-  stroke-width: 3;
-  stroke-linecap: round;
+/* The lines are all one colour at three weights, which is what makes it read
+   as a drawn diagram rather than a chart. The spine carries the most, a wire
+   to a task less, a twig to a single prompt least. */
+.spine {
+  stroke: var(--ink);
+  stroke-width: 1.6;
   opacity: 0.55;
 }
 
-.limb-stub {
-  fill: none;
-  stroke: var(--bark);
-  stroke-linecap: round;
+/* The line begins on a dot and ends in an arrow, so it reads as work that
+   started somewhere and is still going. */
+.spine-start {
+  fill: var(--ink);
+  stroke: none;
+  opacity: 0.55;
 }
 
-.limb-date {
+.spine-end {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.55;
+}
+
+.wire {
+  stroke: var(--ink);
+  stroke-width: 1.2;
+  opacity: 0.42;
+}
+
+.twig {
+  stroke: var(--ink);
+  stroke-width: 1;
+  opacity: 0.26;
+}
+
+/* The lines light with the nodes they carry, which is what turns three marks
+   into one path running from a prompt back to the day it happened on. */
+.wire, .twig {
+  transition: stroke 120ms var(--ease), stroke-width 120ms var(--ease),
+    opacity 120ms var(--ease);
+}
+
+.wire.lit {
+  stroke: var(--deep);
+  stroke-width: 2.4;
+  opacity: 1;
+}
+
+.twig.lit {
+  stroke: var(--deep);
+  stroke-width: 1.8;
+  opacity: 0.9;
+}
+
+.node {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  /* Filled with the ground rather than left open, so a line passing behind a
+     node does not show through it. */
+  fill: var(--ground);
+  transition: fill 120ms var(--ease), stroke 120ms var(--ease);
+}
+
+/* The three kinds are one family at three weights. A day is solid because it
+   is the thing you scan for; a task is outlined dark; a prompt is outlined
+   light. Filling every one of them beyond the day would turn the page into
+   confetti. */
+.day-node {
+  stroke-width: 2;
+  fill: var(--bark);
+  stroke: var(--bark);
+}
+
+.task-node {
+  stroke: var(--deep);
+  stroke-width: 1.8;
+}
+
+.prompt-node {
+  stroke: var(--leaf);
+  cursor: pointer;
+}
+
+/* Struggle is colour rather than a figure, since the score behind it has not
+   been checked against anyone's memory. */
+.task.hard .task-node { stroke: var(--warm); }
+.task.hard .prompt-node { stroke: var(--warm); }
+
+.task-node,
+.day-node { cursor: pointer; }
+
+.day-date {
   font: 600 13px var(--display);
-  fill: var(--ink-mid);
+  fill: var(--ink);
   paint-order: stroke;
   stroke: var(--ground);
   stroke-width: 4px;
   stroke-linejoin: round;
 }
 
-.branch-line {
-  fill: none;
-  stroke: var(--bark-lo);
-  stroke-linecap: round;
-  transition: stroke 120ms var(--ease);
-}
-
-.leaves circle {
-  fill: var(--leaf);
-  stroke: none;
-  transition: fill 120ms var(--ease);
-}
-
-/* Struggle is texture rather than a figure, since the score behind it has not
-   been checked against anyone's memory. */
-.branch.hard .branch-line { stroke: var(--warm); }
-.branch.hard .leaves circle { fill: var(--warm); opacity: 0.85; }
-
-/* A two pixel branch is hard to hit, so an invisible fat path takes the
-   pointer for it. */
-.hit {
-  fill: none;
-  stroke: transparent;
-  stroke-width: 22;
-  stroke-linecap: round;
-  cursor: pointer;
-}
-
-.branch-label {
+.task-label {
   font: 400 11px var(--mono);
   fill: var(--ink-mid);
   opacity: 0;
@@ -277,41 +348,234 @@ body.nothing .empty { display: flex; }
   transition: opacity 120ms var(--ease);
   paint-order: stroke;
   stroke: var(--ground);
-  stroke-width: 3px;
+  stroke-width: 3.5px;
   stroke-linejoin: round;
 }
 
-.branch:hover .branch-label,
-.branch:focus-visible .branch-label,
-.branch.open .branch-label { opacity: 1; }
+.task:hover .task-label,
+.task:focus-within .task-label,
+.task.chosen .task-label { opacity: 1; }
 
-.branch:hover .branch-line,
-.branch:focus-visible .branch-line { stroke: var(--deep); }
-.branch:hover .leaves circle { fill: var(--deep); }
+.task:hover .task-node,
+.task:focus-within .task-node { fill: var(--deep); stroke: var(--deep); }
+.prompt-node:hover { fill: var(--leaf); }
 
-.branch.open .branch-line { stroke: var(--deep); }
-.branch.open .leaves circle { fill: var(--deep); }
+/* What is being read is filled olive, so it is obvious at a glance which node
+   the panel belongs to. */
+/* Hovering lights the node and everything above it, so a prompt is always
+   read as part of the task and the day it belongs to. Each kind keeps its own
+   colour when lit rather than all turning one shade, which is what makes the
+   three levels still tell apart while highlighted. */
+.prompt-node.lit {
+  fill: var(--leaf);
+  stroke: var(--deep);
+  stroke-width: 2;
+}
 
-.branch:focus { outline: none; }
-.branch:focus-visible .branch-line { stroke-dasharray: 1 3; }
+/* Work scored as hard is drawn in the rust, and it keeps that colour when it
+   lights. Highlighting it green would throw away the one thing the drawing
+   says about it, which is that this part was difficult. */
+.prompt-node.lit.lit-hard {
+  fill: var(--warm);
+  stroke: var(--warm-text);
+}
 
-.vine {
+.task.lit.lit-hard > .task-node {
+  fill: var(--warm);
+  stroke: var(--warm-text);
+}
+
+.wire.lit.lit-hard,
+.twig.lit.lit-hard {
+  stroke: var(--warm-text);
+}
+
+.task.lit > .task-node {
+  fill: var(--deep);
+  stroke: var(--deep);
+  stroke-width: 2.2;
+}
+
+.task.lit .task-label { opacity: 1; }
+
+.day.lit > .day-node {
+  fill: var(--bark);
+  stroke: var(--ink);
+  stroke-width: 2.6;
+}
+
+.day.lit > .day-date { fill: var(--ink); }
+
+.node.chosen {
+  fill: var(--leaf);
+  stroke: var(--deep);
+  stroke-width: 2.5;
+}
+
+.task.chosen .task-node { fill: var(--leaf); stroke: var(--deep); }
+.day-node.chosen { fill: var(--deep); stroke: var(--deep); }
+
+.day:focus,
+.task:focus,
+.prompt-node:focus { outline: none; }
+
+/* Reaching a node by keyboard still has to show, but as the node's own
+   dashes rather than a rectangle drawn around everything under it. */
+.day:focus-visible .day-node,
+.task:focus-visible .task-node,
+.prompt-node:focus-visible { stroke-dasharray: 2 2; }
+
+/* A note about the work rather than part of it, so it stays dashed. Faint
+   enough and it cannot be followed from one end to the other, which is the
+   only thing it is for. */
+.link {
   fill: none;
-  stroke: var(--bark-lo);
-  stroke-linecap: round;
-  opacity: 0.28;
-  stroke-dasharray: 2 5;
+  stroke: var(--bark);
+  stroke-width: 1.4;
+  opacity: 0.62;
+  stroke-dasharray: 4 4;
+  transition: opacity 120ms var(--ease), stroke-width 120ms var(--ease);
+}
+
+/* A link lights with the days it joins, so a thread picked up weeks later is
+   visible as one thing. */
+.link.lit {
+  opacity: 1;
+  stroke-width: 2.2;
+  stroke: var(--warm);
 }
 
 /* Filtered work fades rather than leaving, so what is hidden still reads
    against the whole. */
-.branch.faded,
-.limb.faded { opacity: 0.12; }
-.branch.faded .hit { pointer-events: none; }
-.branch, .limb { transition: opacity 160ms var(--ease); }
+.task.faded,
+.day.faded { opacity: 0.12; }
+.task.faded .task-node,
+.task.faded .prompt-node { pointer-events: none; }
+.task, .day { transition: opacity 160ms var(--ease); }
+
+/* ---- the one bit of motion --------------------------------------------- */
+
+/* The spine draws across, then the work appears along it. It happens once, on
+   load, and says the diagram was grown rather than printed. Everything after
+   this is a 120ms hover. */
+@keyframes spine-in {
+  from { stroke-dashoffset: var(--run); }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes settle {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+body.growing .spine {
+  stroke-dasharray: var(--run);
+  animation: spine-in 620ms var(--ease) forwards;
+}
+
+body.growing .wires,
+body.growing .links,
+body.growing .day {
+  opacity: 0;
+  animation: settle 320ms var(--ease) forwards;
+  animation-delay: 380ms;
+}
+
+/* A reader who has asked for less motion gets the finished diagram. */
+@media (prefers-reduced-motion: reduce) {
+  body.growing .spine { stroke-dasharray: none; animation: none; }
+  body.growing .wires,
+  body.growing .links,
+  body.growing .day { opacity: 1; animation: none; }
+}
+
+/* ---- the note beside a node -------------------------------------------- */
+
+/* Clicking a node puts a small note next to it, which answers "what is this"
+   without making anyone read the panel. */
+#pop {
+  position: fixed;
+  z-index: 28;
+  /* Kept narrow and short by trimming what goes in it, rather than by
+     clipping, which cut words in half at the bottom edge. A note that stays
+     small is a note that can always sit beside its node. */
+  width: 19rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 7px;
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  box-shadow: 0 6px 22px rgba(36, 31, 23, 0.15);
+  /* It follows the pointer around, so it must never be under it. A note that
+     can be hovered flickers as it steals the pointer from the node that
+     summoned it. */
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Task labels are cut from real prompts, so they carry file paths, urls and
+   long identifiers with nowhere obvious to break. Everything in the note
+   wraps, including inside a word when there is no other option, or the text
+   runs straight out of the box. */
+#pop p,
+#pop time,
+#pop span {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+/* One row per level: the node, then what it is part of. The rows above are
+   quieter and divided off, so the note reads as context rather than as three
+   things of equal weight. */
+/* One quiet line naming the task a prompt came from, so the note answers
+   "what was this part of" without becoming a second panel. */
+.pop-from {
+  margin: 0.45rem 0 0;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--ink-mid);
+}
+
+.pop-kind {
+  display: inline;
+  margin-right: 0.4rem;
+  white-space: nowrap;
+  font-size: 0.62rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-low);
+}
+
+.pop-when {
+  margin: 0;
+  font-size: 0.67rem;
+  color: var(--ink-low);
+  font-variant-numeric: tabular-nums;
+}
+
+.pop-title {
+  margin: 0 0 0.2rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.pop-text {
+  margin: 0.3rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
 
 /* ---- the rail ---------------------------------------------------------- */
 
+/* Three icons, and one card whose contents change with the tab. Four panels
+   each opening in a slightly different place made the rail feel unsettled,
+   and the panels sat so close to the strip that the two read as one crowded
+   object. */
 .rail {
   position: fixed;
   right: 1.1rem;
@@ -319,25 +583,35 @@ body.nothing .empty { display: flex; }
   transform: translateY(-50%);
   z-index: 30;
   display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  padding: 0.4rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--raised) 86%, transparent);
-  border: 1px solid var(--rule);
-  backdrop-filter: blur(8px);
+  align-items: center;
+  gap: 0.4rem;
   transition: right 320ms var(--ease);
 }
 
 body.reading .rail { right: calc(var(--drawer) + 1.1rem); }
 
-.rail-item { position: relative; }
+/* The card sits to the left of the strip, so the strip stays put whether it
+   is open or closed. */
+.rail { flex-direction: row-reverse; }
+
+.rail-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--raised) 88%, transparent);
+  border: 1px solid var(--rule);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 18px rgba(36, 31, 23, 0.08);
+}
 
 .rail-btn {
+  position: relative;
   display: grid;
   place-items: center;
-  width: 2.2rem;
-  height: 2.2rem;
+  width: 2.3rem;
+  height: 2.3rem;
   padding: 0;
   border: 0;
   border-radius: 999px;
@@ -349,7 +623,7 @@ body.reading .rail { right: calc(var(--drawer) + 1.1rem); }
 
 .rail-btn:hover { background: var(--sunk); color: var(--ink); }
 .rail-btn:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
-.rail-item.open .rail-btn { background: var(--leaf); color: var(--ground); }
+.rail-btn[aria-selected="true"] { background: var(--leaf); color: var(--ground); }
 
 .rail-btn svg {
   width: 18px;
@@ -361,93 +635,309 @@ body.reading .rail { right: calc(var(--drawer) + 1.1rem); }
   stroke-linejoin: round;
 }
 
-/* The controls stay out of the way until asked for, which is what keeps the
-   rail from becoming a panel the tree has to share the page with. */
-.rail-panel {
+/* A filter left on in a closed panel would otherwise be invisible. */
+.dot {
   position: absolute;
-  right: calc(100% + 0.6rem);
-  top: 50%;
-  transform: translateY(-50%) scale(0.96);
-  transform-origin: right center;
-  width: 15rem;
-  padding: 0.85rem 0.95rem;
-  border-radius: 10px;
+  top: 0.3rem;
+  right: 0.3rem;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--warm);
+  border: 1.5px solid var(--raised);
+}
+
+.rail-btn[aria-selected="true"] .dot { border-color: var(--leaf); }
+
+.rail-card {
+  width: 17.5rem;
+  padding: 1rem 1.1rem 0.9rem;
+  border-radius: 12px;
   background: var(--raised);
   border: 1px solid var(--rule);
-  box-shadow: 0 8px 30px rgba(46, 42, 32, 0.14);
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 140ms var(--ease), transform 140ms var(--ease), visibility 140ms;
+  box-shadow: 0 10px 34px rgba(36, 31, 23, 0.16);
 }
 
-.rail-item.open .rail-panel {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(-50%) scale(1);
+.rail-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.85rem -0.35rem;
 }
 
-.rail-panel label {
+.rail-body h2 {
+  flex: 1;
+  margin: 0;
+  font: 600 0.95rem/1.3 var(--display);
+  color: var(--ink);
+}
+
+.rail-back {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  flex: none;
+  padding: 0;
+  color: var(--ink-mid);
+  background: none;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 120ms var(--ease), color 120ms var(--ease);
+}
+
+.rail-back svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rail-back:hover { background: var(--sunk); color: var(--ink); }
+
+/* Clears this filter and nothing else, which is what a button sitting inside
+   one panel ought to do. */
+.rail-reset {
+  flex: none;
+  padding: 0.2rem 0.5rem;
+  font: 500 0.68rem var(--mono);
+  color: var(--ink-mid);
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 120ms var(--ease), color 120ms var(--ease);
+}
+
+.rail-reset:hover { color: var(--warm-text); background: var(--sunk); }
+
+.rail-back:focus-visible,
+.rail-reset:focus-visible { outline: 2px solid var(--leaf); outline-offset: 1px; }
+
+.field { margin-bottom: 0.7rem; }
+.field:last-of-type { margin-bottom: 0; }
+
+.field label {
   display: block;
   margin-bottom: 0.3rem;
-  font-size: 0.7rem;
-  letter-spacing: 0.06em;
+  font-size: 0.66rem;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--ink-low);
 }
 
-.rail-panel label.check {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0;
-  font-size: 0.8rem;
-  text-transform: none;
-  letter-spacing: 0;
-  color: var(--ink);
-  cursor: pointer;
-}
-
-.rail-panel input[type="search"],
-.rail-panel input[type="date"] {
+.rail-card input[type="search"],
+.rail-card input[type="date"] {
   width: 100%;
-  margin-bottom: 0.6rem;
-  padding: 0.35rem 0.5rem;
+  padding: 0.45rem 0.55rem;
   font: inherit;
   color: var(--ink);
   background: var(--ground);
   border: 1px solid var(--rule);
-  border-radius: 5px;
+  border-radius: 6px;
 }
 
-.rail-panel input:focus-visible { outline: 2px solid var(--leaf); outline-offset: 1px; }
-.rail-panel input[type="checkbox"] { width: auto; margin: 0; accent-color: var(--leaf); }
+/* Chrome and Safari draw their own clear cross inside a search field. The
+   panel has a Clear of its own, so two of them is one too many. */
+.rail-card input[type="search"]::-webkit-search-cancel-button,
+.rail-card input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.rail-card input:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 1px;
+}
 
 .rail-note {
-  margin: 0.5rem 0 0;
+  margin: 0.6rem 0 0;
   font-size: 0.7rem;
-  line-height: 1.45;
+  line-height: 1.5;
   color: var(--ink-low);
 }
 
 /* The struggle score is a guess and the interface says so, rather than
    presenting it with the confidence of a count. */
-.rail-note em {
+.rail-note em,
+.switch small em {
   font-style: normal;
-  color: var(--warm);
+  color: var(--warm-text);
 }
 
-.rail-clear {
-  margin-top: 0.2rem;
-  padding: 0.35rem 0;
-  font: 400 0.68rem var(--mono);
+/* The dates wait for Apply, because a half typed year is a filter that hides
+   everything while you are still typing it. */
+.rail-actions {
+  display: flex;
+  gap: 0.45rem;
+  margin-top: 0.9rem;
+}
+
+.rail-actions button {
+  flex: 1;
+  padding: 0.45rem 0;
+  font: 500 0.74rem var(--mono);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 120ms var(--ease), color 120ms var(--ease);
+}
+
+.solid {
+  color: var(--ground);
+  background: var(--leaf);
+  border: 1px solid var(--leaf);
+}
+
+.solid:hover { background: var(--deep); border-color: var(--deep); }
+
+.ghost {
   color: var(--ink-mid);
+  background: none;
+  border: 1px solid var(--rule);
+}
+
+.ghost:hover { color: var(--ink); background: var(--sunk); }
+
+.rail-actions button:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 2px;
+}
+
+/* On and off, rather than a checkbox. These take effect the moment they are
+   touched, and a checkbox in a floating card reads as a form to fill in. */
+.switch {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.6rem 0;
+  text-align: left;
   background: none;
   border: 0;
   border-top: 1px solid var(--rule);
   cursor: pointer;
+  color: var(--ink);
+  font: inherit;
 }
 
-.rail-clear:hover { color: var(--warm); }
+.switch:first-of-type { border-top: 0; padding-top: 0; }
+
+.switch-text {
+  flex: 1;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.switch small {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  color: var(--ink-low);
+}
+
+.track {
+  flex: none;
+  position: relative;
+  width: 2.1rem;
+  height: 1.15rem;
+  margin-top: 0.1rem;
+  border-radius: 999px;
+  background: var(--sunk);
+  border: 1px solid var(--rule);
+  transition: background 140ms var(--ease), border-color 140ms var(--ease);
+}
+
+.knob {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: calc(1.15rem - 4px);
+  height: calc(1.15rem - 4px);
+  border-radius: 999px;
+  background: var(--ground);
+  box-shadow: 0 1px 3px rgba(36, 31, 23, 0.25);
+  transition: transform 140ms var(--ease);
+}
+
+.switch[aria-checked="true"] .track {
+  background: var(--leaf);
+  border-color: var(--leaf);
+}
+
+.switch[aria-checked="true"] .knob { transform: translateX(0.95rem); }
+.switch:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+.switch:hover .track { border-color: var(--ink-low); }
+
+/* ---- the zoom bar ------------------------------------------------------ */
+
+/* Small enough to ignore while looking at the diagram, and there when you
+   have zoomed in and want back out. The reading of the current scale is the
+   button that resets it, since that is the only thing you want from it once
+   you have noticed the number. */
+.zoom {
+  position: fixed;
+  right: 1.1rem;
+  bottom: 1.1rem;
+  z-index: 26;
+  display: flex;
+  align-items: center;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--raised) 86%, transparent);
+  border: 1px solid var(--rule);
+  backdrop-filter: blur(8px);
+  transition: right 320ms var(--ease);
+}
+
+body.reading .zoom { right: calc(var(--drawer) + 1.1rem); }
+
+.zoom-btn {
+  display: grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-mid);
+  cursor: pointer;
+  transition: background 120ms var(--ease), color 120ms var(--ease);
+}
+
+.zoom-btn:hover { background: var(--sunk); color: var(--ink); }
+.zoom-btn:disabled { opacity: 0.35; cursor: default; background: none; }
+
+.zoom-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.zoom-level {
+  min-width: 3.4rem;
+  padding: 0.2rem 0.1rem;
+  font: 400 0.72rem var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-mid);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transition: color 120ms var(--ease);
+}
+
+.zoom-level:hover { color: var(--warm-text); }
+
+.zoom-btn:focus-visible,
+.zoom-level:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
 
 /* ---- the reading drawer ------------------------------------------------ */
 
@@ -469,6 +959,42 @@ body.reading .rail { right: calc(var(--drawer) + 1.1rem); }
 
 body.reading #reader { transform: none; }
 
+/* Clicking the canvas closes the drawer too, but a way out you can see beats
+   one you have to know about. */
+#reader-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 1.4rem -0.45rem;
+  padding: 0.4rem 0.7rem 0.4rem 0.45rem;
+  font: 500 0.74rem var(--mono);
+  color: var(--ink-mid);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 120ms var(--ease), color 120ms var(--ease),
+    border-color 120ms var(--ease);
+}
+
+#reader-close svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#reader-close:hover {
+  color: var(--ink);
+  background: var(--sunk);
+  border-color: var(--rule);
+}
+
+#reader-close:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+
 .reader-head { margin-bottom: 1.2rem; }
 
 .reader-head h2 {
@@ -486,7 +1012,7 @@ body.reading #reader { transform: none; }
   font-variant-numeric: tabular-nums;
 }
 
-.reader-churn { margin-top: 0.3rem; color: var(--warm); }
+.reader-churn { margin-top: 0.3rem; color: var(--warm-text); }
 
 .turns { margin: 0; padding: 0; list-style: none; }
 
@@ -522,4 +1048,16 @@ body.reading #reader { transform: none; }
   :root { --drawer: 100vw; }
   body.reading #stage { right: 0; }
   body.reading .rail { right: -6rem; }
+}
+
+/* The prompt that was clicked is marked in the panel, so the diagram and the
+   record never disagree about what is being looked at. */
+/* Lighter than the pressed states elsewhere, because unlike them this one
+   has small text sitting on it that still has to be read. */
+.turn.lit {
+  margin: 0 -0.7rem;
+  padding: 0.9rem 0.7rem;
+  border-radius: 6px;
+  background: #ece4d1;
+  box-shadow: inset 2px 0 0 var(--leaf);
 }
