@@ -1,0 +1,199 @@
+// Command bough shows the shape of the work in a project's AI coding history.
+package main
+
+import (
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/nickelsec/bough/internal/agent"
+	"github.com/nickelsec/bough/internal/agent/claude"
+	"github.com/nickelsec/bough/internal/graph"
+)
+
+// version is set at build time. Untagged builds say so.
+var version = "dev"
+
+func main() {
+	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
+		fmt.Fprintln(os.Stderr, "bough:", err)
+		os.Exit(1)
+	}
+}
+
+func run(args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("bough", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+
+	var (
+		asJSON  = fs.Bool("json", false, "write the graph as JSON instead of text")
+		list    = fs.Bool("list", false, "list the projects with history and stop")
+		verbose = fs.Bool("v", false, "include every prompt in the text output")
+		root    = fs.String("root", "", "read history from here instead of the usual location")
+		out     = fs.String("o", "", "write to this file instead of standard output")
+	)
+	fs.Usage = func() {
+		fmt.Fprint(stderr, usage)
+		fs.PrintDefaults()
+	}
+	// Flags are accepted before or after the project name. The standard parser
+	// stops at the first argument that is not a flag, which would silently
+	// ignore "bough taggity --json" and print the wrong thing.
+	name, flags := splitArgs(args)
+	if err := fs.Parse(flags); err != nil {
+		return err
+	}
+
+	src := claude.Source{Root: *root}
+	projects, err := src.Detect()
+	if err != nil {
+		return fmt.Errorf("reading history: %w", err)
+	}
+	if len(projects) == 0 {
+		return errors.New("no Claude Code history found; looked in ~/.claude/projects")
+	}
+
+	if *list {
+		return writeList(stdout, src, projects)
+	}
+
+	target, err := pick(projects, name)
+	if err != nil {
+		return err
+	}
+
+	sessions, err := src.Sessions(target)
+	if err != nil {
+		// Some transcripts may be unreadable while others are fine, so say so
+		// and carry on with what did load.
+		fmt.Fprintf(stderr, "bough: some history could not be read: %v\n", err)
+	}
+	if len(sessions) == 0 {
+		return fmt.Errorf("no readable history for %s", target.Name)
+	}
+
+	opt := graph.DefaultOptions()
+	opt.Tool = version
+	g := graph.Build(target, sessions, opt)
+
+	w := stdout
+	if *out != "" {
+		f, err := os.Create(*out)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		w = f
+	}
+
+	if *asJSON {
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		return enc.Encode(g)
+	}
+	return graph.WriteText(w, g, *verbose)
+}
+
+// splitArgs separates the project name from the flags, so either order works.
+func splitArgs(args []string) (name string, flags []string) {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if strings.HasPrefix(a, "-") {
+			flags = append(flags, a)
+			// A flag that takes a value and was written with a space needs its
+			// value kept alongside it.
+			if valueFlags[strings.TrimLeft(a, "-")] && i+1 < len(args) {
+				i++
+				flags = append(flags, args[i])
+			}
+			continue
+		}
+		if name == "" {
+			name = a
+		}
+	}
+	return name, flags
+}
+
+// valueFlags are the flags that take a separate value.
+var valueFlags = map[string]bool{"root": true, "o": true}
+
+// pick chooses which project to read.
+//
+// With no argument it uses the current directory, which is the common case:
+// someone runs this inside the project they have been working on.
+func pick(projects []agent.Project, arg string) (agent.Project, error) {
+	if arg == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return agent.Project{}, err
+		}
+		if p, ok := byPath(projects, cwd); ok {
+			return p, nil
+		}
+		return agent.Project{}, fmt.Errorf(
+			"no history for %s; run with a project name, or --list to see what is there", cwd)
+	}
+
+	if p, ok := byPath(projects, arg); ok {
+		return p, nil
+	}
+
+	var matches []agent.Project
+	for _, p := range projects {
+		if strings.Contains(strings.ToLower(p.Name), strings.ToLower(arg)) {
+			matches = append(matches, p)
+		}
+	}
+	switch len(matches) {
+	case 1:
+		return matches[0], nil
+	case 0:
+		return agent.Project{}, fmt.Errorf("no project matching %q; try --list", arg)
+	default:
+		var names []string
+		for _, m := range matches {
+			names = append(names, m.Name)
+		}
+		return agent.Project{}, fmt.Errorf("%q matches several projects: %s", arg, strings.Join(names, ", "))
+	}
+}
+
+// byPath matches a project by its working directory, allowing for the drive
+// letter case drifting between records on Windows.
+func byPath(projects []agent.Project, path string) (agent.Project, bool) {
+	want := strings.ToLower(filepath.Clean(path))
+	for _, p := range projects {
+		if strings.ToLower(filepath.Clean(p.Path)) == want {
+			return p, true
+		}
+	}
+	return agent.Project{}, false
+}
+
+func writeList(w io.Writer, src agent.Source, projects []agent.Project) error {
+	for _, p := range projects {
+		sessions, _ := src.Sessions(p)
+		turns := 0
+		for _, s := range sessions {
+			turns += len(s.Turns)
+		}
+		fmt.Fprintf(w, "%-24s %-40s %d prompts\n", p.Name, p.Path, turns)
+	}
+	return nil
+}
+
+const usage = `bough shows the shape of the work in a project's AI coding history.
+
+  bough              read the project in the current directory
+  bough taggity      read a project by name
+  bough --list       show which projects have history
+  bough --json       write the graph as JSON
+
+Options:
+`
