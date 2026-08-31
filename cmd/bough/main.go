@@ -127,17 +127,13 @@ var valueFlags = map[string]bool{"root": true, "o": true}
 
 // choose decides which project to read.
 //
-// Running inside a project reads that one, since that is the common case and
-// asking would be a pointless step. Otherwise the projects are offered as a
-// list to move through, because arriving at an error telling you to run
-// --list is a poor way to meet a tool for the first time.
+// Naming a project reads that one. Otherwise the list is always offered, even
+// when the current directory has history of its own, so that opening bough
+// always shows what is there rather than jumping straight into one project.
+// The project you are standing in is marked and put first, so the common case
+// is still a single keypress.
 func choose(projects []agent.Project, arg string, out io.Writer) (agent.Project, error) {
 	if arg == "" {
-		if cwd, err := os.Getwd(); err == nil {
-			if p, ok := byPath(projects, cwd); ok {
-				return p, nil
-			}
-		}
 		return offer(projects)
 	}
 
@@ -165,11 +161,17 @@ func choose(projects []agent.Project, arg string, out io.Writer) (agent.Project,
 	}
 }
 
-// offer asks which project to read.
+// offer asks which project to read, with the one you are standing in first.
 func offer(projects []agent.Project) (agent.Project, error) {
+	projects, here := currentFirst(projects)
+
 	items := make([]pick.Item, len(projects))
 	for i, p := range projects {
-		items[i] = pick.Item{Label: p.Name, Detail: describe(p)}
+		label := p.Name
+		if i == 0 && here {
+			label += "  (here)"
+		}
+		items[i] = pick.Item{Label: label, Detail: describe(p)}
 	}
 
 	i, err := pick.Choose("Which project?", items)
@@ -181,6 +183,27 @@ func offer(projects []agent.Project) (agent.Project, error) {
 		return agent.Project{}, err
 	}
 	return projects[i], nil
+}
+
+// currentFirst moves the project matching the working directory to the front,
+// and reports whether one was found. The rest keep their order.
+func currentFirst(projects []agent.Project) ([]agent.Project, bool) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return projects, false
+	}
+	want := strings.ToLower(filepath.Clean(cwd))
+
+	for i, p := range projects {
+		if strings.ToLower(filepath.Clean(p.Path)) != want {
+			continue
+		}
+		ordered := make([]agent.Project, 0, len(projects))
+		ordered = append(ordered, p)
+		ordered = append(ordered, projects[:i]...)
+		return append(ordered, projects[i+1:]...), true
+	}
+	return projects, false
 }
 
 // describe is the dimmer text beside a project name, enough to tell which one

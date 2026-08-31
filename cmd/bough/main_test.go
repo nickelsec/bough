@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/nickelsec/bough/internal/agent"
 )
 
 // history writes a small transcript that looks like the real thing.
@@ -140,5 +142,64 @@ func TestWritesToAFile(t *testing.T) {
 	}
 	if out.Len() != 0 {
 		t.Errorf("nothing should go to the screen when writing to a file, got: %s", out.String())
+	}
+}
+
+func TestCurrentProjectComesFirstAndIsMarked(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	projects := []agent.Project{
+		{Name: "alpha", Path: "/somewhere/alpha"},
+		{Name: "here", Path: cwd},
+		{Name: "beta", Path: "/somewhere/beta"},
+	}
+
+	ordered, found := currentFirst(projects)
+	if !found {
+		t.Fatal("the working directory should have matched a project")
+	}
+	if ordered[0].Name != "here" {
+		t.Errorf("first is %q, want the project we are standing in", ordered[0].Name)
+	}
+	// The rest keep their order, so the list does not reshuffle around the move.
+	if ordered[1].Name != "alpha" || ordered[2].Name != "beta" {
+		t.Errorf("the other projects were reordered: %q, %q", ordered[1].Name, ordered[2].Name)
+	}
+	if len(ordered) != len(projects) {
+		t.Errorf("got %d projects, want %d", len(ordered), len(projects))
+	}
+}
+
+func TestNoMarkerWhenNotInsideAProject(t *testing.T) {
+	projects := []agent.Project{
+		{Name: "alpha", Path: "/nowhere/alpha"},
+		{Name: "beta", Path: "/nowhere/beta"},
+	}
+	ordered, found := currentFirst(projects)
+
+	if found {
+		t.Error("no project should have matched")
+	}
+	if ordered[0].Name != "alpha" {
+		t.Errorf("order changed when it should not have: %q first", ordered[0].Name)
+	}
+}
+
+// Naming a project still goes straight there. The list is for when nothing was
+// asked for.
+func TestNamingAProjectSkipsTheList(t *testing.T) {
+	root := history(t, "example")
+	var out, errs bytes.Buffer
+
+	if err := run([]string{"example", "--root", root}, &out, &errs); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(errs.String(), "Which project?") {
+		t.Error("naming a project should not ask which project")
+	}
+	if !strings.Contains(out.String(), "example") {
+		t.Errorf("expected the project's output, got:\n%s", out.String())
 	}
 }
