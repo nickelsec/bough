@@ -39,11 +39,7 @@ func ReadRecords(r io.Reader) ([]*Record, error) {
 			continue
 		}
 
-		var raw map[string]json.RawMessage
-		if err := json.Unmarshal(line, &raw); err != nil {
-			continue
-		}
-		rec := &Record{raw: raw}
+		rec := &Record{}
 		if err := json.Unmarshal(line, rec); err != nil {
 			continue
 		}
@@ -97,11 +93,6 @@ func merge(dst, src *Record) {
 	if src.Message != nil {
 		if dst.Message == nil || len(src.Message.Content.Blocks) > 0 || src.Message.Content.Text != "" {
 			dst.Message = src.Message
-		}
-	}
-	for k, v := range src.raw {
-		if _, ok := dst.raw[k]; !ok {
-			dst.raw[k] = v
 		}
 	}
 }

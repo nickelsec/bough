@@ -40,9 +40,6 @@ type Record struct {
 	IsSidechain bool `json:"isSidechain"`
 
 	Message *Message `json:"message"`
-
-	// raw keeps the original object so merging can carry fields we do not model.
-	raw map[string]json.RawMessage
 }
 
 // Message is the model-facing part of a record.

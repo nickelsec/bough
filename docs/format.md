@@ -122,9 +122,22 @@ clean ordering and a way to check integrity.
 It does not give you a tree. Every session was a single unbroken chain with no
 branch points. Rendering it as a hierarchy draws a straight line.
 
-The one place real branching exists is sub-agent runs, marked by
-`isSidechain: true`, with 1,078 such records here and 907 of them in a single
-session.
+Sub-agent runs are the one place real branching exists, but not where you might
+look for it. Counting `isSidechain: true` over the raw lines gives 1,078 records
+in this corpus. Every one of them is a replay duplicate: after collapsing on
+uuid, the count is zero. Anyone reading these files line by line will find
+sub-agent structure that is not there.
+
+What does survive is the call that started the work. Sub-agents are launched
+through a `Task` or `Agent` tool call whose input carries a `subagent_type` and
+a `description`, 19 of them here:
+
+    Explore   Research PDF redaction stack
+    Plan      Design Chaff architecture and milestones
+    Explore   Diagnose PDF text layer accuracy
+
+Those descriptions were written at the time, by the agent, about the work it was
+about to do. They are better labels than anything reconstructed afterwards.
 
 ## Fields that carry less than you would hope
 

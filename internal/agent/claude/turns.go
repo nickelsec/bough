@@ -57,6 +57,11 @@ type toolInput struct {
 	FilePath     string `json:"file_path"`
 	NotebookPath string `json:"notebook_path"`
 	Path         string `json:"path"`
+
+	// Sub-agent calls describe the work they were given, which is a label
+	// written at the time rather than one inferred afterwards.
+	SubagentType string `json:"subagent_type"`
+	Description  string `json:"description"`
 }
 
 // path returns whichever file argument the tool supplied.
@@ -74,6 +79,12 @@ func (t toolInput) path() string {
 // editingTools are the tools that change a file rather than just reading it.
 // Repeated edits to one file are the clearest sign of a struggle, so they are
 // tracked apart from reads.
+// delegatingTools hand work to a sub-agent.
+var delegatingTools = map[string]bool{
+	"Task":  true,
+	"Agent": true,
+}
+
 var editingTools = map[string]bool{
 	"Edit":         true,
 	"Write":        true,
@@ -118,9 +129,6 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 		if cur == nil || r.Message == nil {
 			continue
 		}
-		if r.IsSidechain {
-			cur.Sidechain++
-		}
 		for _, b := range r.Message.Content.Blocks {
 			switch b.Type {
 			case "tool_use":
@@ -131,6 +139,12 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 				var in toolInput
 				if err := json.Unmarshal(b.Input, &in); err != nil {
 					continue
+				}
+				if delegatingTools[b.Name] && in.Description != "" {
+					cur.Delegated = append(cur.Delegated, agent.Delegation{
+						Kind:        in.SubagentType,
+						Description: in.Description,
+					})
 				}
 				p := normalisePath(in.path())
 				if p == "" {

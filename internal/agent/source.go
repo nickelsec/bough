@@ -56,6 +56,16 @@ type Session struct {
 	Turns []Turn
 }
 
+// Delegation is a unit of work the agent handed to a sub-agent.
+type Delegation struct {
+	// Kind is the sort of sub-agent, for example "Explore" or "Plan".
+	Kind string
+
+	// Description is what the sub-agent was asked to do, in the words used at
+	// the time.
+	Description string
+}
+
 // Turn is one human prompt and everything the agent did in response.
 //
 // This is the unit every later stage works from. Anything agent-specific has
@@ -76,9 +86,10 @@ type Turn struct {
 	// Errors is how many tool calls came back as failures.
 	Errors int
 
-	// Sidechain is the number of sub-agent records this turn spawned. Sub-agent
-	// runs are the one place the record holds real branching.
-	Sidechain int
+	// Delegated is the sub-agent work this turn started. These are the one place
+	// the record holds real branching, and each carries a description written at
+	// the time, which makes it a better label than anything inferred later.
+	Delegated []Delegation
 
 	// SegmentHint marks a boundary the agent itself recorded, such as a context
 	// compaction. Free evidence, worth more than anything we infer.

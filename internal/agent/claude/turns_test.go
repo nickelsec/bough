@@ -163,3 +163,32 @@ func TestRealCorpusTurnCounts(t *testing.T) {
 	}
 	t.Logf("reference session: %d records, %d human turns", len(recs), len(turns))
 }
+
+// Sub-agent work carries a description written at the time, which is a better
+// label than anything that could be inferred from the prompts around it.
+func TestExtractTurnsCapturesDelegations(t *testing.T) {
+	lines := []string{
+		`{"uuid":"1","type":"user","promptId":"p1","message":{"role":"user","content":[{"type":"text","text":"research the options"}]}}`,
+		`{"uuid":"2","type":"assistant","message":{"role":"assistant","content":[` +
+			`{"type":"tool_use","name":"Task","input":{"subagent_type":"Explore","description":"Research PDF redaction stack"}},` +
+			`{"type":"tool_use","name":"Task","input":{"subagent_type":"Plan","description":"Design the architecture"}}]}}`,
+	}
+	recs, err := ReadRecords(strings.NewReader(strings.Join(lines, "\n")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	turns := ExtractTurns(recs)
+
+	if len(turns) != 1 {
+		t.Fatalf("got %d turns, want 1", len(turns))
+	}
+	if len(turns[0].Delegated) != 2 {
+		t.Fatalf("got %d delegations, want 2", len(turns[0].Delegated))
+	}
+	if turns[0].Delegated[0].Kind != "Explore" {
+		t.Errorf("kind = %q, want Explore", turns[0].Delegated[0].Kind)
+	}
+	if turns[0].Delegated[0].Description != "Research PDF redaction stack" {
+		t.Errorf("description = %q", turns[0].Delegated[0].Description)
+	}
+}
