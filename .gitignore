@@ -1,0 +1,14 @@
+# build output
+/boughs
+/boughs.exe
+/dist/
+
+# go
+*.test
+*.out
+
+# editors
+.idea/
+.vscode/
+*.swp
+.DS_Store
