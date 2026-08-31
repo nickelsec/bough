@@ -1,3 +1,3 @@
-module github.com/nickelsec/boughs
+module github.com/nickelsec/bough
 
 go 1.25.5

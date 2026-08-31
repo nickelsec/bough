@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nickelsec/boughs/internal/agent"
+	"github.com/nickelsec/bough/internal/agent"
 )
 
 // at builds a turn at a given minute offset, with optional files.

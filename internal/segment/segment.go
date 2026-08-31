@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nickelsec/boughs/internal/agent"
+	"github.com/nickelsec/bough/internal/agent"
 )
 
 // Reason records why a boundary was drawn. Keeping these makes the output

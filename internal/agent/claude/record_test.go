@@ -46,7 +46,7 @@ func TestContentAcceptsBothShapes(t *testing.T) {
 	}
 }
 
-// Fields boughs does not model must not break the parse, because the format
+// Fields bough does not model must not break the parse, because the format
 // gains and loses keys between Claude Code releases.
 func TestUnknownFieldsAreIgnored(t *testing.T) {
 	line := `{"uuid":"a","type":"user","somethingNew":{"nested":[1,2,3]},"alsoNew":42}`

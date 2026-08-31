@@ -1,4 +1,4 @@
-// Package agent defines the boundary between boughs and the coding agents whose
+// Package agent defines the boundary between bough and the coding agents whose
 // history it reads.
 //
 // Agents store their history in very different ways. Claude Code writes one
@@ -13,7 +13,7 @@ package agent
 
 import "time"
 
-// Source is one coding agent that boughs can read.
+// Source is one coding agent that bough can read.
 type Source interface {
 	// Name identifies the agent, for example "claude-code".
 	Name() string
@@ -49,7 +49,7 @@ type Project struct {
 //
 // Do not mistake this for a unit of work. On Claude Code a single session can
 // run for nine days and cover a dozen unrelated things, which is the whole
-// reason boughs has to segment from the inside.
+// reason bough has to segment from the inside.
 type Session struct {
 	ID    string
 	Title string // the agent's own label for the session, when it has one

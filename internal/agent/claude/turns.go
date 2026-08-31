@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/nickelsec/boughs/internal/agent"
+	"github.com/nickelsec/bough/internal/agent"
 )
 
 // synthetic matches prompts the harness injected rather than the user typing.

@@ -19,7 +19,7 @@ import (
 
 // Record is one line of a transcript.
 //
-// Only the fields boughs uses are named. Everything else is ignored on purpose,
+// Only the fields bough uses are named. Everything else is ignored on purpose,
 // because the format changes between Claude Code releases and unknown fields
 // should never be a parse failure.
 type Record struct {
