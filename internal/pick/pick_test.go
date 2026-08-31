@@ -17,9 +17,9 @@ func TestDrawShowsEveryRowAndOneHighlight(t *testing.T) {
 	lines := draw(&buf, "Which project?", sample, 1, detailWidth(sample), 0)
 
 	out := buf.String()
-	// Title, a blank line, the frame, the rows, the closing frame, a blank
-	// line and the hint.
-	if want := len(sample) + 6; lines != want {
+	// Title, a blank line, the frame, the rows with a spacer between each,
+	// the closing frame, a blank line and the hint.
+	if want := len(sample)*2 - 1 + 6; lines != want {
 		t.Errorf("used %d lines, want %d", lines, want)
 	}
 	for _, it := range sample {
@@ -52,8 +52,9 @@ func TestEveryRowMatchesTheBorderWidth(t *testing.T) {
 		}
 		widths = append(widths, len([]rune(plain)))
 	}
-	if len(widths) != len(sample)+2 {
-		t.Fatalf("found %d framed lines, want %d", len(widths), len(sample)+2)
+	// Every row, the spacer between each pair, and the two borders.
+	if want := len(sample)*2 - 1 + 2; len(widths) != want {
+		t.Fatalf("found %d framed lines, want %d", len(widths), want)
 	}
 	for i, w := range widths {
 		if w != widths[0] {
@@ -202,5 +203,89 @@ func TestChooseSkipsASingleOption(t *testing.T) {
 func TestChooseOnNothing(t *testing.T) {
 	if _, err := Choose("pick", nil); err == nil {
 		t.Error("expected an error when there is nothing to choose from")
+	}
+}
+
+// The two markers have to occupy the same space, or the filled one sits wider
+// than its neighbours and is clipped at the edge of its cell. They come from
+// the same block of characters for exactly that reason.
+func TestBothMarkersAreTheSameWidth(t *testing.T) {
+	on, off := []rune(bulletOn), []rune(bulletOff)
+	if len(on) != 1 || len(off) != 1 {
+		t.Fatalf("markers should be one rune each, got %d and %d", len(on), len(off))
+	}
+	if widthClass(on[0]) != widthClass(off[0]) {
+		t.Errorf("%q and %q are drawn at different widths, so the filled one will not line up",
+			bulletOn, bulletOff)
+	}
+}
+
+// widthClass groups a rune by how much room a terminal gives it. Characters
+// from the same block agree; characters from different blocks often do not.
+func widthClass(r rune) int {
+	switch {
+	case r >= 0x25A0 && r <= 0x25FF: // geometric shapes
+		return 1
+	case r >= 0x2500 && r <= 0x257F: // box drawing
+		return 2
+	case r >= 0x1F300: // emoji, always double width
+		return 3
+	}
+	return 0
+}
+
+// A name longer than the column is cut rather than pushing the frame open, and
+// the cut is marked so nobody mistakes it for the whole name.
+func TestLongNamesAreCutNotOverflowed(t *testing.T) {
+	long := strings.Repeat("long-", 30)
+	items := []Item{
+		{Label: long, Detail: "2 MB, just now"},
+		{Label: "short", Detail: "19 MB, 12 days ago"},
+	}
+
+	var buf bytes.Buffer
+	draw(&buf, "", items, 0, detailWidth(items), 0)
+
+	for _, line := range strings.Split(buf.String(), "\n") {
+		plain := stripEscapes(line)
+		if strings.TrimSpace(plain) == "" {
+			continue
+		}
+		if n := len([]rune(strings.TrimSpace(plain))); n > maxRow {
+			t.Errorf("a line ran to %d columns, past the cap of %d", n, maxRow)
+		}
+	}
+	if !strings.Contains(buf.String(), "\u2026") {
+		t.Error("a name that did not fit should be marked as cut")
+	}
+}
+
+// The box grows for a longer name rather than squeezing the detail column, so
+// the two never collide.
+func TestBoxWidensForLongerNames(t *testing.T) {
+	narrow := []Item{{Label: "a", Detail: "2 MB"}, {Label: "b", Detail: "3 MB"}}
+	wide := []Item{{Label: strings.Repeat("x", 40), Detail: "2 MB"}, {Label: "b", Detail: "3 MB"}}
+
+	if labelColumn(wide, 4) <= labelColumn(narrow, 4) {
+		t.Error("a longer name should widen the label column")
+	}
+}
+
+// Rows are separated so the list does not read as a solid block.
+func TestRowsAreSpacedApart(t *testing.T) {
+	var buf bytes.Buffer
+	draw(&buf, "", sample, 0, detailWidth(sample), 0)
+
+	blanks := 0
+	for _, line := range strings.Split(buf.String(), "\n") {
+		plain := stripEscapes(line)
+		trimmed := strings.TrimSpace(plain)
+		// A spacer is a framed line with nothing in it.
+		if len(trimmed) > 1 && strings.HasPrefix(trimmed, bar) && strings.TrimSpace(strings.Trim(trimmed, bar)) == "" {
+			blanks++
+		}
+	}
+	if want := len(sample) - 1; blanks != want {
+		t.Errorf("found %d spacers between %d rows, want %d", blanks, len(sample), want)
 	}
 }

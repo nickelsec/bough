@@ -22,7 +22,6 @@ const (
 	// The selected row turns that colour into its ground.
 	frame    = "\x1b[38;2;134;154;72m"
 	onGround = "\x1b[48;2;134;154;72m\x1b[38;2;24;28;16m\x1b[1m"
-	onDetail = "\x1b[48;2;134;154;72m\x1b[38;2;48;56;28m"
 )
 
 // The pieces the frame is built from.
@@ -31,7 +30,7 @@ const (
 // most render double width, a few render single, and terminals disagree about
 // which. That difference shears the right hand edge of a frame, and a picker
 // that looks broken on someone else's machine is worse than a plain one that
-// always lines up. These carry the same meaning without the risk.
+// always lines up.
 const (
 	cornerTL   = "╭"
 	cornerTR   = "╮"
@@ -40,16 +39,30 @@ const (
 	horizontal = "─"
 	bar        = "│"
 
-	// bulletOn and bulletOff stand in for a radio button.
-	bulletOn  = "◉"
+	// The markers standing in for a radio button.
+	//
+	// Both are from the same geometric block and share a width class, so the
+	// filled one sits exactly where the empty one does. Mixing classes, which
+	// an obvious choice like the fisheye would, leaves the filled marker wider
+	// than its neighbours and clipped at the edge of its cell.
+	bulletOn  = "●"
 	bulletOff = "○"
 )
 
-// labelWidth is the column the details line up against.
-const labelWidth = 22
+// Layout. The label column is wide enough for a long project name, and the
+// detail column is right aligned against the far edge, so the two read as
+// separate columns rather than as one run of text.
+const (
+	labelWidth = 30
+	gutter     = 4
+
+	// maxRow is the widest the whole framed row may be, borders included, so
+	// the picker still fits an eighty column terminal.
+	maxRow = 78
+)
 
 // hint sits below the frame, with a blank line between them.
-const hint = "↑↓ Move    ↵ Choose    ESC Cancel"
+const hint = "↑↓ move    ↵ choose    esc cancel"
 
 // draw renders the list and returns how many lines it used, so the next pass
 // can rewrite exactly those and nothing else.
@@ -60,7 +73,8 @@ func draw(out io.Writer, title string, items []Item, selected, detail, previous 
 		fmt.Fprint(out, strings.Repeat(lineUp+clearLine, previous))
 	}
 
-	inner := labelWidth + detail + 7
+	label := labelColumn(items, detail)
+	inner := label + detail + gutter + 5
 	lines := 0
 
 	if title != "" {
@@ -71,8 +85,14 @@ func draw(out io.Writer, title string, items []Item, selected, detail, previous 
 	fmt.Fprintf(out, "  %s%s%s%s%s\n", frame, cornerTL, strings.Repeat(horizontal, inner), cornerTR, reset)
 	lines++
 
+	// A blank framed line above and below each row, so the list breathes
+	// rather than reading as a solid block of text.
 	for i, it := range items {
-		fmt.Fprintf(out, "  %s\n", row(it, i == selected, detail, inner))
+		if i > 0 {
+			fmt.Fprintf(out, "  %s\n", blankRow(inner))
+			lines++
+		}
+		fmt.Fprintf(out, "  %s\n", row(it, i == selected, label, detail, inner))
 		lines++
 	}
 
@@ -83,24 +103,62 @@ func draw(out io.Writer, title string, items []Item, selected, detail, previous 
 	return lines + 1
 }
 
+// labelColumn is how much room the names need.
+//
+// The column grows for a longer name so the detail beside it is never
+// squeezed, and stops once the whole row would outgrow the terminal. Past
+// that point names are cut instead.
+func labelColumn(items []Item, detail int) int {
+	w := 0
+	for _, it := range items {
+		if n := len([]rune(it.Label)); n > w {
+			w = n
+		}
+	}
+	if w < labelWidth {
+		w = labelWidth
+	}
+	// Everything the row spends besides the name: two frame edges, the marker
+	// and the spaces around it, the gutter, the detail, and a trailing space.
+	if room := maxRow - detail - gutter - 7; w > room {
+		w = room
+	}
+	return w
+}
+
 // row draws one item between the frame's edges.
 //
-// The selected row is filled rather than merely marked, so it is obvious at a
-// glance which one enter would take.
-func row(it Item, selected bool, detail, inner int) string {
-	bullet, body := bulletOff, fmt.Sprintf("%-*s  %*s", labelWidth, it.Label, detail, it.Detail)
+// The name sits against the near edge and the detail against the far one, so
+// a long name has somewhere to go and the two columns stay apart.
+func row(it Item, selected bool, label, detail, inner int) string {
+	bullet := bulletOff
 	if selected {
 		bullet = bulletOn
 	}
 
-	// One space of breathing room inside each edge.
-	content := fmt.Sprintf(" %s  %s ", bullet, body)
+	name := clip(it.Label, label)
+	content := fmt.Sprintf(" %s  %-*s%*s%*s ", bullet, label, name, gutter, "", detail, it.Detail)
 	content = fit(content, inner)
 
 	if selected {
-		return fmt.Sprintf("%s%s%s%s%s%s%s%s", frame, bar, reset, onGround, content, reset, frame, bar+reset)
+		return fmt.Sprintf("%s%s%s%s%s%s%s%s%s", frame, bar, reset, onGround, content, reset, frame, bar, reset)
 	}
-	return fmt.Sprintf("%s%s%s%s%s%s%s%s", frame, bar, reset, dim, content, reset, frame, bar+reset)
+	return fmt.Sprintf("%s%s%s%s%s%s%s%s%s", frame, bar, reset, dim, content, reset, frame, bar, reset)
+}
+
+// blankRow is the space between two entries, drawn inside the frame so the
+// near edge stays unbroken down the list.
+func blankRow(inner int) string {
+	return fmt.Sprintf("%s%s%s%s%s%s%s", frame, bar, reset, strings.Repeat(" ", inner), frame, bar, reset)
+}
+
+// clip shortens a name that will not fit, marking that it was cut.
+func clip(s string, w int) string {
+	r := []rune(s)
+	if len(r) <= w {
+		return s
+	}
+	return string(r[:w-1]) + "…"
 }
 
 // fit pads or trims a row so every one is the same width and the frame's near
