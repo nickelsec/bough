@@ -1,315 +1,525 @@
-/* The palette is the one the terminal already uses, so the two read as the
-   same product: parchment letters, olive frame, bark for the connections. */
-:root {
-  --bark:      #3b2b1a;
-  --bark-soft: #6b4f2f;
-  --parchment: #f4e7c8;
-  --paper:     #fbf5e6;
-  --olive:     #869a48;
-  --olive-dim: #aab27a;
-  --deep:      #4a5c2a;
-  --ink:       #2e2a20;
-  --ink-soft:  #6a6152;
-  --rule:      #ddd0ae;
-  --warm:      #c2703a;
+/* bough
+ *
+ * A page whose whole job is one drawn object. The tree carries all the visual
+ * weight; everything else stays out of the way until it is wanted.
+ */
 
-  --sitting-gap: 2.2rem;
-  --stem: 1.4rem;
+:root {
+  /* Warm and dry, taken from the artwork rather than picked to be tasteful. */
+  --ground:  #f7f2e6;
+  --raised:  #ede4d0;
+  --sunk:    #e4d9c0;
+  --rule:    #d9cca9;
+
+  --bark:    #6b4f2f;
+  --bark-lo: #8a6a44;
+  --leaf:    #869a48;
+  --deep:    #4a5c2a;
+
+  /* The one accent. It appears where the work was hard and nowhere else, so
+     it means something wherever it shows. */
+  --warm:    #c2703a;
+
+  --ink:     #2e2a20;
+  --ink-mid: #6a6152;
+  --ink-low: #9a9080;
+
+  /* The grid has to be felt rather than seen. Past about a tenth it starts
+     reading as graph paper and competes with the drawing. */
+  --grid:     rgba(107, 79, 47, 0.055);
+  --grid-big: rgba(107, 79, 47, 0.085);
+
+  --display: "Bough Display", Georgia, "Iowan Old Style", serif;
+  --mono: "Bough Mono", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+
+  --rail: 3rem;
+  --drawer: 30rem;
+  --ease: cubic-bezier(0.32, 0.72, 0.28, 1);
+}
+
+/* Dark is designed rather than inverted: the ground becomes the bark it was
+   drawn on, and the greens lift to stay legible against it. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:  #17140e;
+    --raised:  #211d14;
+    --sunk:    #100e09;
+    --rule:    #362f22;
+
+    --bark:    #a07c4e;
+    --bark-lo: #6f573a;
+    --leaf:    #a3b862;
+    --deep:    #cbd89a;
+    --warm:    #dd8b4e;
+
+    --ink:     #ece3cd;
+    --ink-mid: #9a9078;
+    --ink-low: #6b6454;
+
+    --grid:     rgba(236, 227, 205, 0.045);
+    --grid-big: rgba(236, 227, 205, 0.07);
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground:  #17140e;
+  --raised:  #211d14;
+  --sunk:    #100e09;
+  --rule:    #362f22;
+
+  --bark:    #a07c4e;
+  --bark-lo: #6f573a;
+  --leaf:    #a3b862;
+  --deep:    #cbd89a;
+  --warm:    #dd8b4e;
+
+  --ink:     #ece3cd;
+  --ink-mid: #9a9078;
+  --ink-low: #6b6454;
+
+  --grid:     rgba(236, 227, 205, 0.045);
+  --grid-big: rgba(236, 227, 205, 0.07);
 }
 
 * { box-sizing: border-box; }
 
-html { background: #efe6cf; }
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
 
 body {
-  margin: 0 auto;
-  padding: 2.5rem 1.5rem 4rem;
-  max-width: 62rem;
-  font: 15px/1.55 ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  /* The host paints its own ground behind this, so the background is set
+     explicitly rather than left transparent. */
+  background: var(--ground);
   color: var(--ink);
-  background: var(--paper);
-  min-height: 100vh;
+  font: 400 14px/1.5 var(--mono);
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ---- masthead ---------------------------------------------------------- */
+/* ---- the canvas -------------------------------------------------------- */
 
-.masthead {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.4rem 1.4rem;
-  align-items: center;
-  padding-bottom: 1.4rem;
-  border-bottom: 2px solid var(--rule);
-}
-
-.logo {
-  grid-row: span 2;
-  height: auto;
-  /* The artwork is pixel art, and browsers otherwise smear it when scaling. */
-  image-rendering: -webkit-optimize-contrast;
-}
-
-h1 {
-  margin: 0;
-  font-size: 1.5rem;
-  letter-spacing: -0.01em;
-}
-
-.path {
-  margin: 0.15rem 0 0;
-  color: var(--ink-soft);
-  font-size: 0.82rem;
-}
-
-.totals {
-  grid-column: 2;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 1.6rem;
-  margin: 0.6rem 0 0;
-}
-
-.totals div { display: flex; gap: 0.4rem; align-items: baseline; }
-.totals dt { color: var(--ink-soft); font-size: 0.8rem; }
-.totals dd { margin: 0; font-weight: 600; }
-
-/* ---- filters ----------------------------------------------------------- */
-
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.6rem 1.2rem;
-  padding: 0.9rem 0;
-  border-bottom: 1px solid var(--rule);
-  font-size: 0.82rem;
-}
-
-.filter { display: flex; align-items: center; gap: 0.45rem; color: var(--ink-soft); }
-.filter.check { cursor: pointer; }
-
-.filter input[type="search"],
-.filter input[type="date"] {
-  font: inherit;
-  color: var(--ink);
-  padding: 0.25rem 0.45rem;
-  border: 1px solid var(--rule);
-  border-radius: 3px;
-  background: var(--paper);
-}
-
-.filter input[type="search"] { width: 11rem; }
-.filter input:focus-visible { outline: 2px solid var(--olive); outline-offset: 1px; }
-
-/* The struggle score is a guess, and the interface should say so rather than
-   presenting it with the same confidence as a count of edits. */
-.filter em {
-  font-style: normal;
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--warm);
-  border-bottom: 1px dotted var(--warm);
-  cursor: help;
-  margin-left: 0.3rem;
-}
-
-#filter-clear {
-  font: inherit;
-  color: var(--ink-soft);
-  background: none;
-  border: 1px solid var(--rule);
-  border-radius: 3px;
-  padding: 0.25rem 0.6rem;
-  cursor: pointer;
-}
-
-#filter-clear:hover { color: var(--ink); border-color: var(--olive); }
-
-/* ---- the tree ---------------------------------------------------------- */
-
-main { padding-top: 1.6rem; }
-
-.sitting {
-  position: relative;
-  padding-left: var(--stem);
-  margin-bottom: var(--sitting-gap);
-}
-
-/* The limb every task hangs from. */
-.sitting::before {
-  content: "";
-  position: absolute;
-  left: 3px;
-  top: 0.55rem;
-  bottom: 0.4rem;
-  width: 2px;
-  background: var(--bark-soft);
-  border-radius: 1px;
-}
-
-.sitting-head { display: flex; align-items: baseline; gap: 0.8rem; flex-wrap: wrap; }
-
-.period {
-  font-weight: 700;
-  color: var(--deep);
-  white-space: nowrap;
-}
-
-.sitting-label {
-  flex: 1 1 20rem;
-  min-width: 0;
+#stage {
+  position: fixed;
+  inset: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  cursor: grab;
+  transition: right 320ms var(--ease);
 }
 
-.sitting-figures { color: var(--ink-soft); font-size: 0.8rem; white-space: nowrap; }
+#stage.dragging { cursor: grabbing; }
+body.reading #stage { right: var(--drawer); }
 
-.churn {
-  display: block;
-  margin: 0.25rem 0 0;
-  font-size: 0.8rem;
-  color: var(--warm);
-}
-
-/* ---- tasks ------------------------------------------------------------- */
-
-.tasks { list-style: none; margin: 0.7rem 0 0; padding: 0; }
-
-.task { position: relative; margin: 0; }
-
-/* The short branch joining a task to the limb. */
-.task::before {
-  content: "";
+/* The grid moves with the drawing, so panning feels like crossing a surface
+   rather than sliding a picture over a fixed backdrop. */
+#grid {
   position: absolute;
-  left: calc(var(--stem) * -1 + 4px);
-  top: 1.05rem;
-  width: 0.85rem;
-  height: 2px;
-  background: var(--bark-soft);
-  opacity: 0.65;
+  inset: -50%;
+  background-image:
+    linear-gradient(var(--grid-big) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-big) 1px, transparent 1px),
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
+  /* Fading the field at the edges keeps the page from ending in a ruled
+     rectangle. */
+  mask-image: radial-gradient(ellipse 65% 65% at 50% 50%, #000 40%, transparent 100%);
+  pointer-events: none;
 }
 
-.task-head {
+#tree { position: absolute; inset: 0; }
+#tree svg { display: block; width: 100%; height: 100%; }
+
+/* ---- the mark ---------------------------------------------------------- */
+
+.mark {
+  position: fixed;
+  top: 1.4rem;
+  left: 1.6rem;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.7rem;
-  width: 100%;
-  text-align: left;
-  font: inherit;
-  color: inherit;
-  background: none;
-  border: 0;
-  border-radius: 4px;
-  padding: 0.4rem 0.5rem;
-  cursor: pointer;
+  z-index: 20;
+  pointer-events: none;
 }
 
-.task-head:hover { background: #f2ead4; }
-.task-head:focus-visible { outline: 2px solid var(--olive); outline-offset: -2px; }
-
-.marker { color: var(--olive); font-size: 0.7rem; width: 0.8rem; flex: none; }
-
-.task-label {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.mark img {
+  width: 28px;
+  height: 28px;
+  image-rendering: pixelated;
 }
 
-.task-figures { color: var(--ink-soft); font-size: 0.78rem; white-space: nowrap; flex: none; }
-
-/* Struggle is shown as a weight on the branch rather than as a number, since
-   the number is not trustworthy enough to print. */
-.hard .task-label { color: var(--bark); }
-.hard::before { background: var(--warm); opacity: 1; height: 3px; }
-
-/* ---- prompts ----------------------------------------------------------- */
-
-.turns {
-  list-style: none;
-  margin: 0.1rem 0 0.8rem;
-  padding: 0 0 0 1.3rem;
-  border-left: 1px dashed var(--rule);
+.mark h1 {
+  margin: 0;
+  font: 600 1.15rem/1 var(--display);
+  letter-spacing: 0.01em;
+  color: var(--ink);
 }
 
-.turn { display: flex; gap: 0.8rem; padding: 0.3rem 0; align-items: baseline; }
-
-.when { color: var(--ink-soft); font-size: 0.74rem; white-space: nowrap; flex: none; }
-
-/* Prompts are the reason to open a task, so they are shown whole rather than
-   cut to fit a column. */
-.said { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
-
-.turn-figures { color: var(--ink-soft); font-size: 0.74rem; white-space: nowrap; flex: none; }
-
-.handoff {
-  display: block;
-  margin-top: 0.2rem;
-  color: var(--deep);
-  font-size: 0.8rem;
+.mark .where {
+  margin: 0.2rem 0 0;
+  font-size: 0.7rem;
+  color: var(--ink-low);
 }
 
-.handoff::before { content: "handed off  "; color: var(--ink-soft); }
+/* ---- the figures along the foot ---------------------------------------- */
 
-/* ---- links between sittings -------------------------------------------- */
+.foot {
+  position: fixed;
+  left: 1.6rem;
+  bottom: 1.1rem;
+  display: flex;
+  gap: 1.4rem;
+  z-index: 20;
+  font-size: 0.72rem;
+  color: var(--ink-low);
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
 
-.came-back {
-  margin: 0.5rem 0 0;
-  padding: 0.35rem 0 0.35rem 0.6rem;
-  border-left: 3px solid var(--bark-soft);
-  color: var(--ink-soft);
-  font-size: 0.8rem;
+.foot b {
+  font-weight: 500;
+  color: var(--ink-mid);
 }
 
 /* ---- states ------------------------------------------------------------ */
 
-.hidden { display: none; }
-
 .empty {
-  margin: 3rem 0;
+  position: fixed;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
   text-align: center;
-  color: var(--ink-soft);
+  color: var(--ink-mid);
 }
 
-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-  margin-top: 3rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--rule);
-  color: var(--ink-soft);
-  font-size: 0.76rem;
-}
+body.nothing .empty { display: flex; }
+.empty img { width: 200px; height: auto; opacity: 0.9; }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #191710;
-    --parchment: #221f16;
-    --ink: #ece3cd;
-    --ink-soft: #9a917c;
-    --rule: #3a3427;
-    --olive: #9db057;
-    --deep: #b9c98a;
-    --bark-soft: #8a6a44;
-    --warm: #d98a52;
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
-  html { background: #12100b; }
-  .task-head:hover { background: #221f16; }
 }
 
-@media (max-width: 40rem) {
-  body { padding: 1.5rem 1rem 3rem; }
-  .masthead { grid-template-columns: 1fr; }
-  .logo { grid-row: auto; width: 170px; }
-  .totals { grid-column: 1; }
+/* ---- the tree ---------------------------------------------------------- */
+
+/* Weight is meaning here: a thick limb is a heavy day. Letting the browser
+   scale the strokes would turn that into a hairline the moment the whole tree
+   is fitted to a window, so they hold their width at every zoom. */
+#tree path,
+#tree circle {
+  vector-effect: non-scaling-stroke;
 }
 
-@media print {
-  .filters, footer { display: none; }
-  body { max-width: none; }
+.trunk {
+  fill: none;
+  stroke: var(--bark);
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0.55;
+}
+
+.limb-stub {
+  fill: none;
+  stroke: var(--bark);
+  stroke-linecap: round;
+}
+
+.limb-date {
+  font: 600 13px var(--display);
+  fill: var(--ink-mid);
+  paint-order: stroke;
+  stroke: var(--ground);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.branch-line {
+  fill: none;
+  stroke: var(--bark-lo);
+  stroke-linecap: round;
+  transition: stroke 120ms var(--ease);
+}
+
+.leaves circle {
+  fill: var(--leaf);
+  stroke: none;
+  transition: fill 120ms var(--ease);
+}
+
+/* Struggle is texture rather than a figure, since the score behind it has not
+   been checked against anyone's memory. */
+.branch.hard .branch-line { stroke: var(--warm); }
+.branch.hard .leaves circle { fill: var(--warm); opacity: 0.85; }
+
+/* A two pixel branch is hard to hit, so an invisible fat path takes the
+   pointer for it. */
+.hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 22;
+  stroke-linecap: round;
+  cursor: pointer;
+}
+
+.branch-label {
+  font: 400 11px var(--mono);
+  fill: var(--ink-mid);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms var(--ease);
+  paint-order: stroke;
+  stroke: var(--ground);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.branch:hover .branch-label,
+.branch:focus-visible .branch-label,
+.branch.open .branch-label { opacity: 1; }
+
+.branch:hover .branch-line,
+.branch:focus-visible .branch-line { stroke: var(--deep); }
+.branch:hover .leaves circle { fill: var(--deep); }
+
+.branch.open .branch-line { stroke: var(--deep); }
+.branch.open .leaves circle { fill: var(--deep); }
+
+.branch:focus { outline: none; }
+.branch:focus-visible .branch-line { stroke-dasharray: 1 3; }
+
+.vine {
+  fill: none;
+  stroke: var(--bark-lo);
+  stroke-linecap: round;
+  opacity: 0.28;
+  stroke-dasharray: 2 5;
+}
+
+/* Filtered work fades rather than leaving, so what is hidden still reads
+   against the whole. */
+.branch.faded,
+.limb.faded { opacity: 0.12; }
+.branch.faded .hit { pointer-events: none; }
+.branch, .limb { transition: opacity 160ms var(--ease); }
+
+/* ---- the rail ---------------------------------------------------------- */
+
+.rail {
+  position: fixed;
+  right: 1.1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--raised) 86%, transparent);
+  border: 1px solid var(--rule);
+  backdrop-filter: blur(8px);
+  transition: right 320ms var(--ease);
+}
+
+body.reading .rail { right: calc(var(--drawer) + 1.1rem); }
+
+.rail-item { position: relative; }
+
+.rail-btn {
+  display: grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-mid);
+  cursor: pointer;
+  transition: background 120ms var(--ease), color 120ms var(--ease);
+}
+
+.rail-btn:hover { background: var(--sunk); color: var(--ink); }
+.rail-btn:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
+.rail-item.open .rail-btn { background: var(--leaf); color: var(--ground); }
+
+.rail-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The controls stay out of the way until asked for, which is what keeps the
+   rail from becoming a panel the tree has to share the page with. */
+.rail-panel {
+  position: absolute;
+  right: calc(100% + 0.6rem);
+  top: 50%;
+  transform: translateY(-50%) scale(0.96);
+  transform-origin: right center;
+  width: 15rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: 10px;
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  box-shadow: 0 8px 30px rgba(46, 42, 32, 0.14);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 140ms var(--ease), transform 140ms var(--ease), visibility 140ms;
+}
+
+.rail-item.open .rail-panel {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(-50%) scale(1);
+}
+
+.rail-panel label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-low);
+}
+
+.rail-panel label.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.8rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.rail-panel input[type="search"],
+.rail-panel input[type="date"] {
+  width: 100%;
+  margin-bottom: 0.6rem;
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  color: var(--ink);
+  background: var(--ground);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+}
+
+.rail-panel input:focus-visible { outline: 2px solid var(--leaf); outline-offset: 1px; }
+.rail-panel input[type="checkbox"] { width: auto; margin: 0; accent-color: var(--leaf); }
+
+.rail-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  color: var(--ink-low);
+}
+
+/* The struggle score is a guess and the interface says so, rather than
+   presenting it with the confidence of a count. */
+.rail-note em {
+  font-style: normal;
+  color: var(--warm);
+}
+
+.rail-clear {
+  margin-top: 0.2rem;
+  padding: 0.35rem 0;
+  font: 400 0.68rem var(--mono);
+  color: var(--ink-mid);
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--rule);
+  cursor: pointer;
+}
+
+.rail-clear:hover { color: var(--warm); }
+
+/* ---- the reading drawer ------------------------------------------------ */
+
+#reader {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--drawer);
+  max-width: 100vw;
+  z-index: 25;
+  padding: 2rem 2rem 3rem;
+  overflow-y: auto;
+  background: var(--raised);
+  border-left: 1px solid var(--rule);
+  transform: translateX(100%);
+  transition: transform 320ms var(--ease);
+}
+
+body.reading #reader { transform: none; }
+
+.reader-head { margin-bottom: 1.2rem; }
+
+.reader-head h2 {
+  margin: 0 0 0.4rem;
+  font: 600 1.1rem/1.35 var(--display);
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.reader-figures,
+.reader-churn {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--ink-low);
+  font-variant-numeric: tabular-nums;
+}
+
+.reader-churn { margin-top: 0.3rem; color: var(--warm); }
+
+.turns { margin: 0; padding: 0; list-style: none; }
+
+.turn {
+  padding: 0.9rem 0;
+  border-top: 1px solid var(--rule);
+}
+
+.when {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.68rem;
+  color: var(--ink-low);
+}
+
+/* The prompt is the reason to open a branch, so it is shown whole. */
+.said {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+
+.handoff {
+  margin: 0.45rem 0 0;
+  padding-left: 0.7rem;
+  border-left: 2px solid var(--leaf);
+  font-size: 0.8rem;
+  color: var(--ink-mid);
+}
+
+@media (max-width: 60rem) {
+  :root { --drawer: 100vw; }
+  body.reading #stage { right: 0; }
+  body.reading .rail { right: -6rem; }
 }

@@ -98,9 +98,12 @@ func TestPageFetchesNothingExternal(t *testing.T) {
 	url := start(t, sample())
 	_, body := get(t, url+"/")
 
-	for _, bad := range []string{"http://", "https://", "//cdn", "googleapis"} {
-		// The address of the server itself is allowed to appear.
-		cleaned := strings.ReplaceAll(body, url, "")
+	// The server's own address is allowed to appear, and so is the SVG
+	// namespace, which is an identifier rather than somewhere to fetch from.
+	cleaned := strings.ReplaceAll(body, url, "")
+	cleaned = strings.ReplaceAll(cleaned, "http://www.w3.org/2000/svg", "")
+
+	for _, bad := range []string{"http://", "https://", "//cdn", "googleapis", "fonts.g"} {
 		if strings.Contains(cleaned, bad) {
 			t.Errorf("the page reaches out to %q", bad)
 		}

@@ -6,60 +6,85 @@
 <title>{{.Title}} — bough</title>
 <link rel="icon" href="/img/icon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="/img/icon-180.png">
+<style>{{.Fonts}}</style>
 <style>{{.CSS}}</style>
 </head>
 <body>
 
-<header class="masthead">
-  <img class="logo" src="/img/logo.png" alt="bough" width="220">
-  <div class="project">
-    <h1 id="project-name"></h1>
-    <p id="project-path" class="path"></p>
-  </div>
-  <dl class="totals" id="totals"></dl>
-</header>
-
-<div class="filters" id="filters">
-  <label class="filter">
-    <span>Files</span>
-    <input type="search" id="filter-file" placeholder="name a file" autocomplete="off">
-  </label>
-
-  <label class="filter">
-    <span>From</span>
-    <input type="date" id="filter-from">
-  </label>
-
-  <label class="filter">
-    <span>To</span>
-    <input type="date" id="filter-to">
-  </label>
-
-  <label class="filter check">
-    <input type="checkbox" id="filter-size">
-    <span>Only substantial sittings</span>
-  </label>
-
-  <label class="filter check">
-    <input type="checkbox" id="filter-struggle">
-    <span>Show where it was hard
-      <em title="Worked out from how often one file was rewritten and how densely the prompts came. It has not been checked against anyone's memory of their own work, so treat it as a hint.">unproven</em>
-    </span>
-  </label>
-
-  <button type="button" id="filter-clear" hidden>Clear</button>
+<div id="stage">
+  <div id="grid"></div>
+  <div id="tree"></div>
 </div>
 
-<main id="tree"></main>
+<div class="mark">
+  <img src="/img/icon-32.png" alt="" width="28" height="28">
+  <div>
+    <h1 id="name"></h1>
+    <p class="where" id="where"></p>
+  </div>
+</div>
 
-<p class="empty" id="empty" hidden></p>
+<nav class="rail" aria-label="Filters">
+  <div class="rail-item">
+    <button type="button" class="rail-btn" aria-label="Find a file">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/></svg>
+    </button>
+    <div class="rail-panel">
+      <label for="f-file">Find a file</label>
+      <input type="search" id="f-file" placeholder="hero.css" autocomplete="off">
+      <p class="rail-note">Lights the work that touched it.</p>
+    </div>
+  </div>
 
-<footer>
-  <span id="footprint"></span>
-  <span>Read from your machine. Nothing was sent anywhere.</span>
-</footer>
+  <div class="rail-item">
+    <button type="button" class="rail-btn" aria-label="Narrow the dates">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12.5" rx="1.5"/><path d="M3 8.5h14M7 2.5v4M13 2.5v4"/></svg>
+    </button>
+    <div class="rail-panel">
+      <label for="f-from">From</label>
+      <input type="date" id="f-from">
+      <label for="f-to">To</label>
+      <input type="date" id="f-to">
+    </div>
+  </div>
+
+  <div class="rail-item">
+    <button type="button" class="rail-btn" aria-label="Hide the loose ends">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6h14M5 10h10M8 14h4"/></svg>
+    </button>
+    <div class="rail-panel">
+      <label class="check"><input type="checkbox" id="f-size"> Only substantial sittings</label>
+      <p class="rail-note">Fades anything under five prompts.</p>
+    </div>
+  </div>
+
+  <div class="rail-item">
+    <button type="button" class="rail-btn" aria-label="Show where it was hard">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5l2.2 4.8 5.3.6-4 3.6 1.1 5.2-4.6-2.7-4.6 2.7 1.1-5.2-4-3.6 5.3-.6z"/></svg>
+    </button>
+    <div class="rail-panel">
+      <label class="check"><input type="checkbox" id="f-hard"> Show where it was hard</label>
+      <p class="rail-note">
+        Worked out from how often one file was rewritten and how densely the
+        prompts came. <em>Not checked against anyone's memory yet.</em>
+      </p>
+    </div>
+  </div>
+
+  <button type="button" id="clear" class="rail-clear" hidden>Clear</button>
+</nav>
+
+<aside id="reader" aria-label="What happened here"></aside>
+
+<div class="foot" id="foot"></div>
+
+<div class="empty">
+  <img src="/img/logo.png" alt="bough" width="200">
+  <p id="empty-note">Nothing matches those filters.</p>
+</div>
 
 <script>window.BOUGH = {{.Graph}};</script>
+<script>{{.Layout}}</script>
 <script>{{.JS}}</script>
 </body>
 </html>

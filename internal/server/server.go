@@ -98,17 +98,13 @@ func routes(page []byte) http.Handler {
 // contextual escaping. That cost eight megabytes of binary for four
 // replacements that need one escaping rule between them.
 func render(g graph.Graph) ([]byte, error) {
-	page, err := readAsset("index.html")
-	if err != nil {
-		return nil, err
-	}
-	css, err := readAsset("bough.css")
-	if err != nil {
-		return nil, err
-	}
-	js, err := readAsset("bough.js")
-	if err != nil {
-		return nil, err
+	parts := map[string]string{}
+	for _, name := range []string{"index.html", "fonts.css", "bough.css", "layout.js", "bough.js"} {
+		body, err := readAsset(name)
+		if err != nil {
+			return nil, err
+		}
+		parts[name] = body
 	}
 
 	data, err := json.Marshal(g)
@@ -118,11 +114,13 @@ func render(g graph.Graph) ([]byte, error) {
 
 	replace := strings.NewReplacer(
 		"{{.Title}}", escapeHTML(g.Project.Name),
-		"{{.CSS}}", css,
-		"{{.JS}}", js,
+		"{{.Fonts}}", parts["fonts.css"],
+		"{{.CSS}}", parts["bough.css"],
+		"{{.Layout}}", parts["layout.js"],
+		"{{.JS}}", parts["bough.js"],
 		"{{.Graph}}", escapeScript(string(data)),
 	)
-	return []byte(replace.Replace(page)), nil
+	return []byte(replace.Replace(parts["index.html"])), nil
 }
 
 // escapeHTML makes text safe to drop into the page body. Project names come

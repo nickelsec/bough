@@ -10,11 +10,15 @@ the artwork can be changed and the web copies regenerated to match.
 """
 
 import os
+import sys
 from collections import deque
 
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+
+import fonts
 # The web files live inside the server package because Go can only embed
 # what sits beside the source that embeds it.
 OUT = os.path.join(os.path.dirname(HERE), "internal", "server", "img")
@@ -91,7 +95,7 @@ def lift_background(im):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    print("building web artwork")
+    print("building web assets")
 
     logo = Image.open(os.path.join(HERE, "logo.png")).convert("RGBA")
     logo = logo.crop(logo.getbbox())
@@ -109,8 +113,13 @@ def main():
     for size in (32, 180):
         save(icon.resize((size, size), Image.LANCZOS), f"icon-{size}.png", 128)
 
+    css = fonts.build()
+    dest = os.path.join(os.path.dirname(HERE), "internal", "server", "fonts.css")
+    with open(dest, "w", encoding="utf-8", newline="\n") as f:
+        f.write(css)
+
     total = sum(os.path.getsize(os.path.join(OUT, f)) for f in os.listdir(OUT))
-    print(f"  {'total':16} {total / 1024:5.1f} KB")
+    print(f"  {'artwork':16} {total / 1024:5.1f} KB")
 
 
 if __name__ == "__main__":
