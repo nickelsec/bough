@@ -28,7 +28,7 @@
   var sized = [];
 
   // The scale that shows the whole diagram. The bar reads against this rather
-  // than against the raw transform, so 100% means "all of it" — which is what
+  // than against the raw transform, so 100% means "all of it", which is what
   // resetting gives you and what the number ought to agree with.
   var whole = 1;
   var LIMIT = { min: 0.15, max: 3 };

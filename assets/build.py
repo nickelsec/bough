@@ -11,7 +11,6 @@ the artwork can be changed and the web copies regenerated to match.
 
 import os
 import sys
-from collections import deque
 
 from PIL import Image
 
@@ -38,61 +37,6 @@ def save(im, name, colours):
     print(f"  {name:16} {os.path.getsize(path) / 1024:5.1f} KB")
 
 
-def sage(c):
-    """Report whether a pixel belongs to the icon's background.
-
-    The background is a vignette that brightens from around (155,160,105) at
-    the border to (184,191,132) near the mark, so matching one colour will not
-    follow it. What separates it from the artwork is that sage stays light with
-    far more green than blue, while the leaves are a harsher yellow-green and
-    the bark and outline are dark.
-    """
-    r, g, b = c[:3]
-    return (
-        130 <= r <= 200
-        and 135 <= g <= 205
-        and 80 <= b <= 145
-        and g >= r - 8
-        and 40 <= g - b <= 80
-    )
-
-
-def lift_background(im):
-    """Clear the background, working inward from the edges.
-
-    Following it in from the border rather than matching by colour means an
-    enclosed leaf of a similar shade cannot be eaten by mistake.
-    """
-    w, h = im.size
-    px = im.load()
-    seen = bytearray(w * h)
-
-    queue = deque()
-    for x in range(w):
-        queue.append((x, 0))
-        queue.append((x, h - 1))
-    for y in range(h):
-        queue.append((0, y))
-        queue.append((w - 1, y))
-
-    while queue:
-        x, y = queue.popleft()
-        i = y * w + x
-        if seen[i] or not sage(px[x, y]):
-            continue
-        seen[i] = 1
-        px[x, y] = (0, 0, 0, 0)
-        if x:
-            queue.append((x - 1, y))
-        if x < w - 1:
-            queue.append((x + 1, y))
-        if y:
-            queue.append((x, y - 1))
-        if y < h - 1:
-            queue.append((x, y + 1))
-    return im
-
-
 def main():
     os.makedirs(OUT, exist_ok=True)
     print("building web assets")
@@ -106,9 +50,10 @@ def main():
         256,
     )
 
-    # The icon ships with its background baked in, which would show as a square
-    # behind the mark in a browser tab.
-    icon = lift_background(Image.open(os.path.join(HERE, "icon.png")).convert("RGBA"))
+    # The icon keeps the green ground it was drawn on. Lifting it left the
+    # mark floating, and the vine reads as a badge rather than as loose
+    # branches when the colour behind it is part of the artwork.
+    icon = Image.open(os.path.join(HERE, "icon.png")).convert("RGBA")
     icon = icon.crop(icon.getbbox())
     for size in (32, 180):
         save(icon.resize((size, size), Image.LANCZOS), f"icon-{size}.png", 128)
