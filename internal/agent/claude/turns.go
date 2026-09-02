@@ -2,7 +2,7 @@ package claude
 
 import (
 	"encoding/json"
-	"path/filepath"
+	"path"
 	"strings"
 
 	"github.com/nickelsec/bough/internal/agent"
@@ -43,11 +43,15 @@ func isSynthetic(text string) bool {
 // The same file turns up written several ways across a session, because the
 // drive letter changes case between records and separators differ by platform.
 // Grouping by path only works once those are settled.
+//
+// This deliberately does not use path/filepath. A transcript written on
+// Windows can be read on any machine, so backslashes have to be understood
+// everywhere rather than only where the host happens to use them.
 func normalisePath(p string) string {
 	if p == "" {
 		return ""
 	}
-	p = filepath.ToSlash(filepath.Clean(p))
+	p = path.Clean(strings.ReplaceAll(p, `\`, "/"))
 	return strings.ToLower(p)
 }
 

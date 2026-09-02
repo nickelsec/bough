@@ -3,7 +3,7 @@ package graph
 import (
 	"fmt"
 	"io"
-	"path/filepath"
+	"path"
 	"strings"
 )
 
@@ -37,7 +37,7 @@ func WriteText(w io.Writer, g Graph, verbose bool) error {
 
 		if s.Churn > 1 {
 			fmt.Fprintf(w, "%-14s kept coming back to %s (%d times)\n", "",
-				filepath.Base(s.ChurnFile), s.Churn)
+				baseName(s.ChurnFile), s.Churn)
 		}
 
 		for _, task := range goal.Tasks {
@@ -90,7 +90,7 @@ func fileList(files []string, limit int) string {
 			names = append(names, fmt.Sprintf("and %d more", len(files)-limit))
 			break
 		}
-		names = append(names, filepath.Base(f))
+		names = append(names, baseName(f))
 	}
 	return strings.Join(names, ", ")
 }
@@ -131,4 +131,12 @@ func hours(minutes int) string {
 	default:
 		return fmt.Sprintf("%d hours", minutes/60)
 	}
+}
+
+// baseName is the file name out of a path recorded in a transcript.
+//
+// Not filepath.Base, which only splits on the separator the host machine uses.
+// A transcript written on Windows and read on Linux would come back whole.
+func baseName(p string) string {
+	return path.Base(strings.ReplaceAll(p, `\`, "/"))
 }

@@ -1,7 +1,7 @@
 package metrics
 
 import (
-	"path/filepath"
+	"path"
 	"strings"
 )
 
@@ -18,15 +18,19 @@ import (
 // The user's own README or changelog does get filtered out along with them.
 // That is the right trade: someone reading their history wants to see the work,
 // and documentation churn is rarely the part they remember.
-func Ambient(path string) bool {
-	base := strings.ToLower(filepath.Base(filepath.ToSlash(path)))
+// Paths come out of transcripts rather than off this machine, so a Windows
+// path has to be read the same way on a Linux box as on the machine that
+// wrote it. path/filepath would only split on the host's own separator.
+func Ambient(p string) bool {
+	slashed := strings.ToLower(strings.ReplaceAll(p, `\`, "/"))
+	base := path.Base(slashed)
 
 	if ambientNames[base] {
 		return true
 	}
 	// Plan files are named after the session that made them and live in the
 	// agent's own directory, so the name is unpredictable but the location is not.
-	dir := strings.ToLower(filepath.ToSlash(path))
+	dir := slashed
 	for _, marker := range ambientDirs {
 		if strings.Contains(dir, marker) {
 			return true

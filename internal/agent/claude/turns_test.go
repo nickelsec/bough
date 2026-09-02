@@ -55,6 +55,25 @@ func TestNormalisePathCollapsesCasingAndSeparators(t *testing.T) {
 	}
 }
 
+// The earlier version of this used path/filepath, which splits on whatever
+// separator the host machine happens to use. That passed on Windows and failed
+// everywhere else, because a transcript written on Windows is still full of
+// backslashes when it is read on Linux. Pinning the exact result catches that,
+// where comparing two paths to each other did not.
+func TestNormalisePathIsTheSameOnEveryPlatform(t *testing.T) {
+	cases := map[string]string{
+		`D:\proj\src\main.go`:  "d:/proj/src/main.go",
+		`d:/proj//src/main.go`: "d:/proj/src/main.go",
+		`/home/x/proj/main.go`: "/home/x/proj/main.go",
+		`C:\Users\x\notes.md`:  "c:/users/x/notes.md",
+	}
+	for in, want := range cases {
+		if got := normalisePath(in); got != want {
+			t.Errorf("normalisePath(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestExtractTurnsAttributesWorkToThePrompt(t *testing.T) {
 	lines := []string{
 		`{"uuid":"1","type":"user","promptId":"p1","message":{"role":"user","content":[{"type":"text","text":"add a flag"}]}}`,
