@@ -20,7 +20,7 @@ jobs:
         # handling breaks silently without it in the matrix.
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v5
         with:
@@ -57,7 +57,7 @@ jobs:
     name: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25'
@@ -83,7 +83,7 @@ jobs:
     name: fuzz the parser
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25'
@@ -99,7 +99,7 @@ jobs:
     name: gosec
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Pinned by SHA. A mutable ref on a third-party action is exactly the
       # supply chain shape worth avoiding, and `master` can break the build
       # with no change on our side.
