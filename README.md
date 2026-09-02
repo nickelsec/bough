@@ -1,39 +1,44 @@
-# bough
+<p align="center">
+  <img width="360" alt="bough" src="docs/img/logo.png">
+</p>
 
-[![CI](https://github.com/nickelsec/bough/actions/workflows/ci.yml/badge.svg)](https://github.com/nickelsec/bough/actions/workflows/ci.yml)
-[![Go](https://img.shields.io/badge/go-1.25-00ADD8)](https://go.dev)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+<p align="center">Read your Claude Code history and see the work you actually did.</p>
 
-Reads your Claude Code history and shows you the work you did.
+<p align="center">
+  <a href="https://github.com/nickelsec/bough/actions/workflows/ci.yml"><img src="https://github.com/nickelsec/bough/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/nickelsec/bough/releases"><img src="https://img.shields.io/github/v/release/nickelsec/bough?color=7C8A46" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-7C8A46" alt="MIT"></a>
+  <a href="https://bough.run/docs"><img src="https://img.shields.io/badge/Docs-7C8A46" alt="Documentation"></a>
+</p>
+
+<p align="center">
+  <video width="100%" src="VIDEO_URL_HERE" controls></video>
+</p>
 
 Not how many tokens you burned or how long your streak is. Claude Code's own
 `/stats` covers that. This answers a different question: what did I actually
 build?
 
+## Run it
+
 ```
-$ bough taggity
-
-taggity
-=======
-d:\taggity
-
-181 prompts across 4 sittings
-556 changes to 122 files, 11 hours at the keyboard
-
-------------------------------------------------------------------------
-Mon 10 Aug     Audit repo for release readiness
-               7 tasks, 79 prompts, 4 hours
-               kept coming back to spec.go (19 times)
-
-  i feel like there should be two workflows one with ai and...
-    27 prompts, 75 changes, 2 failures
-
-  im asking why not the user itslef specify the pattern and what...
-    13 prompts, 45 changes, 1 failure
+bough
 ```
 
-Everything happens on your machine. Nothing is sent anywhere, no model is
-called, and your history is only ever read.
+That is the whole thing. It finds your projects, asks which one, and opens it
+in your browser.
+
+What you get is a diagram of your own work. A square on the line is a day you
+sat down. Smaller squares hanging off it are the tasks inside that day. Every
+circle is a single prompt you typed.
+
+Hover anything and the path back to its day lights up, with a note saying what
+it was. Click it and the full record opens beside the drawing, scrolled to the
+exact prompt, in your own words and untrimmed. Work that went badly is drawn in
+rust rather than green.
+
+The page is served from 127.0.0.1 and nothing else can reach it. Everything it
+needs is inside the binary, so it keeps working with the network unplugged.
 
 ## Install
 
@@ -51,42 +56,50 @@ go build ./cmd/bough
 
 One dependency, `golang.org/x/term`, for reading arrow keys.
 
-## Use
+## In the terminal instead
 
-Run `bough` on its own and it asks which project, then opens it in your
-browser:
-
-```
-  ╭──────────────────────────────────────────────────────────╮
-  │ ○  taggity  (here)                    19 MB, 12 days ago │
-  │                                                          │
-  │ ●  chaff-app                         73 MB, 21 hours ago │
-  │                                                          │
-  │ ○  mcp-security-toolkit               52 MB, 3 weeks ago │
-  ╰──────────────────────────────────────────────────────────╯
-
-  ↑↓ move    ↵ choose    esc cancel
-```
-
-The project you are standing in comes first. Or name one directly:
+Add `--text` and the same work comes back as an indented list:
 
 ```
-bough taggity          open a project by name
+$ bough project-one --text
+
+project-one
+===========
+~/code/project-one
+
+141 prompts across 7 sittings
+274 changes to 138 files, 9 hours at the keyboard
+
+------------------------------------------------------------------------
+Sat 22 Aug     Explore text selection paths
+               9 tasks, 51 prompts, 4 hours
+               kept coming back to architecture.rs (8 times)
+
+  hey i ran it locally and it just ahs my website in an exe file...
+    10 prompts, 46 changes, 14 failures
+
+  Okay, so after running the npm command and the cargo build, it...
+    4 prompts, 1 failure
+```
+
+Anything piped or redirected is written as text automatically, so
+`bough > notes.txt` and `bough | less` behave as you would expect rather than
+opening a window.
+
+```
+bough project-one      open a project by name
 bough --text           write to the terminal instead
 bough --list           show every project with history
 bough -v               include every prompt in the text view
 bough --json           write the graph as JSON
 ```
 
-Anything piped or redirected is written as text, so `bough > notes.txt` and
-`bough | less` behave as you would expect rather than opening a window.
-
 `--json` gives you the whole structure to do something else with. It carries no
 colours, sizes or positions, only what is true about the work; the page works
 those out for itself.
 
-The page is served from 127.0.0.1 and nothing else can reach it. Everything it
-needs is inside it, so it keeps working with the network unplugged.
+Everything happens on your machine. Nothing is sent anywhere, no model is
+called, and your history is only ever read.
 
 ## What it does
 

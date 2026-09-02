@@ -7,9 +7,9 @@ import (
 )
 
 var sample = []Item{
-	{Label: "taggity", Detail: "19 MB, 12 days ago"},
-	{Label: "chaff-app", Detail: "73 MB, 20 hours ago"},
-	{Label: "chaff-ui", Detail: "113 MB, 8 days ago"},
+	{Label: "project-one", Detail: "19 MB, 12 days ago"},
+	{Label: "project-two", Detail: "73 MB, 20 hours ago"},
+	{Label: "a-longer-project-name", Detail: "113 MB, 8 days ago"},
 }
 
 func TestDrawShowsEveryRowAndOneHighlight(t *testing.T) {

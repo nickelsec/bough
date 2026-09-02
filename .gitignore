@@ -21,3 +21,9 @@
 .vscode/
 *.swp
 .DS_Store
+
+# the demo recording. It is uploaded to a release rather than committed,
+# because a full resolution video is megabytes that every clone would carry
+# forever. docs/img/screenshot.png is the still that does get committed.
+*.webm
+*.mp4

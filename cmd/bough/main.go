@@ -52,7 +52,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 	// Flags are accepted before or after the project name. The standard parser
 	// stops at the first argument that is not a flag, which would silently
-	// ignore "bough taggity --json" and print the wrong thing.
+	// ignore "bough my-project --json" and print the wrong thing.
 	name, flags := splitArgs(args)
 	if err := fs.Parse(flags); err != nil {
 		return err
@@ -312,7 +312,7 @@ func writeList(w io.Writer, src agent.Source, projects []agent.Project) error {
 const usage = `bough shows the shape of the work in a project's AI coding history.
 
   bough              choose a project and open it in a browser
-  bough taggity      open a project by name
+  bough my-project   open a project by name
   bough --text       write to the terminal instead
   bough --list       show which projects have history
   bough --json       write the graph as JSON
