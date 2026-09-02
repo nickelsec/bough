@@ -22,3 +22,6 @@ First working version.
 - Prints the same thing as text for a terminal, a pipe or a file
 - Reports a struggle score, off by default, and says plainly that it has not
   been checked against anyone's memory
+- Reads a history written on one platform from any other. Paths recorded in a
+  transcript are split on both separators rather than the host's own, so a
+  Windows history counts correctly on Linux and macOS

@@ -45,6 +45,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		verbose = fs.Bool("v", false, "include every prompt in the text output")
 		root    = fs.String("root", "", "read history from here instead of the usual location")
 		out     = fs.String("o", "", "write to this file instead of standard output")
+		showVer = fs.Bool("version", false, "print the version and stop")
 	)
 	fs.Usage = func() {
 		fmt.Fprint(stderr, usage)
@@ -56,6 +57,13 @@ func run(args []string, stdout, stderr io.Writer) error {
 	name, flags := splitArgs(args)
 	if err := fs.Parse(flags); err != nil {
 		return err
+	}
+
+	// Before anything reads the disk, so it answers on a machine with no
+	// history on it at all.
+	if *showVer {
+		fmt.Fprintln(stdout, version)
+		return nil
 	}
 
 	src := claude.Source{Root: *root}
@@ -316,6 +324,7 @@ const usage = `bough shows the shape of the work in a project's AI coding histor
   bough --text       write to the terminal instead
   bough --list       show which projects have history
   bough --json       write the graph as JSON
+  bough --version    print the version
 
 Anything piped or redirected is written as text, so bough > notes.txt and
 bough | less behave as you would expect.
