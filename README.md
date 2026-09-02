@@ -1,5 +1,9 @@
 # bough
 
+[![CI](https://github.com/nickelsec/bough/actions/workflows/ci.yml/badge.svg)](https://github.com/nickelsec/bough/actions/workflows/ci.yml)
+[![Go](https://img.shields.io/badge/go-1.25-00ADD8)](https://go.dev)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 Reads your Claude Code history and shows you the work you did.
 
 Not how many tokens you burned or how long your streak is. Claude Code's own
@@ -112,31 +116,24 @@ already in place.
 ## How the grouping was arrived at
 
 Every part of this was measured against real history rather than guessed, and
-two of the obvious approaches turned out not to work.
+two of the obvious approaches turned out not to work. Grouping tasks by what
+they have in common measured at noise, and cutting on any single weak signal
+turned one afternoon of styling into fifty two tasks out of a hundred and
+fifty four prompts. Sittings and corroborated signals replaced both.
 
-Grouping tasks by what they have in common does not work. With the agent's own
-plan and memory files set aside, the median file overlap between neighbouring
-tasks is zero on three of five sessions tried, and even a task's best match
-anywhere in its session sits at noise. The two candidate signals disagree about
-which projects they work on, so no threshold holds across all of them. Sittings
-are used instead because they need no tuning and cannot drift.
-
-Splitting on any single weak signal does not work either. Cutting whenever the
-file set changed turned one afternoon of styling into fifty two tasks out of a
-hundred and fifty four prompts, nearly all of them one tweak to the same page.
-A pause or a compaction now cuts on its own; anything else needs corroboration.
-
-The thresholds that remain are fitted to one developer's history. They will
-suit somebody else's differently, and they are exposed rather than baked in for
-that reason.
+The thresholds that remain are fitted to one developer's history and will suit
+somebody else's differently. What each one does, what set it, and what happens
+when you move it is in [docs/tuning.md](docs/tuning.md). They are constants
+rather than flags for now, so changing one means editing Go.
 
 ## The transcript format
 
 Reading these files correctly is most of the work, and Anthropic does not
-document them. What was learned is written down in [docs/format.md](docs/format.md):
-where they live, the append-only replay that makes a naive parser overcount by
-more than three to one, the tool results filed as though the user typed them,
-and the fields that carry less than they look like they do.
+document them. What was learned is written down in
+[docs/format.md](docs/format.md): where they live, the append-only replay that
+makes a naive parser overcount by more than three to one, the tool results
+filed as though the user typed them, and the fields that carry less than they
+look like they do.
 
 That document is probably useful to anyone else reading this format, whatever
 they are building.
@@ -161,17 +158,24 @@ Nothing above `internal/agent` knows which agent the history came from, and a
 test fails if that ever stops being true. That is what makes a second agent
 cheap to add.
 
+## Status
+
+Early. It works on the history it was built against, and the parts that are
+guesses are marked as guesses.
+
+Two things worth knowing before you rely on it. The thresholds are fitted to
+one person's history, so your boundaries may fall in places you disagree with.
+The struggle score has never been checked against anyone's memory of their own
+work, so it is off by default and labelled as unproven where it appears.
+
+Only Claude Code is read so far. The seam for a second agent exists and is
+tested, but nothing else is implemented yet.
+
 ## Contributing
 
-Issues and pull requests are welcome. `docs/format.md` is the place to start if
-you want to understand the data, and the package comments explain why each
-piece works the way it does rather than restating what the code says.
-
-Run the tests with `go test ./...`. The parser has a fuzz target:
-
-```
-go test ./internal/agent/claude -fuzz FuzzReadRecords
-```
+Issues and pull requests are welcome, and questions are as useful as code at
+this stage. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get set up and
+the four rules that hold the design together.
 
 ## Licence
 
