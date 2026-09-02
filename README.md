@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <video width="100%" src="VIDEO_URL_HERE" controls></video>
+  <video width="100%" src="https://github.com/user-attachments/assets/af70eb60-cff7-42cc-af73-19c9cfb0c1d3" controls></video>
 </p>
 
 Not how many tokens you burned or how long your streak is. Claude Code's own
