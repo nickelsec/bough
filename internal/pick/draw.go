@@ -176,7 +176,7 @@ func fit(s string, w int) string {
 
 // clear removes the list once a choice is made, so the chosen output starts on
 // a clean screen rather than under a menu.
-func clear(out io.Writer, lines int) {
+func clearRows(out io.Writer, lines int) {
 	if lines > 0 {
 		fmt.Fprint(out, strings.Repeat(lineUp+clearLine, lines))
 	}

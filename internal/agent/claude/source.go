@@ -108,7 +108,7 @@ func (s Source) Sessions(p agent.Project) ([]agent.Session, error) {
 			continue
 		}
 		recs, err := ReadRecords(f)
-		f.Close()
+		_ = f.Close()
 		if err != nil {
 			problems = append(problems, err)
 			continue

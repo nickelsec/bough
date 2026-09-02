@@ -172,7 +172,7 @@ var valueFlags = map[string]bool{"root": true, "o": true}
 // always shows what is there rather than jumping straight into one project.
 // The project you are standing in is marked and put first, so the common case
 // is still a single keypress.
-func choose(projects []agent.Project, arg string, out io.Writer) (agent.Project, error) {
+func choose(projects []agent.Project, arg string, _ io.Writer) (agent.Project, error) {
 	if arg == "" {
 		return offer(projects)
 	}

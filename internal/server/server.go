@@ -32,7 +32,7 @@ func Serve(ctx context.Context, g graph.Graph, announce func(url string)) error 
 	if err != nil {
 		return fmt.Errorf("listening on loopback: %w", err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	page, err := render(g)
 	if err != nil {
@@ -79,7 +79,9 @@ func routes(page []byte) http.Handler {
 		// The page is built once and never changes while the process runs, so
 		// there is nothing to revalidate.
 		w.Header().Set("Cache-Control", "no-store")
-		w.Write(page)
+		// A failed write means the browser went away mid-response, which is
+		// normal and leaves nothing to do.
+		_, _ = w.Write(page)
 	})
 
 	mux.Handle("/img/", http.FileServer(http.FS(assets)))
@@ -151,7 +153,7 @@ func readAsset(name string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("reading %s: %w", name, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	b, err := io.ReadAll(f)
 	return string(b), err
 }

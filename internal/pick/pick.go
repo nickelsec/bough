@@ -62,6 +62,7 @@ func interactive(out io.Writer, in *os.File, title string, items []Item) (int, e
 	if err != nil {
 		return 0, err
 	}
+	//nolint:errcheck // nothing useful to do if the terminal will not restore
 	defer term.Restore(fd, state)
 
 	// A terminal left in raw mode after a crash is unusable, so the cursor and
@@ -94,10 +95,10 @@ func interactive(out io.Writer, in *os.File, title string, items []Item) (int, e
 		case keyEnd:
 			selected = len(items) - 1
 		case keyEnter:
-			clear(out, drawn)
+			clearRows(out, drawn)
 			return selected, nil
 		case keyCancel:
-			clear(out, drawn)
+			clearRows(out, drawn)
 			return 0, ErrCancelled
 		}
 	}

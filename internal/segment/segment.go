@@ -141,7 +141,9 @@ func Split(turns []agent.Turn, opt Options) []Task {
 		if cut {
 			tasks = append(tasks, Task{Turns: cur, Reasons: curReasons})
 			cur = nil
-			curReasons = append(strong, weak...)
+			// Copied rather than appended onto strong, whose backing array
+			// would otherwise be shared with the reasons of a later task.
+			curReasons = append(append([]Reason{}, strong...), weak...)
 			window = newWindow()
 		}
 		cur = append(cur, t)

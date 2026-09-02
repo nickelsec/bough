@@ -1,0 +1,96 @@
+version: "2"
+
+# default: all, then turn off what does not earn its place here. Every entry
+# has a reason, so a later contributor can tell a considered exclusion from a
+# rule somebody silenced to get a green build.
+linters:
+  default: all
+  disable:
+    - cyclop           # gocyclo already covers this
+    - depguard         # no import allowlist to enforce; one dependency total
+    - dupl             # the renderer builds similar elements on purpose
+    - err113           # sentinel errors everywhere would not make this clearer
+    - exhaustruct      # partial struct literals are idiomatic here
+    - exhaustive       # the switches that matter have a default
+    - funcorder        # helpers read better beside what uses them
+    - funlen           # length alone is not a defect
+    - gochecknoglobals # the embedded assets and the usage string are globals
+    - gomodguard       # deprecated in favour of gomodguard_v2
+    - gocognit         # overlaps gocyclo
+    - godox            # TODO comments are fine in an early project
+    - goconst          # repeated strings in tests are clearer left inline
+    - intrange         # rewriting working loops for style is not worth it
+    - modernize        # ditto: the suggestions are all in tests and cold paths
+    - inamedparam      # Sessions(Project) says everything a name would
+    - ireturn          # returning interfaces is the point of the agent seam
+    - lll              # gofmt already governs layout
+    - mnd              # not every literal is a magic number
+    - gochecknoinits   # one init builds a word list once, which is its job
+    - nestif           # the segmenter's nesting mirrors the rules it applies
+    - nlreturn         # stylistic
+    - noctx            # nothing here makes a request that should be cancelled
+    - tagliatelle      # these json names are Claude Code's format, not ours
+    - noinlineerr      # stylistic
+    - nonamedreturns   # named returns document multi-value results
+    - paralleltest     # these tests are fast and several read shared fixtures
+    - testpackage      # the tests deliberately reach into unexported helpers
+    - unparam          # signatures kept uniform on purpose across writers
+    - varnamelen       # short names are fine in short scopes
+    - wrapcheck        # os and io errors read better unwrapped at this size
+    - wsl              # stylistic whitespace rules
+    - wsl_v5           # ditto
+
+  settings:
+    errcheck:
+      # Writing to stdout and closing a file we only read are not worth
+      # handling. A failed write to a closed pipe is normal and already
+      # handled where it matters.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (*os.File).Close
+        - (io.Closer).Close
+
+  exclusions:
+    rules:
+      # Tests open fixture files by path and ignore close errors on purpose.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - forcetypeassert
+          - gosec
+          - bodyclose
+          - revive        # tests shadow min and real deliberately, for brevity
+          - predeclared
+          - unparam
+          - prealloc
+
+      # The paths come from reading the agent's own directory, which is the
+      # job. There is nothing to sanitise against: the user already owns
+      # every file being read, and nothing is written.
+      - path: internal/agent/claude/
+        text: "G304"
+        linters:
+          - gosec
+
+      # The command names are constants and only the url varies, and that url
+      # is the loopback address the server just bound. See open() for why the
+      # failure is ignored.
+      - path: internal/server/server.go
+        text: "G204"
+        linters:
+          - gosec
+
+      # Shutdown deliberately starts from a fresh context: the parent is
+      # already cancelled by the time this runs, so inheriting it would give
+      # the server no time to finish in flight responses.
+      - path: internal/server/server.go
+        linters:
+          - contextcheck
+
+      # gosec cannot see the `i > 0` guard on the line above.
+      - path: internal/metrics/metrics.go
+        text: "G602"
+        linters:
+          - gosec

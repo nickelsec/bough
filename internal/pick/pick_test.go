@@ -127,7 +127,7 @@ func TestDrawRewritesInPlace(t *testing.T) {
 
 func TestClearRemovesTheList(t *testing.T) {
 	var buf bytes.Buffer
-	clear(&buf, 5)
+	clearRows(&buf, 5)
 	if got := strings.Count(buf.String(), lineUp); got != 5 {
 		t.Errorf("cleared %d lines, want 5", got)
 	}
