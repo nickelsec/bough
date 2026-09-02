@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # Actions are pinned by SHA, so this is what keeps those pins from going
+  # stale without giving up the pinning.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows is not optional: it is the primary development platform, and
+        # the corpus proves drive letters drift between d:\ and D:\. Path
+        # handling breaks silently without it in the matrix.
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          check-latest: true
+
+      # The layout test runs the real layout.js under node and skips itself
+      # when node is missing. Without this step the check that the diagram
+      # never tangles would quietly not run at all.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      # The race detector needs cgo. GitHub runners ship a C toolchain on all
+      # three platforms, so it is enabled here even though the shipped binary
+      # is pure Go and cross-compiles without one.
+      #
+      # bash on every runner, including Windows. PowerShell splits
+      # `-coverprofile=coverage.out ./...` in a way that leaves Go trying to
+      # build a package called ".out", which fails while every real test passes.
+      - name: Test
+        shell: bash
+        run: go test -race -coverprofile=coverage.out ./...
+        env:
+          CGO_ENABLED: 1
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "not gofmt clean:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      # Pinned rather than tracking a tag. `latest` has resolved to a
+      # golangci-lint built with an older Go than go.mod targets, which fails
+      # before it lints anything, and .golangci.yaml uses the v2 config schema
+      # that only golangci-lint v2 reads.
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.12.2
+
+  fuzz:
+    name: fuzz the parser
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      # The parser is the correctness core: it reads an undocumented format
+      # that changes underneath us, and everything downstream trusts it. A
+      # minute per push is cheap next to shipping a crash on somebody's
+      # history.
+      - name: Fuzz
+        run: go test -run=xxx -fuzz=FuzzReadRecords -fuzztime=60s ./internal/agent/claude
+
+  gosec:
+    name: gosec
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Pinned by SHA. A mutable ref on a third-party action is exactly the
+      # supply chain shape worth avoiding, and `master` can break the build
+      # with no change on our side.
+      - uses: securego/gosec@9e75c0576c9878035d4221392108d458abe10fc3 # v2.28.0
+        with:
+          args: ./...
