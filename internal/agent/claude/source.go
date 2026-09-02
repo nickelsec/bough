@@ -102,7 +102,9 @@ func (s Source) Sessions(p agent.Project) ([]agent.Session, error) {
 	var sessions []agent.Session
 	var problems []error
 	for _, fp := range files {
-		f, err := os.Open(fp)
+		// Reading transcripts is what this package is for. The path came from
+		// walking the history directory, not from anything a caller supplied.
+		f, err := os.Open(fp) //#nosec G304
 		if err != nil {
 			problems = append(problems, err)
 			continue
@@ -191,7 +193,8 @@ const cwdProbeLines = 200
 
 // firstCWD reads the start of a transcript looking for a working directory.
 func firstCWD(path string) string {
-	f, err := os.Open(path)
+	// As above: a transcript this package found for itself.
+	f, err := os.Open(path) //#nosec G304
 	if err != nil {
 		return ""
 	}

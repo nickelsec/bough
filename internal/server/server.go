@@ -162,15 +162,19 @@ func readAsset(name string) (string, error) {
 //
 // Failure is ignored on purpose. Plenty of places have no browser to open, and
 // the caller has already been told the address.
+// The url is built from the address the listener bound to, so it is always
+// http://127.0.0.1 and a port the kernel chose. It carries nothing a user or
+// a transcript supplied, and it is passed as an argument rather than through
+// a shell, so there is nothing here for a subprocess to misread.
 func open(url string) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url) //#nosec G204
 	case "darwin":
-		cmd = exec.Command("open", url)
+		cmd = exec.Command("open", url) //#nosec G204
 	default:
-		cmd = exec.Command("xdg-open", url)
+		cmd = exec.Command("xdg-open", url) //#nosec G204
 	}
 	_ = cmd.Start()
 }
