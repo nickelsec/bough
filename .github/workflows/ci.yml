@@ -30,7 +30,7 @@ jobs:
       # The layout test runs the real layout.js under node and skips itself
       # when node is missing. Without this step the check that the diagram
       # never tangles would quietly not run at all.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
 
