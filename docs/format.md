@@ -15,7 +15,7 @@ format moves, so treat the shapes as reliable and the counts as illustrative.
 ```
 
 The directory name is the working directory with the separators replaced by
-dashes, so `d:\chaff-app` becomes `d--chaff-app`. That is lossy and you cannot
+dashes, so `d:\my-project` becomes `d--my-project`. That is lossy and you cannot
 reverse it, because a dash in the original path is indistinguishable from a
 separator. Every record carries a `cwd` field, so read the real path from there.
 
