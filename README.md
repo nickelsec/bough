@@ -16,7 +16,7 @@
 </p>
 
 Not how many tokens you burned or how long your streak is. Claude Code's own
-`/stats` covers that. This answers a different question: what did I actually
+`/stats` covers that. This answers a different question: what did you actually
 build?
 
 ## Run it
