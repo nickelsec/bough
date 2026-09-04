@@ -8,6 +8,40 @@ directories and 28 transcripts: 275 MB, 76,801 lines, nothing unparseable. Claud
 Code version 2.1.238 and a little either side. Your corpus will differ, and the
 format moves, so treat the shapes as reliable and the counts as illustrative.
 
+## What will catch you out
+
+Four things in these files will give you wrong numbers, and none of them fail
+loudly. Each is covered in full below; this is the short version, and it is the
+part worth reading before you write any code.
+
+**The files replay.** Claude Code appends to a transcript when a session is
+resumed or rewound, rewriting records it has already written, so the same
+`uuid` turns up several times. Count lines instead of distinct records and the
+largest session here comes out at 36,676 rather than 10,964: **more than three
+times too high**. The overstatement is uneven, so there is no constant to
+correct it by. Deduplicate on `uuid` first, keeping the last copy.
+
+**Two fields arrive in more than one shape.** `toolUseResult` is an object
+17,319 times and a bare string 490 times. Type it as an object only and every
+string-valued line fails to decode, and if a decode failure drops the record you
+lose it without a word: 85 of the 340 lines in this repository's own test
+fixture went missing that way.
+
+**A quiet commit leaves no hash.** Claude Code fills in `gitOperation` by
+reading what git printed, so `git commit -q` prints nothing and the field never
+appears. Of 88 quiet commits measured here, **none** carried one, against 53 of
+57 ordinary ones. Reading that field alone found 4 of one repository's 31
+commits.
+
+**A hash was only true when it was written.** Rebase or amend afterwards and
+the transcript still names objects the repository can no longer reach. 12 of one
+project's 19 recorded hashes are unreachable for that reason.
+
+One more, which is not about the format at all. If you go looking for commits in
+the shell commands instead, a command that writes a file can hold the words
+`git commit` inside the text it writes. Seven of one project's apparent commits
+were heredocs doing exactly that.
+
 ## Where the files live
 
 ```

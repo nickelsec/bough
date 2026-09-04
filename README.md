@@ -2,7 +2,9 @@
   <img width="360" alt="bough" src="docs/img/logo.png">
 </p>
 
-<p align="center">Read your Claude Code history and see the work you actually did.</p>
+<p align="center">
+  Reads your Claude Code session history and draws what you actually built.
+</p>
 
 <p align="center">
   <a href="https://github.com/nickelsec/bough/actions/workflows/ci.yml"><img src="https://github.com/nickelsec/bough/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
