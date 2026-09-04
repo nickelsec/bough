@@ -5,6 +5,10 @@ Notable changes, newest first. Format follows
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.2.0 - 2026-09-04
+
 ### Added
 
 - Commits the agent made are read from the history and shown on the work they
