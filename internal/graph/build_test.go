@@ -192,3 +192,29 @@ func TestBuildOnEmptyHistory(t *testing.T) {
 		t.Errorf("an empty graph must still serialise: %v", err)
 	}
 }
+
+// A session about one project regularly commits in another, a tool and its
+// website worked on together being the usual case. Those commits are real but
+// they are not this project's, and ten of one project's forty seven commit
+// calls turned out to be a sibling repository's.
+func TestCommitsMadeElsewhereAreNotThisProjects(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		dir     string
+		project string
+		want    bool
+	}{
+		{"no cd is the project itself", "", "d:/boughs", true},
+		{"the same place", "d:/boughs", "d:/boughs", true},
+		{"a shell spelling of the same drive", "/d/boughs", "d:/boughs", true},
+		{"windows separators", `d:\boughs`, "d:/boughs", true},
+		{"a trailing separator", "d:/boughs/", "d:/boughs", true},
+		{"a sibling repository", "/d/bough-site", "d:/boughs", false},
+		{"a name that merely ends the same", "d:/my-boughs", "d:/boughs", false},
+		{"somewhere else entirely", "d:/other", "d:/project", false},
+	} {
+		if got := here(c.dir, c.project); got != c.want {
+			t.Errorf("%s: here(%q, %q) = %v, want %v", c.name, c.dir, c.project, got, c.want)
+		}
+	}
+}

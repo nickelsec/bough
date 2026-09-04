@@ -95,6 +95,9 @@ func merge(dst, src *Record) {
 			dst.Message = src.Message
 		}
 	}
+	if src.ToolUseResult != nil {
+		dst.ToolUseResult = src.ToolUseResult
+	}
 }
 
 func setStr(dst *string, src string) {

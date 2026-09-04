@@ -3,10 +3,14 @@ package graph
 import (
 	"fmt"
 	"math"
+	"path"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/nickelsec/bough/internal/agent"
 	"github.com/nickelsec/bough/internal/metrics"
+	"github.com/nickelsec/bough/internal/repo"
 	"github.com/nickelsec/bough/internal/rollup"
 	"github.com/nickelsec/bough/internal/segment"
 )
@@ -20,6 +24,11 @@ type Options struct {
 
 	// Tool is the version string recorded in the output.
 	Tool string
+
+	// SkipRepo leaves the project's git history alone. The commits bough shows
+	// then come from the transcript only, which means the ones made quietly
+	// arrive without a hash.
+	SkipRepo bool
 
 	// Now supplies the timestamp, so tests can pin it.
 	Now func() time.Time
@@ -44,6 +53,13 @@ func DefaultOptions() Options {
 func Build(p agent.Project, sessions []agent.Session, opt Options) Graph {
 	if opt.Now == nil {
 		opt.Now = time.Now
+	}
+
+	// A commit made in another repository is not this project's work, whether
+	// or not the repository can be read, so it goes first either way.
+	onlyHere(p.Path, sessions)
+	if !opt.SkipRepo {
+		fromRepo(p.Path, sessions)
 	}
 
 	var goals []rollup.Goal
@@ -157,6 +173,16 @@ func statsOf(turns []agent.Turn) Stats {
 		}
 		out.TopFiles = append(out.TopFiles, FileCount{Path: f.Path, Edits: f.Edits})
 	}
+	for _, c := range s.Commits {
+		out.Commits = append(out.Commits, Commit{
+			SHA:     c.SHA,
+			Kind:    c.Kind,
+			Branch:  c.Branch,
+			Subject: c.Subject,
+			Added:   c.Added,
+			Removed: c.Removed,
+		})
+	}
 	return out
 }
 
@@ -178,6 +204,16 @@ func turnsOf(turns []agent.Turn) []Turn {
 		}
 		for _, d := range t.Delegated {
 			row.Delegated = append(row.Delegated, Delegation{Kind: d.Kind, Description: d.Description})
+		}
+		for _, c := range t.Committed {
+			row.Committed = append(row.Committed, Commit{
+				SHA:     c.SHA,
+				Kind:    c.Kind,
+				Branch:  c.Branch,
+				Subject: c.Subject,
+				Added:   c.Added,
+				Removed: c.Removed,
+			})
 		}
 		out = append(out, row)
 	}
@@ -208,3 +244,117 @@ func last(turns []agent.Turn) time.Time {
 	}
 	return turns[len(turns)-1].At
 }
+
+// matchWindow is how far a commit in the repository may sit from the tool call
+// that made it and still be the same commit.
+//
+// The two happen within a second or two of each other, so this is generous.
+// It is not tight enough to worry about: on the history this was fitted to, 47
+// of 49 commits landed within five seconds and only one had another commit
+// close enough to be mistaken for it.
+const matchWindow = 90 * time.Second
+
+// fromRepo fills in what the transcript could not say.
+//
+// A commit made with git's quiet flag reaches the transcript with no hash,
+// because Claude Code recovers the hash by reading what git printed. The
+// repository has it, sitting where the transcript already says the project is,
+// so the two are matched by time.
+//
+// The repository is also the better authority when the two disagree. A hash in
+// a transcript was true when it was written; rebasing or amending afterwards
+// leaves it pointing at something the repository can no longer reach, and a
+// hash nobody can look up is worse than none.
+//
+// Nothing here is required. A project that has moved, was never a repository,
+// or is on a machine without git leaves the transcript's own account standing.
+func fromRepo(dir string, sessions []agent.Session) {
+	if dir == "" {
+		return
+	}
+	h := repo.Read(dir)
+	if len(h.Commits) == 0 {
+		return
+	}
+	for _, sess := range sessions {
+		for i := range sess.Turns {
+			for j := range sess.Turns[i].Committed {
+				c := &sess.Turns[i].Committed[j]
+				found := h.Near(c.At, matchWindow)
+				if found == nil {
+					// The repository was read and has no commit here, so any
+					// hash the transcript carried is one the repository can no
+					// longer reach: rebased, amended, or dropped. Showing it
+					// would offer the reader something to check that does not
+					// check out, which is worse than showing nothing.
+					c.SHA = ""
+					c.Branch = ""
+					continue
+				}
+				c.SHA = found.SHA
+				c.Subject = found.Subject
+				c.Added = found.Added
+				c.Removed = found.Removed
+			}
+		}
+	}
+}
+
+// onlyHere drops commits the agent made in some other repository.
+//
+// A session about one project regularly commits in another: a tool and its
+// website worked on together, a fix made in a dependency. Those commits happen,
+// but they are not this project's, and counting them puts work on the diagram
+// that was done somewhere else. Ten of one project's forty seven commit calls
+// were made in a sibling repository.
+//
+// A command that does not move is committing where the session is, which is
+// this project.
+func onlyHere(dir string, sessions []agent.Session) {
+	for _, sess := range sessions {
+		for i := range sess.Turns {
+			kept := sess.Turns[i].Committed[:0]
+			for _, c := range sess.Turns[i].Committed {
+				if here(c.Dir, dir) {
+					kept = append(kept, c)
+				}
+			}
+			sess.Turns[i].Committed = kept
+		}
+	}
+}
+
+// here reports whether a commit was made in this project's own directory.
+//
+// A command that does not move is running where the session is, which is here.
+func here(in, project string) bool {
+	return in == "" || sameDir(in, project)
+}
+
+// sameDir compares two paths for being the same place.
+//
+// The same directory is written several ways in one session. On this corpus a
+// single project's commits arrived as "d:/thing", "/d/thing" and with no
+// path at all, which are one directory and have to compare equal or real work
+// is thrown away. The drive is folded into a leading letter so the two spellings
+// meet, and the result is compared whole rather than by suffix, since a suffix
+// test would make "site" and "my-site" the same place.
+func sameDir(a, b string) bool {
+	return driveForm(a) == driveForm(b)
+}
+
+// driveForm puts a path into one shape: lower case, forward slashes, no
+// trailing separator, and a Windows drive written as "d:/" whether it arrived
+// that way or as the "/d/" a shell uses.
+func driveForm(p string) string {
+	p = strings.ToLower(strings.ReplaceAll(p, `\`, "/"))
+	if m := shellDrive.FindStringSubmatch(p); m != nil {
+		p = m[1] + ":/" + m[2]
+	}
+	p = path.Clean(p)
+	return strings.TrimSuffix(p, "/")
+}
+
+// shellDrive matches the "/d/some/path" a unix style shell uses for a Windows
+// drive, so it can be written the way the transcript records it.
+var shellDrive = regexp.MustCompile(`^/([a-z])/(.*)$`)

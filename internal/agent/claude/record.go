@@ -15,6 +15,8 @@ package claude
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/nickelsec/bough/internal/agent"
 )
 
 // Record is one line of a transcript.
@@ -40,6 +42,51 @@ type Record struct {
 	IsSidechain bool `json:"isSidechain"`
 
 	Message *Message `json:"message"`
+
+	// ToolUseResult carries what a tool returned. Only the git operation is
+	// read from it, since that is the one part of a result that says something
+	// about the work rather than about the tool.
+	ToolUseResult *ToolUseResult `json:"toolUseResult"`
+}
+
+// ToolUseResult is the outcome of a tool call, filed on the record after it.
+type ToolUseResult struct {
+	GitOperation *GitOperation `json:"gitOperation"`
+}
+
+// UnmarshalJSON accepts either form of tool result.
+//
+// Most tools return an object, but plenty return a bare string: 85 of the 340
+// lines in the replay fixture do. Treating this as an object only would fail
+// the whole line and lose the record, which is how this was found.
+func (t *ToolUseResult) UnmarshalJSON(b []byte) error {
+	if len(b) == 0 || b[0] != '{' {
+		return nil
+	}
+	type plain ToolUseResult
+	return json.Unmarshal(b, (*plain)(t))
+}
+
+// GitOperation is a git action Claude Code recognised itself performing.
+//
+// Do not rely on this being present. Claude Code fills it in by reading what
+// git printed, so a commit made with -q leaves it empty: across this corpus 53
+// of 57 ordinary commits carry it and none of the 88 quiet ones do. The command
+// that ran is the dependable signal; this is where a hash comes from when there
+// is one.
+type GitOperation struct {
+	Commit *Commit `json:"commit"`
+}
+
+// Commit is a commit the agent made.
+//
+// Note what this does not cover: a commit the person typed themselves in a
+// terminal never reaches the transcript, so this records what the agent
+// committed, not everything that was committed.
+type Commit struct {
+	SHA    string `json:"sha"`
+	Kind   string `json:"kind"`
+	Branch string `json:"branch"`
 }
 
 // Message is the model-facing part of a record.
@@ -70,6 +117,11 @@ type Block struct {
 	Name  string          `json:"name"`
 	Input json.RawMessage `json:"input"`
 
+	// ID identifies a tool call, and ToolUseID on a later result points back to
+	// it. Pairing the two is how a command is matched with what it did.
+	ID        string `json:"id"`
+	ToolUseID string `json:"tool_use_id"`
+
 	// IsError marks a tool result that came back as a failure.
 	IsError bool `json:"is_error"`
 }
@@ -85,6 +137,21 @@ func (r *Record) Time() time.Time {
 		return time.Time{}
 	}
 	return t
+}
+
+// Commit returns the commit this record reports, or nil if it reports none.
+//
+// A commit with no hash is not a commit worth recording, since the hash is the
+// only part a reader can check against the repository.
+func (r *Record) Commit() *agent.Commit {
+	if r.ToolUseResult == nil || r.ToolUseResult.GitOperation == nil {
+		return nil
+	}
+	c := r.ToolUseResult.GitOperation.Commit
+	if c == nil || c.SHA == "" {
+		return nil
+	}
+	return &agent.Commit{SHA: c.SHA, Kind: c.Kind, Branch: c.Branch}
 }
 
 // IsCompactBoundary reports whether this record marks a context compaction,

@@ -25,6 +25,11 @@
   // you can see and hit. Measured: at the tightest opening scale the nearest
   // two circles are 12px apart, so a 9px floor never makes them touch.
   var FLOOR = { prompt: 9, task: 13, day: 20 };
+
+  // The floor for the mark on a task that ended in a commit, against the zoom.
+  // Small on purpose: it says the work landed, and it must not read as a score.
+  var SHIPPED_R = 1.7;
+
   var sized = [];
 
   // The scale that shows the whole diagram. The bar reads against this rather
@@ -182,6 +187,15 @@
     task.node = box;
     g.appendChild(box);
 
+    // Work that ended in a commit gets a small filled mark at the corner.
+    // Deliberately quiet: plenty of real work never commits, and a task that
+    // did not is not a worse task. It marks what landed, not what was good.
+    if (task.shipped) {
+      var mark = el("circle", { class: "shipped-mark", r: SHIPPED_R });
+      task.mark = mark;
+      g.appendChild(mark);
+    }
+
     task.prompts.forEach(function (p) {
       var c = el("circle", {
         cx: p.x, cy: p.y,
@@ -244,6 +258,26 @@
       item.node.setAttribute("y", item.at.y - half);
       item.node.setAttribute("width", on);
       item.node.setAttribute("height", on);
+
+      // The shipped mark rides the corner of the square it belongs to, so it
+      // has to move whenever the square is resized against the zoom. It sits
+      // inside the corner rather than on it, which reads as part of the node
+      // instead of something stuck to its edge.
+      if (item.at.mark) {
+        // A fixed share of the square, so it reads the same on every task and
+        // sits inside the corner rather than on it. Held to a floor against
+        // the zoom the way the nodes themselves are, or it disappears at the
+        // scale that fits a wide project on screen.
+        //
+        // These two numbers were worked out rather than tried: at a ratio of
+        // 0.13 and a pad of 0.2 the dot clears the inside of the stroke by a
+        // full unit even on the smallest task drawn.
+        var r = Math.max(on * 0.13, SHIPPED_R / view.scale);
+        var inset = r + on * 0.2;
+        item.at.mark.setAttribute("r", r);
+        item.at.mark.setAttribute("cx", item.at.x + half - inset);
+        item.at.mark.setAttribute("cy", item.at.y - half + inset);
+      }
     } else {
       item.node.setAttribute("r", half);
     }
@@ -551,6 +585,10 @@
     } else if (item.kind === "task") {
       pop.appendChild(node("p", "pop-title", clip(item.task.label || "(unnamed)", 110)));
       pop.appendChild(node("p", "pop-when", figures(item.task.stats)));
+      if (item.shipped) {
+        var hashes = shas(item.task.stats);
+        if (hashes) pop.appendChild(node("p", "pop-sha", hashes));
+      }
     } else {
       pop.appendChild(node("p", "pop-title", item.goal.period || ""));
       pop.appendChild(node("p", "pop-when", figures(item.goal.stats)));
@@ -620,6 +658,8 @@
     head.appendChild(node("p", "reader-figures", figures(day.goal.stats)));
     panel.appendChild(head);
 
+    commitList(panel, day.goal.stats.commits);
+
     var list = node("ol", "turns");
     day.tasks.forEach(function (task) {
       var li = node("li", "turn");
@@ -644,6 +684,8 @@
         " (" + stats.churn + " times)"));
     }
 
+    commitList(panel, stats.commits);
+
     var wanted = null;
     var list = node("ol", "turns");
     (task.task.turns || []).forEach(function (turn, i) {
@@ -654,6 +696,11 @@
       li.appendChild(node("p", "said", turn.text));
       (turn.delegated || []).forEach(function (job) {
         li.appendChild(node("p", "handoff", job.description));
+      });
+      // A commit sits under the prompt that produced it, so the record reads
+      // as what was asked for and what came of it.
+      (turn.committed || []).forEach(function (c) {
+        li.appendChild(commitRow(c));
       });
       if (i === highlight) wanted = li;
       list.appendChild(li);
@@ -666,6 +713,51 @@
     if (wanted && wanted.scrollIntoView) {
       wanted.scrollIntoView({ block: "center" });
     }
+  }
+
+  // commitList heads the record with everything the work committed.
+  //
+  // The same commits appear again further down against the prompts that made
+  // them. That repetition is deliberate: this answers "what did this ship",
+  // which people want without reading, and the ones below answer "what caused
+  // it", which only makes sense in place.
+  function commitList(panel, commits) {
+    var all = commits || [];
+    if (!all.length) return;
+
+    var box = node("section", "commits");
+    box.appendChild(node("h3", "commits-head",
+      all.length === 1 ? "1 commit" : all.length + " commits"));
+
+    var list = node("ol", "commit-list");
+    all.forEach(function (c) {
+      list.appendChild(commitRow(c, true));
+    });
+    box.appendChild(list);
+    panel.appendChild(box);
+  }
+
+  // commitRow draws one commit. As a list item inside the summary, and as a
+  // plain line where it hangs under a prompt.
+  function commitRow(c, asItem) {
+    var row = node(asItem ? "li" : "p", "commit");
+
+    if (c.sha) {
+      row.appendChild(node("code", "commit-sha", c.sha));
+    }
+    // Without a hash there is still something true to say: it happened. That
+    // is the case for a commit made with git's quiet flag on a project whose
+    // repository could not be read.
+    row.appendChild(node("span", "commit-subject",
+      c.subject || (c.kind === "amended" ? "amended a commit" : "committed")));
+
+    if (c.added || c.removed) {
+      var churn = node("span", "commit-churn");
+      if (c.added) churn.appendChild(node("b", "plus", "+" + c.added));
+      if (c.removed) churn.appendChild(node("b", "minus", "−" + c.removed));
+      row.appendChild(churn);
+    }
+    return row;
   }
 
   // owner finds the task a prompt hangs from.
@@ -878,7 +970,29 @@
     var bits = [count(stats.turns || 0, "prompt")];
     if (stats.edits) bits.push(count(stats.edits, "change"));
     if (stats.errors) bits.push(count(stats.errors, "failure"));
+    var commits = stats.commits || [];
+    if (commits.length) bits.push(count(commits.length, "commit"));
     return bits.join("  ·  ");
+  }
+
+  // The hashes themselves, which are the one thing on the page a reader can
+  // check against their own repository.
+  //
+  // Not every commit has one. Claude Code reads the hash out of what git
+  // printed, and a commit made quietly prints nothing, so the commit is known
+  // to have happened while its hash is not.
+  // Hashes only in the note, and no messages.
+  //
+  // The note is a glance, not a read. Messages turned it into a wall of text
+  // that had to be truncated twice over, and anyone who wants to know what a
+  // commit said can open the record, where they are listed in full beside the
+  // prompts that produced them.
+  function shas(stats) {
+    var all = [];
+    (stats.commits || []).forEach(function (c) {
+      if (c.sha) all.push(c.sha);
+    });
+    return all.join("  ");
   }
 
   function duration(minutes) {
@@ -918,18 +1032,91 @@
 
     var t = graph.totals;
     var foot = document.getElementById("foot");
-    [
+    var rows = [
       [t.turns || 0, "prompts"],
       [graph.goals.length, "days"],
       [t.edits || 0, "changes"],
-      [t.files || 0, "files"],
-      [duration(t.activeMinutes), "at the keyboard"]
-    ].forEach(function (pair) {
+      [t.files || 0, "files"]
+    ];
+    // Commits sit next to the changes they became, and only when there are
+    // any: a project with none should not be told so five times a session.
+    var made = (t.commits || []).length;
+    if (made) rows.push([made, made === 1 ? "commit" : "commits", true]);
+    rows.push([duration(t.activeMinutes), "at the keyboard"]);
+    rows.forEach(function (pair) {
       var span = node("span");
       span.appendChild(node("b", null, String(pair[0])));
-      span.appendChild(document.createTextNode(" " + pair[1]));
+      // The gap between the number and its word is set in the stylesheet, so
+      // the word is added without one of its own.
+      span.appendChild(document.createTextNode(pair[1]));
+      if (pair[2]) span.appendChild(countNote());
       foot.appendChild(span);
     });
+  }
+
+  // queryMark draws the small circled question the note hangs off.
+  //
+  // Drawn rather than typed. A "?" in the page's mono face sits on the text
+  // baseline and reads as a character someone left behind; a circle at the
+  // cap height reads as something to hover. It takes its colour from the
+  // button, so the one hover rule below moves both.
+  function queryMark() {
+    var ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+
+    var ring = document.createElementNS(ns, "circle");
+    ring.setAttribute("cx", "8");
+    ring.setAttribute("cy", "8");
+    ring.setAttribute("r", "6.6");
+    ring.setAttribute("fill", "none");
+    ring.setAttribute("stroke", "currentColor");
+    ring.setAttribute("stroke-width", "1.3");
+    svg.appendChild(ring);
+
+    // The hook of the question, then its dot.
+    //
+    // Both sit 0.3 higher than the arithmetic centre. The glyph runs from the
+    // top of the hook's arc to the bottom of the dot, and that span centres
+    // below the ring's own centre unless it is lifted, which reads as a
+    // question mark sitting low in its circle.
+    var hook = document.createElementNS(ns, "path");
+    hook.setAttribute("d", "M6.1 5.8a1.95 1.95 0 1 1 2.6 1.85c-.45.18-.7.5-.7.95v.5");
+    hook.setAttribute("fill", "none");
+    hook.setAttribute("stroke", "currentColor");
+    hook.setAttribute("stroke-width", "1.3");
+    hook.setAttribute("stroke-linecap", "round");
+    svg.appendChild(hook);
+
+    var dot = document.createElementNS(ns, "circle");
+    dot.setAttribute("cx", "8");
+    dot.setAttribute("cy", "11.3");
+    dot.setAttribute("r", "0.85");
+    dot.setAttribute("fill", "currentColor");
+    svg.appendChild(dot);
+    return svg;
+  }
+
+  // countNote explains why this number and the one on a forge may differ.
+  //
+  // bough counts what the agent did; git log holds what survived. Usually the
+  // same number, not always, and a reader who spots the gap should find the
+  // reason here rather than conclude the tool is wrong. Three lines is the
+  // whole of it: anything longer stops being read.
+  function countNote() {
+    var mark = node("button", "note");
+    mark.type = "button";
+    mark.appendChild(queryMark());
+    mark.setAttribute("aria-label", "why this may differ from GitHub");
+    mark.title = [
+      "May differ from GitHub on these cases:",
+      "• Commits you made by hand",
+      "• Amends, counted where they happened",
+      "• Rebases, which drop commits"
+    ].join("\n");
+    return mark;
   }
 
   document.addEventListener("keydown", function (e) {

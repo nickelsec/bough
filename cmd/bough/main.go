@@ -46,6 +46,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		root    = fs.String("root", "", "read history from here instead of the usual location")
 		out     = fs.String("o", "", "write to this file instead of standard output")
 		showVer = fs.Bool("version", false, "print the version and stop")
+		noRepo  = fs.Bool("no-repo", false, "do not read the project's git history")
 	)
 	fs.Usage = func() {
 		fmt.Fprint(stderr, usage)
@@ -96,6 +97,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 
 	opt := graph.DefaultOptions()
 	opt.Tool = version
+	opt.SkipRepo = *noRepo
 	g := graph.Build(target, sessions, opt)
 
 	w := stdout
@@ -325,6 +327,7 @@ const usage = `bough shows the shape of the work in a project's AI coding histor
   bough --list       show which projects have history
   bough --json       write the graph as JSON
   bough --version    print the version
+  bough --no-repo    leave the project's git history unread
 
 Anything piped or redirected is written as text, so bough > notes.txt and
 bough | less behave as you would expect.

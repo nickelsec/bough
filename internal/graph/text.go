@@ -26,6 +26,11 @@ func WriteText(w io.Writer, g Graph, verbose bool) error {
 		fmt.Fprintf(w, "%s to %s, %s at the keyboard\n",
 			plural(t.Edits, "change"), plural(t.Files, "file"), hours(t.ActiveMinutes))
 	}
+	// Only when there were any. A project that commits nothing does not need
+	// telling so every time it is read.
+	if n := len(t.Commits); n > 0 {
+		fmt.Fprintf(w, "%s\n", plural(n, "commit"))
+	}
 
 	for _, goal := range g.Goals {
 		fmt.Fprintf(w, "\n%s\n", strings.Repeat("-", 72))
@@ -50,6 +55,27 @@ func WriteText(w io.Writer, g Graph, verbose bool) error {
 				fmt.Fprintf(w, ", %s", plural(task.Stats.Errors, "failure"))
 			}
 			fmt.Fprintln(w)
+
+			// What the work committed, so it can be checked against the
+			// repository. A commit whose hash could not be recovered still
+			// counts, since the fact of it is what says the work landed.
+			if n := len(task.Stats.Commits); n > 0 {
+				named := 0
+				for _, c := range task.Stats.Commits {
+					if c.SHA == "" {
+						continue
+					}
+					named++
+					if c.Subject != "" {
+						fmt.Fprintf(w, "    %s  %s\n", c.SHA, oneLine(c.Subject, subjectWidth))
+					} else {
+						fmt.Fprintf(w, "    %s\n", c.SHA)
+					}
+				}
+				if named == 0 {
+					fmt.Fprintf(w, "    %s\n", plural(n, "commit"))
+				}
+			}
 
 			if verbose {
 				for _, turn := range task.Turns {
@@ -94,6 +120,10 @@ func fileList(files []string, limit int) string {
 	}
 	return strings.Join(names, ", ")
 }
+
+// subjectWidth keeps a commit message on one line. Most are well short of it,
+// but nothing stops one running to a paragraph.
+const subjectWidth = 64
 
 // oneLine flattens a prompt onto a single line, since dictated and pasted text
 // arrives full of line breaks.

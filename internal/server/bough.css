@@ -35,6 +35,22 @@
   --warm:      #be6a31;
   --warm-text: #9c5122;
 
+  /* Commits get a colour of their own. Every other one on the page already
+     means something: olive is a prompt, brown is a day, rust is work that went
+     badly. Drawing a commit in any of those makes it read as one of them.
+
+     This is a green, but not the same green. The olives above sit at a hue of
+     about 72 degrees, warm and yellowed; this one is at 105, a deep grass
+     green with no blue in it at all.
+
+     It took three goes. At 156 and again at 128 it was far enough round toward
+     cyan to read as blue against a warm ground, which is a colour the page has
+     nowhere else and looked borrowed from another design. 105 stays inside the
+     greens while sitting a clear third of the way round from the leaf, so a
+     commit never reads as just a darker branch. 6.1 to 1 on the page and 5.0
+     on the darkest surface it lands on. */
+  --stamp:   #30661d;
+
   --ink:     #241f17;
   --ink-mid: #6b6151;
   /* Quiet, but still above 4.5 to 1. Figures along the foot and timestamps in
@@ -197,6 +213,52 @@ body.reading #stage { right: var(--drawer); }
   color: var(--ink-mid);
 }
 
+/* Each figure lines its parts up on their centres rather than on the text
+   baseline, so the mark beside the commit count sits level with the digits.
+   vertical-align has no say inside a flex row, which is why this is done from
+   here rather than on the mark itself.
+
+   The gap is what separates the number from its word. A flex row drops the
+   whitespace between its children, so the space that was in the markup is
+   gone and has to be asked for. */
+.foot span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.34em;
+}
+
+/* The mark is the one child that wants centring rather than sitting on the
+   baseline, being a drawn circle rather than a letter. */
+.foot span .note { align-self: center; }
+
+/* The mark that explains why the commit count and the one on a forge can
+   disagree. The foot ignores the pointer so panning works over it, which this
+   has to undo for itself, being the one thing down here worth hovering. */
+.foot .note {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-low);
+  cursor: help;
+  opacity: 0.55;
+  transition: opacity 120ms var(--ease), color 120ms var(--ease);
+}
+
+.foot .note svg {
+  display: block;
+  width: 0.78rem;
+  height: 0.78rem;
+}
+
+.foot .note:hover,
+.foot .note:focus-visible {
+  opacity: 1;
+  color: var(--ink-mid);
+}
+
 /* ---- states ------------------------------------------------------------ */
 
 .empty {
@@ -327,6 +389,17 @@ body.nothing .empty { display: flex; }
    been checked against anyone's memory. */
 .task.hard .task-node { stroke: var(--warm); }
 .task.hard .prompt-node { stroke: var(--warm); }
+
+/* A task that ended in a commit. Small, and in the one colour on the page that
+   means nothing else, because plenty of good work never commits and this must
+   not read as a mark of quality. It says the work landed, nothing more. */
+.shipped-mark {
+  fill: var(--stamp);
+  stroke: none;
+  pointer-events: none;
+}
+
+.task.faded .shipped-mark { opacity: 0.25; }
 
 .task-node,
 .day-node { cursor: pointer; }
@@ -554,6 +627,17 @@ body.growing .day {
   font-size: 0.67rem;
   color: var(--ink-low);
   font-variant-numeric: tabular-nums;
+}
+
+/* The hashes, set as hashes. Anyone reading these is going to paste one into
+   git, so they are monospaced and selectable rather than prose. */
+.pop-sha {
+  margin: 0.3rem 0 0;
+  font-size: 0.64rem;
+  color: var(--stamp);
+  letter-spacing: 0.04em;
+  user-select: text;
+  overflow-wrap: anywhere;
 }
 
 .pop-title {
@@ -1043,6 +1127,87 @@ body.reading #reader { transform: none; }
   font-size: 0.8rem;
   color: var(--ink-mid);
 }
+
+/* ---- commits ------------------------------------------------------------ */
+
+/* The summary at the head of the record, listing what the work shipped. */
+.commits {
+  margin: 0 0 1.4rem;
+  padding: 0.7rem 0.85rem;
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+}
+
+.commits-head {
+  margin: 0 0 0.5rem;
+  font: 600 0.76rem var(--display);
+  letter-spacing: 0.02em;
+  color: var(--stamp);
+}
+
+.commit-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.35rem;
+}
+
+/* One commit, whether in the summary or under the prompt that made it. */
+.commit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.79rem;
+  color: var(--ink-mid);
+}
+
+/* Under a prompt it needs separating from the words above it, which the
+   summary rows do not, since the box already does that. */
+p.commit {
+  margin-top: 0.45rem;
+  padding-left: 0.7rem;
+  border-left: 2px solid var(--stamp);
+}
+
+.commit-sha {
+  flex: 0 0 auto;
+  font-size: 0.74rem;
+  letter-spacing: 0.03em;
+  color: var(--stamp);
+  background: none;
+  user-select: text;
+}
+
+.commit-subject {
+  flex: 1 1 12rem;
+  min-width: 0;
+  color: var(--ink);
+  /* Two lines and then an ellipsis. A commit message can run to a paragraph,
+     and the record is a list of what happened rather than somewhere to read
+     one. Clamping on rendered lines rather than a character count means it
+     cuts in the right place at any panel width. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+/* Lines added and removed, held together and set apart from the message. */
+.commit-churn {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.commit-churn .plus { color: var(--deep); font-weight: 400; }
+.commit-churn .minus { color: var(--warm-text); font-weight: 400; }
 
 @media (max-width: 60rem) {
   :root { --drawer: 100vw; }

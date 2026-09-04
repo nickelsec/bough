@@ -76,6 +76,50 @@ type Delegation struct {
 	Description string
 }
 
+// Commit is a commit the agent made while working on a turn.
+//
+// This is the only thing in the graph that is not inferred. Everything else,
+// where a task starts and ends and how hard it looked, comes from heuristics.
+// A commit either exists in the repository or it does not, which makes it the
+// one claim a reader can check.
+//
+// It is also incomplete by nature: a commit the person typed themselves never
+// appears in any agent's history, so this says what the agent committed and
+// nothing about the rest.
+type Commit struct {
+	// SHA is the abbreviated hash the agent recorded, when it recorded one.
+	// Claude Code reads the hash back out of what git printed, so a commit made
+	// quietly has none until the repository is consulted.
+	SHA string
+
+	// Kind is what happened, for example "committed" or "amended".
+	Kind string
+
+	// Branch is where it landed, when the agent recorded one.
+	Branch string
+
+	// At is when the commit call returned, which is within a second or two of
+	// the commit itself. It is what lets a commit with no hash be matched
+	// against the repository.
+	At time.Time
+
+	// Dir is where the commit was made, when the command moved somewhere first.
+	// Empty means the project's own directory.
+	//
+	// A session about one project often commits in another, a tool and its
+	// website being worked on together for instance. Those commits are real but
+	// they belong to that other repository, and this is what lets them be told
+	// apart.
+	Dir string
+
+	// Subject, Added and Removed come from the repository rather than the
+	// transcript, and are empty when it could not be read. The transcript knows
+	// a commit happened; only the repository knows how big it was.
+	Subject string
+	Added   int
+	Removed int
+}
+
 // Turn is one human prompt and everything the agent did in response.
 //
 // This is the unit every later stage works from. Anything agent-specific has
@@ -100,6 +144,9 @@ type Turn struct {
 	// the record holds real branching, and each carries a description written at
 	// the time, which makes it a better label than anything inferred later.
 	Delegated []Delegation
+
+	// Committed is what the agent committed during this turn, in order.
+	Committed []Commit
 
 	// SegmentHint marks a boundary the agent itself recorded, such as a context
 	// compaction. Free evidence, worth more than anything we infer.

@@ -161,8 +161,15 @@ func TestRealCorpusTurnCounts(t *testing.T) {
 	if err != nil {
 		t.Skip("no home directory")
 	}
-	fp := filepath.Join(home, ".claude", "projects", "d--chaff-app",
-		"80fe749b-bfd9-4329-a3e9-b4cb425e920e.jsonl")
+	// One session on the machine this was fitted against. Every other machine
+	// skips, which is the point: the numbers below are a record of what the
+	// filtering did on a history that was read by hand, not a claim about
+	// anyone else's.
+	ref := os.Getenv("BOUGH_REFERENCE_SESSION")
+	if ref == "" {
+		t.Skip("no reference session set")
+	}
+	fp := filepath.Join(home, ".claude", "projects", ref)
 	f, err := os.Open(fp)
 	if err != nil {
 		t.Skip("this machine does not have the reference session")
@@ -209,5 +216,179 @@ func TestExtractTurnsCapturesDelegations(t *testing.T) {
 	}
 	if turns[0].Delegated[0].Description != "Research PDF redaction stack" {
 		t.Errorf("description = %q", turns[0].Delegated[0].Description)
+	}
+}
+
+// A commit belongs to the prompt that was running when it happened, which is
+// how a task comes to know whether the work it holds actually landed.
+func TestExtractTurnsCreditsCommitsToTheirPrompt(t *testing.T) {
+	lines := []string{
+		`{"uuid":"1","type":"user","promptId":"p1","message":{"role":"user","content":[{"type":"text","text":"fix the parser"}]}}`,
+		`{"uuid":"2","type":"assistant","message":{"role":"assistant","content":[` +
+			`{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"git commit -F -"}}]}}`,
+		`{"uuid":"3","type":"user","toolUseResult":{"stdout":"ok","gitOperation":{"commit":` +
+			`{"sha":"d0a65cc","kind":"committed","branch":"main"}}},` +
+			`"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1"}]}}`,
+		`{"uuid":"4","type":"user","promptId":"p2","message":{"role":"user","content":[{"type":"text","text":"now the docs"}]}}`,
+		`{"uuid":"5","type":"user","toolUseResult":"plain string result",` +
+			`"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t9"}]}}`,
+	}
+	recs, err := ReadRecords(strings.NewReader(strings.Join(lines, "\n")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	turns := ExtractTurns(recs)
+
+	if len(turns) != 2 {
+		t.Fatalf("got %d turns, want 2", len(turns))
+	}
+	if len(turns[0].Committed) != 1 {
+		t.Fatalf("first turn holds %d commits, want 1", len(turns[0].Committed))
+	}
+	if got := turns[0].Committed[0]; got.SHA != "d0a65cc" || got.Kind != "committed" {
+		t.Errorf("got %+v, want sha d0a65cc kind committed", got)
+	}
+	// The second prompt committed nothing, and a string result must not be
+	// mistaken for one.
+	if len(turns[1].Committed) != 0 {
+		t.Errorf("second turn holds %d commits, want 0", len(turns[1].Committed))
+	}
+}
+
+// The bug this guards against: Claude Code fills in gitOperation by reading
+// what git printed, so "git commit -q" leaves it empty. Trusting that field
+// alone found 4 of one project's 31 commits and 25 of another's 47. The command
+// is the dependable signal; the hash is a bonus when git was not silenced.
+func TestQuietCommitsAreStillCommits(t *testing.T) {
+	lines := []string{
+		`{"uuid":"1","type":"user","promptId":"p1","message":{"role":"user","content":[{"type":"text","text":"ship it"}]}}`,
+		`{"uuid":"2","type":"assistant","message":{"role":"assistant","content":[` +
+			`{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"git add -A && git commit -q -F -"}}]}}`,
+		`{"uuid":"3","type":"user","toolUseResult":{"stdout":"","stderr":""},` +
+			`"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1"}]}}`,
+	}
+	recs, err := ReadRecords(strings.NewReader(strings.Join(lines, "\n")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	turns := ExtractTurns(recs)
+
+	if len(turns[0].Committed) != 1 {
+		t.Fatalf("a quiet commit was not counted: %d commits", len(turns[0].Committed))
+	}
+	if got := turns[0].Committed[0]; got.Kind != "committed" || got.SHA != "" {
+		t.Errorf("got %+v, want kind committed and no sha", got)
+	}
+}
+
+// A commit that git refused is not a commit. Nothing staged is the usual
+// reason, and it happens often enough to matter.
+func TestRefusedCommitsDoNotCount(t *testing.T) {
+	lines := []string{
+		`{"uuid":"1","type":"user","promptId":"p1","message":{"role":"user","content":[{"type":"text","text":"commit"}]}}`,
+		`{"uuid":"2","type":"assistant","message":{"role":"assistant","content":[` +
+			`{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"git commit -m nope"}}]}}`,
+		`{"uuid":"3","type":"user","message":{"role":"user","content":[` +
+			`{"type":"tool_result","tool_use_id":"t1","is_error":true}]}}`,
+	}
+	recs, err := ReadRecords(strings.NewReader(strings.Join(lines, "\n")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	turns := ExtractTurns(recs)
+	if len(turns[0].Committed) != 0 {
+		t.Errorf("a failed commit was counted: %+v", turns[0].Committed)
+	}
+}
+
+// Commands that merely mention committing must not be mistaken for one.
+func TestCommitDetectionIsNotFooledByLookalikes(t *testing.T) {
+	for _, cmd := range []string{
+		"git log --oneline",
+		"git commit-tree abc",
+		`echo "remember to git commit later"`,
+		"git status",
+		"git push origin main",
+		"git -c core.editor=vim log",
+	} {
+		if commitCall.MatchString(cmd) {
+			t.Errorf("%q was read as a commit", cmd)
+		}
+	}
+	for _, cmd := range []string{
+		"git commit -q -F -",
+		"cd d:/x && git add -A && git commit -m x",
+		"git -C /some/dir commit -m x",
+		// An identity set inline. The value is quoted and holds a space, which
+		// an option pattern built on \S stops at: seven of one project's
+		// thirty one commits went missing exactly here.
+		`git add -A && git -c user.name="Ada Lovelace" -c user.email="a@b.com" commit -q -F -`,
+		`git -c user.name='Ada Lovelace' commit -q`,
+		"git --no-pager commit -m x",
+		"git commit",
+	} {
+		if !commitCall.MatchString(cmd) {
+			t.Errorf("%q was not read as a commit", cmd)
+		}
+	}
+}
+
+// A command that writes text is not a command that commits, even when the text
+// it writes says "git commit". Writing a script or a changelog about committing
+// does exactly that, and it accounted for every one of one project's two
+// apparent commits above what its git log holds.
+func TestTextThatMentionsCommittingIsNotACommit(t *testing.T) {
+	writing := []string{
+		"cat > note.sh <<'SH'\ngit commit -q -m hello\nSH",
+		"cd /d/x; python - <<'PY'\ns = 'git commit -m x'\nPY",
+		"cat >> CHANGELOG.md <<'MD'\nRun git commit when done.\nMD",
+	}
+	for _, cmd := range writing {
+		if isCommit(cmd) {
+			t.Errorf("text was read as a commit: %.48q", cmd)
+		}
+	}
+
+	// A real commit routinely takes its message on a heredoc, which opens
+	// after the commit rather than before it.
+	committing := []string{
+		"git commit -q -F - <<'MSG'\nA message\nMSG",
+		"cd /d/x && git add -A && git commit -F - <<'EOF'\nAnother\nEOF",
+		"git commit -m short",
+	}
+	for _, cmd := range committing {
+		if !isCommit(cmd) {
+			t.Errorf("a commit was not read as one: %.48q", cmd)
+		}
+	}
+}
+
+// Shell is not only pipes and semicolons. A commit can sit in the body of a
+// conditional or a loop, where a keyword does the separating, and it can be a
+// rehearsal that reports what it would do and then does nothing.
+func TestCommitDetectionHandlesShellAndRehearsals(t *testing.T) {
+	for _, cmd := range []string{
+		// --dry-run prints what would happen. Nothing lands, so nothing counts.
+		"git commit --dry-run -m x",
+		"git add -A && git commit --dry-run",
+		"git revert --no-commit HEAD",
+		"git merge --no-commit topic",
+		"git help commit",
+	} {
+		if isCommit(cmd) {
+			t.Errorf("%q was read as a commit", cmd)
+		}
+	}
+	for _, cmd := range []string{
+		"if git diff --cached --quiet; then echo none; else git commit -m x; fi",
+		"for f in a b; do git commit -m $f; done",
+		"(cd /d/x && git commit -m y)",
+		"git commit -am x",
+		// The rehearsal belongs to the command before it, not to this one.
+		"git commit --dry-run && git commit -m x",
+	} {
+		if !isCommit(cmd) {
+			t.Errorf("%q was not read as a commit", cmd)
+		}
 	}
 }

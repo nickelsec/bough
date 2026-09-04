@@ -59,6 +59,54 @@ func TestUnknownFieldsAreIgnored(t *testing.T) {
 	}
 }
 
+// toolUseResult is an object for some tools and a bare string for others.
+// Declaring it as an object only made the whole line fail to parse, which
+// silently dropped 85 of the 340 records in the replay fixture. A record lost
+// this way leaves no trace, so it is worth pinning both shapes.
+func TestToolUseResultAcceptsBothShapes(t *testing.T) {
+	lines := strings.Join([]string{
+		`{"uuid":"a","type":"user","toolUseResult":"just some text"}`,
+		`{"uuid":"b","type":"user","toolUseResult":{"stdout":"ok"}}`,
+		`{"uuid":"c","type":"user","toolUseResult":{"gitOperation":{"commit":{"sha":"d0a65cc","kind":"committed","branch":"main"}}}}`,
+	}, "\n")
+
+	recs, err := ReadRecords(strings.NewReader(lines))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recs) != 3 {
+		t.Fatalf("got %d records, want 3 (a string result must not lose the line)", len(recs))
+	}
+
+	if c := recs[0].Commit(); c != nil {
+		t.Errorf("string result reported a commit: %+v", c)
+	}
+	if c := recs[1].Commit(); c != nil {
+		t.Errorf("result without a git operation reported a commit: %+v", c)
+	}
+
+	c := recs[2].Commit()
+	if c == nil {
+		t.Fatal("no commit read from a record that carries one")
+	}
+	if c.SHA != "d0a65cc" || c.Kind != "committed" || c.Branch != "main" {
+		t.Errorf("got %+v, want sha d0a65cc, kind committed, branch main", *c)
+	}
+}
+
+// A commit with no hash is not checkable against a repository, which is the
+// only reason to record one at all.
+func TestCommitNeedsAHash(t *testing.T) {
+	line := `{"uuid":"a","type":"user","toolUseResult":{"gitOperation":{"commit":{"kind":"committed"}}}}`
+	recs, err := ReadRecords(strings.NewReader(line))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := recs[0].Commit(); c != nil {
+		t.Errorf("got %+v, want nil for a commit with no sha", c)
+	}
+}
+
 func TestIsHumanPrompt(t *testing.T) {
 	tests := []struct {
 		name string

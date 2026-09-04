@@ -105,6 +105,10 @@ type Turn struct {
 	// Delegated is work handed to a sub-agent, each with the brief written at
 	// the time.
 	Delegated []Delegation `json:"delegated,omitempty"`
+
+	// Committed is what this prompt produced. Held per prompt as well as per
+	// task so the record can show a commit against the thing that asked for it.
+	Committed []Commit `json:"committed,omitempty"`
 }
 
 // Delegation is a unit of work given to a sub-agent.
@@ -147,10 +151,30 @@ type Stats struct {
 	// TopFiles are the most edited files, most first.
 	TopFiles []FileCount `json:"topFiles,omitempty"`
 
+	// Commits are what the agent committed during this work, in order.
+	//
+	// Everything else here is inferred. This is not: a hash either exists in
+	// the repository or it does not. It is also incomplete on purpose, since a
+	// commit made by hand in a terminal never reaches an agent's history.
+	Commits []Commit `json:"commits,omitempty"`
+
 	// Struggle rates how hard the work looked, from 0 to 1. It is a heuristic
 	// built from churn and prompt density, and it has not been checked against
 	// anyone's memory of their own work, so treat it as a hint.
 	Struggle float64 `json:"struggle"`
+}
+
+// Commit is a commit the agent made.
+type Commit struct {
+	SHA    string `json:"sha"`
+	Kind   string `json:"kind,omitempty"`
+	Branch string `json:"branch,omitempty"`
+
+	// Subject and the line counts come from the repository. They are absent
+	// when it could not be read, or when the commit no longer exists in it.
+	Subject string `json:"subject,omitempty"`
+	Added   int    `json:"added,omitempty"`
+	Removed int    `json:"removed,omitempty"`
 }
 
 // FileCount is a file and how many times it changed.

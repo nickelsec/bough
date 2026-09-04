@@ -120,6 +120,8 @@
           task: task,
           kind: "task",
           hard: (task.stats.struggle || 0) >= HARD,
+          // Whether the work landed. Unlike hard, this is not a guess.
+          shipped: (task.stats.commits || []).length > 0,
           side: side,
           x: day.x + column * form.spread,
           y: SPINE_Y + side * (form.stem + row * form.taskGap),

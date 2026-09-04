@@ -21,10 +21,11 @@ separator. Every record carries a `cwd` field, so read the real path from there.
 
 The same directory holds things that are not transcripts:
 
-- `subagents/*.meta.json`, one per sub-agent run
-- `tool-results/`, large tool outputs written to their own files
-- `memory/`, saved notes
+- `memory/` and `MEMORY.md`, saved notes
+- a directory named after a session id, holding that session's own working
+  files, `subagents/` among them
 
+The layout inside those has changed at least once, so do not depend on it.
 Match `*.jsonl` at the top level only. A recursive walk will hand you files that
 are not sessions.
 
@@ -93,6 +94,48 @@ Content blocks come in five types: `text`, `tool_use`, `tool_result`,
 Decode defensively, and ignore fields you do not recognise. The format gains and
 loses keys between releases, and an unknown key should never be a parse error.
 
+The `toolUseResult` shape is worth taking seriously rather than noting. Typing
+it as an object only makes every string-valued line fail to decode, and if you
+drop a record on a decode failure you lose it silently: 85 of the 340 lines in
+this repository's own test fixture went missing that way.
+
+## Commits
+
+A commit the agent makes is recorded on the result of the tool call that made
+it:
+
+```json
+"toolUseResult": {
+  "gitOperation": { "commit": { "sha": "d0a65cc", "kind": "committed", "branch": "master" } }
+}
+```
+
+`kind` is `committed` or `amended`. Pushes appear the same way under a
+different key.
+
+These arrive on `user`-type records, in document order, so the commit belongs to
+whichever prompt was open when it landed.
+
+**Do not trust this field to tell you a commit happened.** Claude Code fills it
+in by reading what git printed, so silencing git silences the field:
+
+| commit command | calls | carried `gitOperation` |
+|---|---|---|
+| without `-q` | 57 | 53 (93%) |
+| with `-q` | 88 | 0 |
+
+Relying on it alone found 4 of one repository's 31 commits and 25 of another's
+47. The dependable signal is the shell command itself: a `git commit` that came
+back without an error. Treat `gitOperation` as where a hash comes from when
+there is one, not as whether a commit occurred.
+
+Three more things before counting. Records replay, so this corpus holds 102
+commit records covering 53 distinct ones and counting lines doubles the total.
+A commit the person typed themselves in a terminal never appears at all. And a
+hash is only true at the moment it was written: rebasing or amending afterwards
+leaves the transcript pointing at objects the repository no longer reaches, and
+12 of one project's 19 recorded hashes are unreachable for exactly that reason.
+
 ## Record types
 
 15 types appear in the corpus. The ones worth knowing:
@@ -106,8 +149,8 @@ loses keys between releases, and an unknown key should never be a parse error.
 | `system` | 120 | includes `compact_boundary` |
 
 `ai-title` is worth pulling out. Claude Code already names each session, and the
-names are good: "Chaff product architecture and design", "Test elevenlabs-mcp
-for arbitrary file read vulnerability". Free labels, generated locally.
+names are good: "Product architecture and design", "Test an MCP server
+for arbitrary file read". Free labels, generated locally.
 
 The `system` records with subtype `compact_boundary` mark where context was
 compacted, 35 of them in this corpus. They are honest signals that the thread
@@ -133,7 +176,7 @@ through a `Task` or `Agent` tool call whose input carries a `subagent_type` and
 a `description`, 19 of them here:
 
     Explore   Research PDF redaction stack
-    Plan      Design Chaff architecture and milestones
+    Plan      Design the architecture and milestones
     Explore   Diagnose PDF text layer accuracy
 
 Those descriptions were written at the time, by the agent, about the work it was

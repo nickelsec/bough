@@ -60,6 +60,11 @@ type Summary struct {
 
 	// Delegated is the sub-agent work started during these turns.
 	Delegated []agent.Delegation
+
+	// Commits are what the agent committed during these turns, in order. Work
+	// that ended in a commit is work that landed, which is the one thing here
+	// that can be checked against something outside the history.
+	Commits []agent.Commit
 }
 
 // FileCount is a file and how many times it was changed.
@@ -91,6 +96,7 @@ func Summarise(turns []agent.Turn) Summary {
 	for i, t := range turns {
 		s.Errors += t.Errors
 		s.Delegated = append(s.Delegated, t.Delegated...)
+		s.Commits = append(s.Commits, t.Committed...)
 
 		for name, n := range t.Tools {
 			s.Tools[name] += n
