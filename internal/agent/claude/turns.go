@@ -192,6 +192,13 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 	// refused for having nothing staged.
 	pending := map[string]pendingCommit{}
 
+	// Edits waiting on their result, keyed the same way. The call names the
+	// file and the result says how much of it changed.
+	edited := map[string]editedFile{}
+
+	// Replies already charged for, by their own id rather than the record's.
+	counted := map[string]bool{}
+
 	for _, r := range recs {
 		if r.IsCompactBoundary() {
 			if cur != nil {
@@ -211,6 +218,7 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 				Tools: map[string]int{},
 				Files: map[string]int{},
 				Edits: map[string]int{},
+				Lines: map[string]int{},
 			})
 			cur = &turns[len(turns)-1]
 			continue
@@ -223,6 +231,9 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 		if r.Message == nil {
 			continue
 		}
+		// What the reply was charged for belongs to the prompt that asked
+		// for it, and it arrives on the assistant records in between.
+		creditUsage(cur, r.Message, counted)
 		for _, b := range r.Message.Content.Blocks {
 			switch b.Type {
 			case "tool_use":
@@ -255,11 +266,17 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 				cur.Files[p]++
 				if editingTools[b.Name] {
 					cur.Edits[p]++
+					// How much changed is on the result rather than the call,
+					// so the file is held until that comes back.
+					if b.ID != "" {
+						edited[b.ID] = editedFile{turn: len(turns) - 1, path: p}
+					}
 				}
 			case "tool_result":
 				if b.IsError {
 					cur.Errors++
 				}
+				recordLines(turns, edited, b, r)
 				p, held := pending[b.ToolUseID]
 				if !held {
 					continue
@@ -288,6 +305,61 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 		}
 	}
 	return turns
+}
+
+// creditUsage adds a reply's token counts to the turn it answered.
+//
+// "<synthetic>" is skipped: it is a harness placeholder rather than a model
+// anyone chose, and it turns up a handful of times in each project.
+func creditUsage(cur *agent.Turn, m *Message, counted map[string]bool) {
+	if m.Usage == nil {
+		return
+	}
+	// One reply, several records. Charging per record triples the bill.
+	if m.ID != "" {
+		if counted[m.ID] {
+			return
+		}
+		counted[m.ID] = true
+	}
+	cur.Tokens.Add(agent.Tokens{
+		Input:      m.Usage.Input,
+		Output:     m.Usage.Output,
+		CacheRead:  m.Usage.CacheRead,
+		CacheWrite: m.Usage.CacheWrite,
+	})
+	if m.Model == "" || m.Model == "<synthetic>" {
+		return
+	}
+	if cur.Models == nil {
+		cur.Models = map[string]int{}
+	}
+	cur.Models[m.Model] += m.Usage.Output
+}
+
+// recordLines credits an edit's size to the turn that made it.
+//
+// The call names the file and the result says how much changed, so the two
+// have to be paired the way commits are.
+func recordLines(turns []agent.Turn, edited map[string]editedFile, b Block, r *Record) {
+	e, held := edited[b.ToolUseID]
+	if !held {
+		return
+	}
+	delete(edited, b.ToolUseID)
+	// A refused edit changed nothing.
+	if b.IsError || e.turn < 0 || e.turn >= len(turns) {
+		return
+	}
+	if n := r.ToolUseResult.Changed(); n > 0 {
+		turns[e.turn].Lines[e.path] += n
+	}
+}
+
+// editedFile is an edit waiting to hear how much it changed.
+type editedFile struct {
+	turn int
+	path string
 }
 
 // pendingCommit is a commit command waiting to hear whether it worked.

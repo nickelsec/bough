@@ -17,9 +17,8 @@
   <video width="100%" src="https://github.com/user-attachments/assets/af70eb60-cff7-42cc-af73-19c9cfb0c1d3" controls></video>
 </p>
 
-Not how many tokens you burned or how long your streak is. Claude Code's own
-`/stats` covers that. This answers a different question: what did you actually
-build?
+Not how long your streak is. Claude Code's own `/stats` covers that. This
+answers a different question: what did you actually build?
 
 ## Run it
 
@@ -139,13 +138,23 @@ else, and that turns out to be a better guide to what belongs together than
 anything cleverer.
 
 It also notices when a sitting picked up work from an earlier one, and which
-file you kept going back to.
+file you kept going back to, and how much of that file actually changed each
+time. Coming back nine times to fix a typo is not the same as coming back nine
+times to rewrite it.
+
+The figures along the bottom open to show what the work cost. Most of it will
+be the model re-reading the conversation rather than writing anything: on the
+histories this was built against, between 176 and 732 times more context than
+output. A long session is expensive because it is long, not because the model
+said much.
 
 ## What it does not do
 
-No token counts, no cost, no streaks. No writes of any kind, to your history or
-your repository. No network. It reads Claude Code only, though the seam for
-other agents is already in place.
+No cost in pounds or dollars, and no streaks. It says how many tokens the work
+took and what most of them went on, which is not the same as pricing it.
+
+No writes of any kind, to your history or your repository. No network. It reads
+Claude Code only, though the seam for other agents is already in place.
 
 ## How the grouping was arrived at
 
@@ -200,8 +209,10 @@ guesses are marked as guesses.
 
 Two things worth knowing before you rely on it. The thresholds are fitted to
 one person's history, so your boundaries may fall in places you disagree with.
-The struggle score has never been checked against anyone's memory of their own
-work, so it is off by default and labelled as unproven where it appears.
+The struggle score has been checked against one person's memory of their own
+work, on three projects, and it picked out the sittings they remembered as the
+hard ones. That is why it exists. It is one person checking a score fitted to
+their own history, which is why it is still off by default.
 
 Only Claude Code is read so far. The seam for a second agent exists and is
 tested, but nothing else is implemented yet.

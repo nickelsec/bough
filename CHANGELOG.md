@@ -7,6 +7,52 @@ Notable changes, newest first. Format follows
 
 Nothing yet.
 
+## 0.3.0 - 2026-09-08
+
+### Added
+
+- What the work cost, along the bottom of the diagram and in the text output.
+  Most of it turns out to be the model re-reading the conversation rather than
+  writing anything: between 176 and 732 times more context than output across
+  the histories this was measured on. A long session is expensive because it is
+  long, not because the model said much.
+
+- Which model did the work. One name when a project used one, and a split with
+  shares when it changed partway through.
+
+- How much a file changed, not just how often. "Kept coming back to build.go
+  (9 times)" now says how many lines that meant, because nine typo fixes and
+  nine rewrites are not the same work.
+
+### Changed
+
+- The figures along the bottom fold away. Prompts, days, changes, files and
+  time stay out; commits, tokens and model open when you click the row. Ten
+  figures on one line wrapped on a laptop.
+
+### Fixed
+
+- Tokens were counted several times over. One reply is written to the
+  transcript under more than one uuid while keeping a single message id, and
+  1,533 of one project's 2,236 replies did exactly that. Totals now agree with
+  ccusage to within a fifth of a per cent on cache reads.
+
+- Anything hidden stayed visible if it had a display of its own. The stylesheet
+  had no rule for the hidden attribute, so the browser's own was easy to
+  override by accident.
+
+### Note
+
+The struggle score is unchanged. Weighting it by lines was built and rejected:
+one sitting wrote 451 lines across four edits, a generated file rather than a
+struggle, and scoring on size put it above a sitting that returned to the same
+file eleven times. Volume is not difficulty.
+
+It has now been checked against one person's memory on three projects and it
+picked out the sittings they remembered as hard. That is one person checking a
+score fitted to their own history, so it stays off by default. If you turn it
+on and the ranking matches what you remember, please say so in an issue.
+
 ## 0.2.0 - 2026-09-04
 
 ### Added

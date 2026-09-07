@@ -101,10 +101,19 @@ Churn is how often a single file was rewritten, saturating at 12. Density is
 prompts per file, saturating at 3. Errors is the share of turns with a tool
 failure.
 
-**This one is unproven.** It has never been checked against anyone's memory of
-their own work, which is why it is off by default in the web view and labelled
-there as a guess. If the ranking turns out wrong, the honest fix is to remove
-the score rather than tune the weights.
+**Checked once.** Against one person's memory, on three projects, and it named
+the sittings they remembered as the hard ones. That is why the score is still
+here. It is also one person checking a score whose weights were fitted to their
+own history, which is why it stays off by default in the web view and is
+labelled there as a guess. If you turn it on and the ranking matches what you
+remember, an issue saying so is worth more than any amount of tuning.
+
+**Churn counts calls, not lines, and that was tested.** Weighting it by how
+much each edit changed sounds better and measured worse. One sitting wrote 451
+lines across four edits, which is a generated file rather than a struggle, and
+every scoring that used size put it above a sitting that returned to the same
+file eleven times. Volume is not difficulty. Line counts are recorded and shown
+beside the count, but they do not feed the score.
 
 Churn leads for a measured reason: only 489 errors occurred across 18,173 tool
 calls, and the segments that scored highest on every other measure had **zero**

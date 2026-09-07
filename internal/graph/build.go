@@ -162,10 +162,22 @@ func statsOf(turns []agent.Turn) Stats {
 		Files:         s.Files,
 		Errors:        s.Errors,
 		Churn:         s.Churn,
+		LineChurn:     s.LineChurn,
+		Models:        s.Models,
 		ChurnFile:     s.ChurnFile,
 		// Two places is plenty for a hint, and it keeps the same history from
 		// producing byte-different output across platforms.
 		Struggle: math.Round(s.Struggle()*100) / 100,
+	}
+	// Left out when the work was charged nothing, which is how a history read
+	// before this was recorded arrives.
+	if s.Tokens.Total() > 0 {
+		out.Tokens = &Tokens{
+			Input:      s.Tokens.Input,
+			Output:     s.Tokens.Output,
+			CacheRead:  s.Tokens.CacheRead,
+			CacheWrite: s.Tokens.CacheWrite,
+		}
 	}
 	for i, f := range s.TopFiles {
 		if i >= topFileLimit {

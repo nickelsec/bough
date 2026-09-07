@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -31,6 +33,23 @@ func WriteText(w io.Writer, g Graph, verbose bool) error {
 	if n := len(t.Commits); n > 0 {
 		fmt.Fprintf(w, "%s\n", plural(n, "commit"))
 	}
+	// Most of what a project costs is the model re-reading the conversation
+	// rather than writing anything, which is worth saying once.
+	//
+	// As a ratio rather than a share. Every project measured came out between
+	// 99.4 and 99.9 per cent context, so the percentage says the same thing
+	// about all of them and rounds to a hundred, which reads as though nothing
+	// was written at all. How many times over the conversation was re-read for
+	// each token written is the part that actually varies: 176 times on one
+	// project here and 732 on another.
+	if t.Tokens != nil && t.Tokens.Output > 0 {
+		over := t.Tokens.CacheRead / t.Tokens.Output
+		fmt.Fprintf(w, "%s written, %s re-read: %dx more context than output\n",
+			big(t.Tokens.Output), big(t.Tokens.CacheRead), over)
+		if names := models(t.Models); names != "" {
+			fmt.Fprintf(w, "%s\n", names)
+		}
+	}
 
 	for _, goal := range g.Goals {
 		fmt.Fprintf(w, "\n%s\n", strings.Repeat("-", 72))
@@ -41,8 +60,15 @@ func WriteText(w io.Writer, g Graph, verbose bool) error {
 			plural(len(goal.Tasks), "task"), plural(s.Turns, "prompt"), hours(s.ActiveMinutes))
 
 		if s.Churn > 1 {
-			fmt.Fprintf(w, "%-14s kept coming back to %s (%d times)\n", "",
-				baseName(s.ChurnFile), s.Churn)
+			// The count says the file was returned to; the lines say whether
+			// that meant a typo or a rewrite.
+			if s.LineChurn > 0 {
+				fmt.Fprintf(w, "%-14s kept coming back to %s (%d times, %d lines)\n", "",
+					baseName(s.ChurnFile), s.Churn, s.LineChurn)
+			} else {
+				fmt.Fprintf(w, "%-14s kept coming back to %s (%d times)\n", "",
+					baseName(s.ChurnFile), s.Churn)
+			}
 		}
 
 		for _, task := range goal.Tasks {
@@ -169,4 +195,52 @@ func hours(minutes int) string {
 // A transcript written on Windows and read on Linux would come back whole.
 func baseName(p string) string {
 	return path.Base(strings.ReplaceAll(p, `\`, "/"))
+}
+
+// big shortens a token count. Nobody needs the last six digits of a billion.
+func big(n int) string {
+	switch {
+	case n >= 1e9:
+		return fmt.Sprintf("%.1fB", float64(n)/1e9)
+	case n >= 1e6:
+		return fmt.Sprintf("%.1fM", float64(n)/1e6)
+	case n >= 1e3:
+		return fmt.Sprintf("%dk", n/1000)
+	}
+	return strconv.Itoa(n)
+}
+
+// models names what did the work, most first. One model needs no share; more
+// than one is the case worth breaking down.
+func models(m map[string]int) string {
+	if len(m) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(m))
+	all := 0
+	for k, v := range m {
+		names = append(names, k)
+		all += v
+	}
+	sort.Slice(names, func(i, j int) bool {
+		if m[names[i]] != m[names[j]] {
+			return m[names[i]] > m[names[j]]
+		}
+		return names[i] < names[j]
+	})
+	if len(names) == 1 {
+		return names[0]
+	}
+	// Rounded rather than truncated, and the largest share takes whatever the
+	// rounding left over, so the parts add up to a hundred rather than to
+	// ninety nine.
+	parts := make([]string, len(names))
+	rest := 100
+	for i := len(names) - 1; i > 0; i-- {
+		pct := int(float64(100*m[names[i]])/float64(all) + 0.5)
+		parts[i] = fmt.Sprintf("%s %d%%", names[i], pct)
+		rest -= pct
+	}
+	parts[0] = fmt.Sprintf("%s %d%%", names[0], rest)
+	return strings.Join(parts, ", ")
 }

@@ -121,7 +121,21 @@
   <div id="reader-body"></div>
 </aside>
 
-<div class="foot" id="foot"></div>
+<div class="foot" id="foot">
+  <!-- The whole line is the control, not just the chevron. A row of figures
+       with a chevron on the end reads as one thing, so it should behave as
+       one, and it is a far easier target than a mark the size of a word. A
+       button element rather than a div with a handler, so it is reachable by
+       keyboard and announces itself without any of that being rebuilt here. -->
+  <button type="button" class="foot-line" id="foot-more"
+          aria-expanded="false" aria-controls="foot-rest">
+    <span class="foot-row" id="foot-main"></span>
+    <span class="foot-chevron" aria-hidden="true">
+      <svg viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></svg>
+    </span>
+  </button>
+  <div class="foot-row foot-rest" id="foot-rest" hidden></div>
+</div>
 
 <div class="zoom" role="group" aria-label="Zoom">
   <button type="button" id="z-out" class="zoom-btn" aria-label="Zoom out">

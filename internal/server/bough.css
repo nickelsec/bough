@@ -199,13 +199,127 @@ body.reading #stage { right: var(--drawer); }
   position: fixed;
   left: 1.6rem;
   bottom: 1.1rem;
+  /* Two rows and a control between them, laid out in a column so the second
+     can appear underneath rather than pushing the first sideways. */
   display: flex;
-  gap: 1.4rem;
+  flex-direction: column;
+  align-items: flex-start;
+  /* The same measure that separates the figures along a row, so the block
+     reads as evenly spaced in both directions. */
+  gap: 0.7rem;
   z-index: 20;
   font-size: 0.72rem;
   color: var(--ink-low);
   pointer-events: none;
   font-variant-numeric: tabular-nums;
+}
+
+/* One line of figures. */
+/* One line of figures.
+   Three measures, and all of them come off the same step so the block reads
+   as one thing: 1.4rem between figures, half that between a row and the next,
+   and the same 1.4rem again before the chevron so it is not glued to the last
+   figure. The row-gap is for when a narrow window wraps this. */
+.foot-row {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 1.4rem;
+  row-gap: 0.5rem;
+}
+
+/* A display of its own beats the browser's rule for hidden, so the attribute
+   stops working the moment anything sets one. Everything here that hides
+   itself does it through the attribute, so it is worth saying once for the
+   whole page rather than per element. */
+[hidden] { display: none !important; }
+
+/* What the work produced, which is the answer to a different question than
+   how much of it there was, and long enough to wrap the bar on a laptop if it
+   sits on the same line. */
+/* The first row of figures, which is also the control that opens the second.
+   It is a button, so everything a button brings has to be undone: the border,
+   the background, the font it would otherwise pick for itself. */
+.foot-line {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 1.4rem;
+  /* Padding gives the hover state something to fill; the matching negative
+     margin keeps the figures where they would have sat without it, so the
+     two rows still line up on the left. */
+  padding: 0.25rem 0.5rem;
+  margin: -0.25rem -0.5rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms var(--ease);
+}
+
+/* Enough to say the row answers to a pointer, and no more: it sits over the
+   drawing, and a solid block down here would read as a panel. */
+.foot-line:hover {
+  background: rgba(74, 85, 34, 0.06);
+}
+
+.foot-line:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 1px;
+}
+
+/* Nothing to open, so it stops behaving like something that opens. */
+.foot-line.inert {
+  pointer-events: none;
+  cursor: default;
+}
+
+.foot-line.inert .foot-chevron { display: none; }
+
+.foot-chevron {
+  display: inline-flex;
+  color: var(--ink-low);
+  opacity: 0.55;
+  transition: opacity 120ms var(--ease);
+}
+
+.foot-line:hover .foot-chevron { opacity: 1; }
+
+.foot-chevron svg {
+  display: block;
+  width: 0.95rem;
+  height: 0.95rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 180ms var(--ease);
+}
+
+.foot-line[aria-expanded="true"] .foot-chevron svg { transform: rotate(180deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .foot-chevron svg { transition: none; }
+}
+
+/* What the work produced. Set a step quieter than the row above it, since it
+   is the answer to a question the reader went looking for rather than one
+   they are being shown. */
+.foot-rest {
+  opacity: 0.85;
+  animation: foot-in 180ms var(--ease);
+}
+
+@keyframes foot-in {
+  from { opacity: 0; transform: translateY(-0.2rem); }
+  to   { opacity: 0.85; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foot-rest { animation: none; }
 }
 
 .foot b {
@@ -221,7 +335,11 @@ body.reading #stage { right: var(--drawer); }
    The gap is what separates the number from its word. A flex row drops the
    whitespace between its children, so the space that was in the markup is
    gone and has to be asked for. */
-.foot span {
+/* One figure: the number and the word it belongs to.
+   Scoped to the children of a row rather than to any span in the foot. The
+   row itself is a span, so a looser selector caught it too and replaced the
+   1.4rem between figures with the 0.34em meant for the gap inside one. */
+.foot-row > span {
   display: inline-flex;
   align-items: baseline;
   gap: 0.34em;
@@ -229,7 +347,7 @@ body.reading #stage { right: var(--drawer); }
 
 /* The mark is the one child that wants centring rather than sitting on the
    baseline, being a drawn circle rather than a letter. */
-.foot span .note { align-self: center; }
+.foot-row > span .note { align-self: center; }
 
 /* The mark that explains why the commit count and the one on a forge can
    disagree. The foot ignores the pointer so panning works over it, which this

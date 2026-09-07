@@ -145,8 +145,21 @@ type Stats struct {
 	Errors int `json:"errors"`
 
 	// Churn is the most times one file was rewritten, and ChurnFile is which.
-	Churn     int    `json:"churn,omitempty"`
+	Churn int `json:"churn,omitempty"`
+
+	// LineChurn is how much of that file changed, which says whether coming
+	// back to it meant a typo or a rewrite.
+	LineChurn int    `json:"lineChurn,omitempty"`
 	ChurnFile string `json:"churnFile,omitempty"`
+
+	// Tokens is what this work was charged for. The cache figure dwarfs the
+	// rest: the model re-reads the conversation every turn, which on the
+	// history this was built against came to most of the cost.
+	Tokens *Tokens `json:"tokens,omitempty"`
+
+	// Models counts output tokens by model, so a project that changed model
+	// partway through can say so.
+	Models map[string]int `json:"models,omitempty"`
 
 	// TopFiles are the most edited files, most first.
 	TopFiles []FileCount `json:"topFiles,omitempty"`
@@ -175,6 +188,14 @@ type Commit struct {
 	Subject string `json:"subject,omitempty"`
 	Added   int    `json:"added,omitempty"`
 	Removed int    `json:"removed,omitempty"`
+}
+
+// Tokens is what a stretch of work was charged for.
+type Tokens struct {
+	Input      int `json:"input,omitempty"`
+	Output     int `json:"output,omitempty"`
+	CacheRead  int `json:"cacheRead,omitempty"`
+	CacheWrite int `json:"cacheWrite,omitempty"`
 }
 
 // FileCount is a file and how many times it changed.

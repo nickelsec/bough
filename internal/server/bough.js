@@ -679,9 +679,24 @@
     panel.appendChild(head);
 
     if (stats.churn > 1 && stats.churnFile) {
+      // The count says the file was returned to. The lines say whether that
+      // meant a typo or a rewrite, which the count alone cannot.
+      var much = stats.churn + " times";
+      if (stats.lineChurn) much += ", " + stats.lineChurn + " lines";
       panel.appendChild(node("p", "reader-churn",
-        "kept coming back to " + baseName(stats.churnFile) +
-        " (" + stats.churn + " times)"));
+        "kept coming back to " + baseName(stats.churnFile) + " (" + much + ")"));
+    }
+
+    // What share of the project this work took. A proportion rather than a
+    // count, since the absolute number means nothing without the whole.
+    if (stats.tokens && graph.totals.tokens) {
+      var mine = tokensOf(stats.tokens);
+      var whole = tokensOf(graph.totals.tokens);
+      if (whole > 0 && mine > 0) {
+        var pct = 100 * mine / whole;
+        panel.appendChild(node("p", "reader-cost",
+          (pct < 1 ? "under 1" : "~" + Math.round(pct)) + "% of this project's tokens"));
+      }
     }
 
     commitList(panel, stats.commits);
@@ -1031,27 +1046,124 @@
     document.getElementById("where").textContent = graph.project.path;
 
     var t = graph.totals;
-    var foot = document.getElementById("foot");
-    var rows = [
+
+    // Two rows. The first is how much work there was, which is what someone
+    // wants at a glance. The second is what it produced and what it cost,
+    // which is a different question and was making the bar long enough to
+    // wrap on a laptop.
+    var main = [
       [t.turns || 0, "prompts"],
       [graph.goals.length, "days"],
       [t.edits || 0, "changes"],
-      [t.files || 0, "files"]
+      [t.files || 0, "files"],
+      [duration(t.activeMinutes), "at the keyboard"]
     ];
-    // Commits sit next to the changes they became, and only when there are
-    // any: a project with none should not be told so five times a session.
+
+    var rest = [];
     var made = (t.commits || []).length;
-    if (made) rows.push([made, made === 1 ? "commit" : "commits", true]);
-    rows.push([duration(t.activeMinutes), "at the keyboard"]);
+    if (made) rest.push([made, made === 1 ? "commit" : "commits", true]);
+    // As a ratio rather than a share of the total. Every project measured came
+    // out between 99.4 and 99.9 per cent context, so a percentage says the
+    // same about all of them and rounds to a hundred, which reads as though
+    // nothing was written. The multiple is what varies.
+    if (t.tokens && t.tokens.output) {
+      var tk = t.tokens;
+      rest.push([big(tk.output), "written"]);
+      rest.push([big(tk.cacheRead || 0), "re-read"]);
+      if (tk.cacheRead) {
+        rest.push([Math.round(tk.cacheRead / tk.output) + "x", "more context than output"]);
+      }
+    }
+    if (t.models) rest.push([modelShare(t.models), ""]);
+
+    fill(document.getElementById("foot-main"), main);
+    fill(document.getElementById("foot-rest"), rest);
+
+    // The first row is itself the control. With nothing behind it there is
+    // nothing to open, so it goes back to being a plain row of figures rather
+    // than a button that does nothing.
+    var more = document.getElementById("foot-more");
+    if (!rest.length) {
+      more.removeAttribute("aria-expanded");
+      more.removeAttribute("aria-controls");
+      more.classList.add("inert");
+      return;
+    }
+    // Left open if it was left open. Someone who wants the token figures
+    // usually wants them again, and reopening this every visit is a small
+    // annoyance that adds up. Wrapped because a browser told to block site
+    // data throws on the attempt rather than returning nothing.
+    var KEY = "bough.foot";
+    var want = false;
+    try {
+      want = localStorage.getItem(KEY) === "open";
+    } catch (e) { /* no storage, so it starts closed */ }
+    show(want);
+
+    more.addEventListener("click", function () {
+      var open = more.getAttribute("aria-expanded") === "true";
+      show(!open);
+      try {
+        localStorage.setItem(KEY, open ? "shut" : "open");
+      } catch (e) { /* nothing to remember it with */ }
+    });
+
+    function show(open) {
+      more.setAttribute("aria-expanded", open ? "true" : "false");
+      document.getElementById("foot-rest").hidden = !open;
+    }
+  }
+
+  // fill writes one row of figures.
+  function fill(into, rows) {
     rows.forEach(function (pair) {
       var span = node("span");
-      span.appendChild(node("b", null, String(pair[0])));
-      // The gap between the number and its word is set in the stylesheet, so
+      if (pair[0] !== "") span.appendChild(node("b", null, String(pair[0])));
+      // The gap between a number and its word is set in the stylesheet, so
       // the word is added without one of its own.
-      span.appendChild(document.createTextNode(pair[1]));
+      if (pair[1]) span.appendChild(document.createTextNode(pair[1]));
       if (pair[2]) span.appendChild(countNote());
-      foot.appendChild(span);
+      into.appendChild(span);
     });
+
+  }
+
+  // tokensOf sums the four counts into one number.
+  function tokensOf(t) {
+    return (t.input || 0) + (t.output || 0) + (t.cacheRead || 0) + (t.cacheWrite || 0);
+  }
+
+  // big shortens a token count to something readable. Nobody needs the last
+  // six digits of a billion.
+  function big(n) {
+    if (n >= 1e9) return (n / 1e9).toFixed(1) + "B";
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+    if (n >= 1e3) return Math.round(n / 1e3) + "k";
+    return String(n);
+  }
+
+  // modelShare names the models that did the work, most first.
+  //
+  // Almost every project uses one, and naming it is enough. A project that
+  // changed model partway through is the interesting case, and then the split
+  // is worth seeing.
+  function modelShare(models) {
+    var names = Object.keys(models);
+    if (!names.length) return "";
+    names.sort(function (a, b) { return models[b] - models[a]; });
+    if (names.length === 1) return names[0];
+    var all = 0;
+    names.forEach(function (n) { all += models[n]; });
+    // The largest share takes what the rounding left over, so the parts add
+    // up to a hundred rather than to ninety nine.
+    var parts = [], rest = 100;
+    for (var i = names.length - 1; i > 0; i--) {
+      var pct = Math.round(100 * models[names[i]] / all);
+      parts[i] = names[i] + " " + pct + "%";
+      rest -= pct;
+    }
+    parts[0] = names[0] + " " + rest + "%";
+    return parts.join("  ·  ");
   }
 
   // queryMark draws the small circled question the note hangs off.

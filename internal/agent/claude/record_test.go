@@ -198,3 +198,46 @@ func TestPromptTextJoinsTextBlocksOnly(t *testing.T) {
 		t.Errorf("PromptText() = %q, want %q", got, want)
 	}
 }
+
+// An edit says how much it changed on its result, not on the call. Both shapes
+// have to be read: a diff carries a patch, a write to a new file has nothing to
+// diff against and carries what it wrote.
+func TestChangedCountsBothShapes(t *testing.T) {
+	patch := &ToolUseResult{StructuredPatch: []Hunk{
+		{Lines: []string{" kept", "-gone", "+added", " kept"}},
+		{Lines: []string{"-also gone"}},
+	}}
+	if got := patch.Changed(); got != 3 {
+		t.Errorf("patch: got %d changed lines, want 3", got)
+	}
+
+	// A rewrite is a removal and an addition. Both count: moving a block
+	// around a file is work whether or not the totals come out even.
+	written := &ToolUseResult{Content: "one\ntwo\nthree"}
+	if got := written.Changed(); got != 3 {
+		t.Errorf("written file: got %d, want 3", got)
+	}
+
+	edited := &ToolUseResult{NewString: "a\nb"}
+	if got := edited.Changed(); got != 2 {
+		t.Errorf("new string: got %d, want 2", got)
+	}
+
+	// A patch wins over the written text, since it is the more exact of the
+	// two and both arrive together on an edit.
+	both := &ToolUseResult{
+		StructuredPatch: []Hunk{{Lines: []string{"+one"}}},
+		Content:         "a\nb\nc\nd\ne",
+	}
+	if got := both.Changed(); got != 1 {
+		t.Errorf("patch and content: got %d, want 1", got)
+	}
+
+	if (&ToolUseResult{}).Changed() != 0 {
+		t.Error("an empty result changed nothing")
+	}
+	var none *ToolUseResult
+	if none.Changed() != 0 {
+		t.Error("a missing result changed nothing")
+	}
+}

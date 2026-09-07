@@ -14,6 +14,7 @@ package claude
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/nickelsec/bough/internal/agent"
@@ -52,6 +53,55 @@ type Record struct {
 // ToolUseResult is the outcome of a tool call, filed on the record after it.
 type ToolUseResult struct {
 	GitOperation *GitOperation `json:"gitOperation"`
+
+	// StructuredPatch is the diff an edit produced. It says how much changed,
+	// which the call on its own does not: a typo and a rewrite are both one
+	// call.
+	StructuredPatch []Hunk `json:"structuredPatch"`
+
+	// NewString and Content are what a write put in the file. Only a diff
+	// carries a patch, so a file created from nothing has none, and these are
+	// what is left to measure it by. An edit uses the first, a write the
+	// second.
+	NewString string `json:"newString"`
+	Content   string `json:"content"`
+}
+
+// Hunk is one run of changed lines in a patch.
+type Hunk struct {
+	// Lines are the diff lines, each opening with "+", "-" or a space.
+	Lines []string `json:"lines"`
+}
+
+// Changed counts the lines this result added or removed.
+//
+// Both directions count as change: rewriting a line is a removal and an
+// addition, and moving a block around a file is work whether or not the totals
+// come out even.
+func (t *ToolUseResult) Changed() int {
+	if t == nil {
+		return 0
+	}
+	n := 0
+	for _, h := range t.StructuredPatch {
+		for _, l := range h.Lines {
+			if len(l) > 0 && (l[0] == '+' || l[0] == '-') {
+				n++
+			}
+		}
+	}
+	if n > 0 {
+		return n
+	}
+	// No patch. A write to a new file has nothing to diff against, and there
+	// are 415 of those against 1,121 patches on the corpus this was fitted to,
+	// so counting them as nothing would make creating a file look like no work.
+	for _, written := range []string{t.NewString, t.Content} {
+		if written != "" {
+			return strings.Count(written, "\n") + 1
+		}
+	}
+	return 0
 }
 
 // UnmarshalJSON accepts either form of tool result.
@@ -93,6 +143,33 @@ type Commit struct {
 type Message struct {
 	Role    string  `json:"role"`
 	Content Content `json:"content"`
+
+	// ID identifies the reply itself, and several records can carry the same
+	// one. Deduplicating records by uuid is not enough for anything counted
+	// off usage: a single reply is written under more than one uuid while
+	// keeping one id, and 1,533 of 2,236 ids in one project did exactly that.
+	// Summing per record would count those replies three times over.
+	ID string `json:"id"`
+
+	// Model is which model answered. Only assistant records carry it, and a
+	// harness placeholder of "<synthetic>" turns up a handful of times per
+	// project, which is not a model anyone chose.
+	Model string `json:"model"`
+
+	// Usage is what the reply was charged for.
+	Usage *Usage `json:"usage"`
+}
+
+// Usage is the token count for one reply.
+//
+// The nested cache_creation breakdown is deliberately not read. It reconciles
+// exactly with the flat field, so taking both would risk counting the same
+// tokens twice for nothing gained.
+type Usage struct {
+	Input      int `json:"input_tokens"`
+	Output     int `json:"output_tokens"`
+	CacheRead  int `json:"cache_read_input_tokens"`
+	CacheWrite int `json:"cache_creation_input_tokens"`
 }
 
 // Content is either a plain string or a list of typed blocks. Both shapes occur

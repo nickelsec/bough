@@ -10,7 +10,7 @@ format moves, so treat the shapes as reliable and the counts as illustrative.
 
 ## What will catch you out
 
-Four things in these files will give you wrong numbers, and none of them fail
+Five things in these files will give you wrong numbers, and none of them fail
 loudly. Each is covered in full below; this is the short version, and it is the
 part worth reading before you write any code.
 
@@ -26,6 +26,11 @@ correct it by. Deduplicate on `uuid` first, keeping the last copy.
 string-valued line fails to decode, and if a decode failure drops the record you
 lose it without a word: 85 of the 340 lines in this repository's own test
 fixture went missing that way.
+
+**Deduplicating by `uuid` is still not enough for tokens.** One reply is
+written under several uuids while keeping one `message.id`, and the usage is
+repeated on each. 1,533 of one project's 2,236 replies did this. Counting per
+record, even deduplicated, overstates output by nearly twice.
 
 **A quiet commit leaves no hash.** Claude Code fills in `gitOperation` by
 reading what git printed, so `git commit -q` prints nothing and the field never
@@ -98,6 +103,33 @@ Most of the `cwd` differences are a drive letter changing case, `d:\` against
 So the rule is: key on `uuid`, merge later copies over earlier ones taking any
 non-empty value, and keep the position of the first appearance. A field missing
 from a later copy was not repeated, not cleared.
+
+## Deduplicating by uuid is not enough for tokens
+
+There is a second layer of repetition underneath the replay, and it bites
+anything counted off `message.usage`.
+
+One reply from the model is written under **more than one `uuid`** while keeping
+a single `message.id`, and the usage figures are repeated on every copy. In one
+project, 1,533 of 2,236 replies did this, three copies each carrying the same
+252 output tokens.
+
+So deduplicating records by `uuid`, which is right for the records themselves,
+still counts those replies three times:
+
+| dedup key | output tokens |
+|---|---|
+| by `uuid` | 12,402,105 |
+| by `message.id` | 6,823,315 |
+
+Records are one thing and replies are another. Use `uuid` for records and
+`message.id` for anything charged.
+
+Usage appears only on `assistant` records, and carries four integer fields:
+`input_tokens`, `output_tokens`, `cache_read_input_tokens` and
+`cache_creation_input_tokens`. The nested `cache_creation` object reconciles
+exactly with the flat field, so reading both would double count. Across one
+project's replies, cache reads came to around 596 times the output.
 
 ## Tool results are filed as user records
 

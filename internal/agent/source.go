@@ -120,6 +120,42 @@ type Commit struct {
 	Removed int
 }
 
+// Tokens is what a stretch of work cost, in the four counts the transcript
+// keeps.
+//
+// The interesting one is CacheRead, and it is interesting because of its size.
+// The model has no memory between messages, so every reply re-reads the whole
+// conversation so far along with the files and the instructions. Caching makes
+// each re-read cheap and it is paid every turn, which on the corpus this was
+// built against came to around 596 times the output and most of the bill.
+type Tokens struct {
+	// Input is text sent fresh, uncached. It is close to nothing in practice.
+	Input int
+
+	// Output is what the model wrote. The part everyone pictures, and about a
+	// tenth of the cost.
+	Output int
+
+	// CacheRead is re-reading what was already sent. Paid every turn.
+	CacheRead int
+
+	// CacheWrite is storing context so it can be re-read cheaply. Paid once.
+	CacheWrite int
+}
+
+// Add sums another set of counts into this one.
+func (t *Tokens) Add(o Tokens) {
+	t.Input += o.Input
+	t.Output += o.Output
+	t.CacheRead += o.CacheRead
+	t.CacheWrite += o.CacheWrite
+}
+
+// Total is every token the work was charged for.
+func (t *Tokens) Total() int {
+	return t.Input + t.Output + t.CacheRead + t.CacheWrite
+}
+
 // Turn is one human prompt and everything the agent did in response.
 //
 // This is the unit every later stage works from. Anything agent-specific has
@@ -137,8 +173,21 @@ type Turn struct {
 	// Edits counts only files the agent changed, a subset of Files.
 	Edits map[string]int
 
+	// Lines counts how much changed in each of those files. Edits counts
+	// calls, which says a file was touched; this says whether that was a typo
+	// or a rewrite. On the corpus this was fitted to, 246 edits changed two
+	// lines or fewer and 75 changed over a hundred.
+	Lines map[string]int
+
 	// Errors is how many tool calls came back as failures.
 	Errors int
+
+	// Tokens is what answering this turn was charged for.
+	Tokens Tokens
+
+	// Models counts output tokens by model name. A project usually has one,
+	// but a model changed partway through is worth being able to say.
+	Models map[string]int
 
 	// Delegated is the sub-agent work this turn started. These are the one place
 	// the record holds real branching, and each carries a description written at

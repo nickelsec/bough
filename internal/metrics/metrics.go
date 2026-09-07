@@ -44,6 +44,11 @@ type Summary struct {
 	// Errors is how many tool calls failed.
 	Errors int
 
+	// LineChurn is how much changed in the file above. Churn counts calls,
+	// which says a file was returned to; this says whether that meant a typo
+	// or a rewrite.
+	LineChurn int
+
 	// Churn is the most times a single file was changed. Repeatedly rewriting
 	// one file is the clearest sign of something not going well, and it is more
 	// telling than the error count.
@@ -60,6 +65,13 @@ type Summary struct {
 
 	// Delegated is the sub-agent work started during these turns.
 	Delegated []agent.Delegation
+
+	// Tokens is what this stretch of work was charged for.
+	Tokens agent.Tokens
+
+	// Models counts output tokens by model, so a project that changed model
+	// partway through can say so.
+	Models map[string]int
 
 	// Commits are what the agent committed during these turns, in order. Work
 	// that ended in a commit is work that landed, which is the one thing here
@@ -91,11 +103,19 @@ func Summarise(turns []agent.Turn) Summary {
 	s.Tools = map[string]int{}
 
 	edits := map[string]int{}
+	lines := map[string]int{}
 	files := map[string]bool{}
 
 	for i, t := range turns {
 		s.Errors += t.Errors
 		s.Delegated = append(s.Delegated, t.Delegated...)
+		s.Tokens.Add(t.Tokens)
+		for m, n := range t.Models {
+			if s.Models == nil {
+				s.Models = map[string]int{}
+			}
+			s.Models[m] += n
+		}
 		s.Commits = append(s.Commits, t.Committed...)
 
 		for name, n := range t.Tools {
@@ -111,6 +131,11 @@ func Summarise(turns []agent.Turn) Summary {
 				continue
 			}
 			edits[f] += n
+		}
+		for f, n := range t.Lines {
+			if !Ambient(f) {
+				lines[f] += n
+			}
 		}
 
 		if i > 0 && !t.At.IsZero() && !turns[i-1].At.IsZero() {
@@ -134,6 +159,7 @@ func Summarise(turns []agent.Turn) Summary {
 	if len(s.TopFiles) > 0 {
 		s.Churn = s.TopFiles[0].Edits
 		s.ChurnFile = s.TopFiles[0].Path
+		s.LineChurn = lines[s.ChurnFile]
 	}
 	return s
 }
@@ -153,8 +179,15 @@ func (s Summary) Struggle() float64 {
 		return 0
 	}
 
-	// A file rewritten a dozen times is a strong signal; beyond that it is not
-	// meaningfully worse.
+	// A file returned to a dozen times is a strong signal; beyond that it is
+	// not meaningfully worse.
+	//
+	// This counts calls rather than lines, and that was tested rather than
+	// assumed. Weighting by how much changed sounds better and is worse: one
+	// sitting on this corpus wrote 451 lines across four edits, a generated
+	// file rather than a struggle, and any scoring that used size put it above
+	// a sitting that came back to the same file eleven times. Struggle is
+	// returning to something, and the count is what sees that.
 	churn := ratio(float64(s.Churn), 12)
 
 	// Many prompts against few files means going round in circles. Many prompts
