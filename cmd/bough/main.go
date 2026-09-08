@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -24,8 +25,51 @@ import (
 	"github.com/nickelsec/bough/internal/server"
 )
 
-// version is set at build time. Untagged builds say so.
-var version = "dev"
+// version is stamped by the release build. Anything else asks the toolchain.
+var version = ""
+
+// released reports what to print for --version.
+//
+// The release workflow passes the tag in, but that is not how most people get
+// this. Both installs the readme documents go through the toolchain instead,
+// and a plain build has nothing passed in at all, so every one of them used to
+// answer "dev" including `go install ...@v0.3.4`. Go records the version it
+// resolved, so ask for it rather than claiming not to know.
+//
+// A build from a working copy has no module version and reports "(devel)".
+// That case keeps the revision, which is the part that identifies it, and says
+// when the tree had uncommitted changes so a report naming it can be trusted.
+func released() string {
+	if version != "" {
+		return version
+	}
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "dev"
+	}
+	if v := info.Main.Version; v != "" && v != "(devel)" {
+		return v
+	}
+
+	var revision, dirty string
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			if len(s.Value) > 12 {
+				s.Value = s.Value[:12]
+			}
+			revision = s.Value
+		case "vcs.modified":
+			if s.Value == "true" {
+				dirty = ", modified"
+			}
+		}
+	}
+	if revision == "" {
+		return "dev"
+	}
+	return "dev (" + revision + dirty + ")"
+}
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
@@ -63,7 +107,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	// Before anything reads the disk, so it answers on a machine with no
 	// history on it at all.
 	if *showVer {
-		fmt.Fprintln(stdout, version)
+		fmt.Fprintln(stdout, released())
 		return nil
 	}
 
@@ -96,7 +140,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 
 	opt := graph.DefaultOptions()
-	opt.Tool = version
+	opt.Tool = released()
 	opt.SkipRepo = *noRepo
 	g := graph.Build(target, sessions, opt)
 

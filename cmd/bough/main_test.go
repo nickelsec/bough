@@ -246,3 +246,48 @@ func TestPipedOutputIsStillText(t *testing.T) {
 		t.Error("a browser was opened for output that is not going to a screen")
 	}
 }
+
+// Both installs the readme documents go through the Go toolchain, and neither
+// passes a version in. Reporting "dev" for those meant a bug report could not
+// say which build it came from, and `go install ...@v0.3.4` said it too.
+func TestVersionPrefersTheStampedValue(t *testing.T) {
+	was := version
+	defer func() { version = was }()
+
+	version = "v1.2.3"
+	if got := released(); got != "v1.2.3" {
+		t.Errorf("released() = %q, want the stamped value", got)
+	}
+}
+
+// Without a stamp it asks the toolchain, which knows the module version for
+// anything installed by version and the revision for a build from a checkout.
+// Either answers "which build is this"; "dev" does not.
+//
+// A test binary carries neither: the toolchain stamps it "(devel)" with no
+// VCS settings, so "dev" is the right answer here and the real paths are
+// covered by the shipped binary instead. What this pins is that the fallback
+// runs at all and never returns an empty string.
+func TestVersionFallsBackToBuildInfo(t *testing.T) {
+	was := version
+	defer func() { version = was }()
+
+	version = ""
+	got := released()
+	if got == "" {
+		t.Fatal("released() is empty")
+	}
+	t.Logf("released() in a test binary = %q", got)
+}
+
+// --version has to answer before anything reads the disk, so it works on a
+// machine with no history at all.
+func TestVersionFlagPrints(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if err := run([]string{"--version"}, &out, &errOut); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(out.String()); got == "" {
+		t.Error("--version printed nothing")
+	}
+}

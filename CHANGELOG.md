@@ -7,6 +7,19 @@ Notable changes, newest first. Format follows
 
 Nothing yet.
 
+## 0.3.5 - 2026-09-08
+
+### Fixed
+
+- `bough --version` said `dev` for every install the readme documents. The
+  version was only ever passed in by the release build, so both
+  `go install ...@v0.3.4` and a plain `go build` reported nothing useful, and
+  a bug report could not say which build it came from. Go records the version
+  it resolved, so bough asks for it: an install by version now says that
+  version, and a build from a checkout says the revision, with `+dirty` when
+  the tree had uncommitted changes. The `tool` field in the JSON output was
+  wrong in the same way.
+
 ## 0.3.4 - 2026-09-08
 
 ### Fixed
