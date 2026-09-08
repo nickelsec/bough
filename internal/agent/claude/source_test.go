@@ -3,7 +3,6 @@ package claude
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/nickelsec/bough/internal/agent"
@@ -137,50 +136,5 @@ func write(t *testing.T, path, body string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
-	}
-}
-
-// A transcript written before Claude Code recorded promptId holds a real
-// conversation that bough cannot read. Drawing nothing and saying nothing
-// looks like lost work, so the reason is reported.
-func TestSessionsReportsTranscriptsTooOldToRead(t *testing.T) {
-	dir := t.TempDir()
-	proj := filepath.Join(dir, "d--old")
-	if err := os.MkdirAll(proj, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	lines := `{"uuid":"a","type":"user","cwd":"/work/old","message":{"role":"user","content":[{"type":"text","text":"add a flag"}]}}` + "\n" +
-		`{"uuid":"b","type":"user","cwd":"/work/old","message":{"role":"user","content":[{"type":"text","text":"now the docs"}]}}` + "\n"
-	if err := os.WriteFile(filepath.Join(proj, "s1.jsonl"), []byte(lines), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	sessions, err := Source{Root: dir}.Sessions(agent.Project{Ref: proj})
-	if len(sessions) != 0 {
-		t.Fatalf("got %d sessions, want none readable", len(sessions))
-	}
-	if err == nil {
-		t.Fatal("an unreadable transcript was skipped without saying so")
-	}
-	if !strings.Contains(err.Error(), "promptId") || !strings.Contains(err.Error(), "s1.jsonl") {
-		t.Errorf("error = %q, want it to name the file and the reason", err)
-	}
-}
-
-// An empty transcript, or one holding only tool traffic, is ordinary. Warning
-// about those would bury the real case in noise.
-func TestSessionsStaysQuietAboutEmptyTranscripts(t *testing.T) {
-	dir := t.TempDir()
-	proj := filepath.Join(dir, "d--quiet")
-	if err := os.MkdirAll(proj, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	lines := `{"uuid":"a","type":"user","cwd":"/work/q","message":{"role":"user","content":[{"type":"tool_result","is_error":false}]}}` + "\n"
-	if err := os.WriteFile(filepath.Join(proj, "s1.jsonl"), []byte(lines), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := (Source{Root: dir}).Sessions(agent.Project{Ref: proj}); err != nil {
-		t.Errorf("an ordinary empty transcript was reported as a problem: %v", err)
 	}
 }

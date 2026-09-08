@@ -448,3 +448,67 @@ func TestExtractTurnsSyntheticDoesNotClaimPromptID(t *testing.T) {
 		t.Errorf("turn = %q, want the real prompt kept", turns[0].Text)
 	}
 }
+
+// Claude Code only began writing promptId partway through its life, so a
+// transcript from before then holds real prompts and none of the field.
+// Requiring it discarded those files in full: one reader measured a project of
+// 238 sessions drawing as 20 prompts, against 3,282 in the same records read
+// without the requirement.
+func TestExtractTurnsReadsTranscriptsWithoutPromptID(t *testing.T) {
+	f, err := os.Open(filepath.Join("testdata", "legacy.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	recs, err := ReadRecords(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range recs {
+		if r.PromptID != "" {
+			t.Fatalf("fixture is meant to hold no promptId, found %q", r.PromptID)
+		}
+	}
+
+	turns := ExtractTurns(recs)
+	if len(turns) != 3 {
+		t.Fatalf("got %d turns, want 3", len(turns))
+	}
+
+	// Each prompt stands alone. An empty id is no information, so grouping on
+	// it would fold the whole session into one turn.
+	want := []string{"add a retry flag to the fetcher", "now write a test for it", "ship it"}
+	for i, w := range want {
+		if turns[i].Text != w {
+			t.Errorf("turn %d = %q, want %q", i, turns[i].Text, w)
+		}
+	}
+
+	// The work still attaches to the prompt that asked for it.
+	if turns[0].Edits["/work/legacy/fetch.go"] != 1 {
+		t.Errorf("edits = %v, want the edit credited to the first prompt", turns[0].Edits)
+	}
+	if turns[0].Tokens.Output != 200 {
+		t.Errorf("output tokens = %d, want 200", turns[0].Tokens.Output)
+	}
+}
+
+// The harness marks its own records with isMeta. Those read as ordinary typed
+// prompts otherwise, and on an old transcript there is no promptId to tell
+// them apart by.
+func TestExtractTurnsSkipsMetaRecords(t *testing.T) {
+	lines := []string{
+		`{"uuid":"1","type":"user","message":{"role":"user","content":[{"type":"text","text":"real request"}]}}`,
+		`{"uuid":"2","type":"user","isMeta":true,"message":{"role":"user","content":[{"type":"text","text":"Caveat: generated while running local commands."}]}}`,
+	}
+	recs, _ := ReadRecords(strings.NewReader(strings.Join(lines, "\n")))
+	turns := ExtractTurns(recs)
+
+	if len(turns) != 1 {
+		t.Fatalf("got %d turns, want 1", len(turns))
+	}
+	if turns[0].Text != "real request" {
+		t.Errorf("turn = %q", turns[0].Text)
+	}
+}

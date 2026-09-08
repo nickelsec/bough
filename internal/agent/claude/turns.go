@@ -206,6 +206,11 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 	// several, which on the corpus this was built against added seventeen
 	// prompts that nobody typed. The id is what identifies a submission, so
 	// only the first record under one starts a turn.
+	//
+	// A transcript old enough to predate the field leaves every record with an
+	// empty id, which is not one submission repeated but no information at
+	// all. Collapsing on it would turn a whole session into a single turn, so
+	// records without an id are never grouped and each one stands alone.
 	opened := map[string]bool{}
 
 	for _, r := range recs {
@@ -224,10 +229,9 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 			// Checked after the synthetic test on purpose. A skipped record
 			// must not claim the id, or a real prompt filed under the same one
 			// would be dropped rather than merely not duplicated.
-			if opened[r.PromptID] {
+			if repeated(opened, r.PromptID) {
 				continue
 			}
-			opened[r.PromptID] = true
 			turns = append(turns, agent.Turn{
 				At:    r.Time(),
 				Text:  strings.TrimSpace(text),
@@ -321,6 +325,23 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 		}
 	}
 	return turns
+}
+
+// repeated reports whether this submission has already opened a turn, marking
+// it as seen when it has not.
+//
+// An empty id means the transcript predates the field rather than that this is
+// the same submission again, so those are never grouped: collapsing on the
+// empty string would fold a whole old session into one turn.
+func repeated(opened map[string]bool, id string) bool {
+	if id == "" {
+		return false
+	}
+	if opened[id] {
+		return true
+	}
+	opened[id] = true
+	return false
 }
 
 // creditUsage adds a reply's token counts to the turn it answered.

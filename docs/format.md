@@ -171,16 +171,27 @@ typing `retry` after a failure looks like.
 
 ### Old transcripts have no promptId at all
 
-Claude Code only began writing `promptId` partway through its life, so a
-transcript from before then holds a full conversation that this rule cannot
-read. Every version in this corpus writes it, on essentially every user record,
-so there was nothing here to measure the boundary against; the report came from
-a reader with an older archive.
+Claude Code only began writing `promptId` partway through its life, around
+2.1.8x in March 2026. A transcript from before then holds a full conversation
+and none of the field. Every version in this corpus writes it, on essentially
+every user record, so there was nothing here to measure the boundary against;
+the dated readings come from a reader with an older archive, who saw 2.0.70 in
+December 2025 and 2.1.72 in March 2026 both write none.
 
-The failure is silent, which is the part that matters. A tool that requires the
-field on an old transcript finds no prompts and draws nothing, and an empty
-result looks like lost work rather than a format it declined to guess at. Say
-so instead.
+Do not require it to recognise a prompt. Its absence is version dependent, not
+meaning dependent, and requiring it discards those files whole and without a
+word: one project of 238 sessions drew as 20 prompts, because only two sessions
+were recent enough to carry the field. The same records read without the
+requirement hold 3,282.
+
+Use `isMeta` instead for the part `promptId` was really doing. The harness sets
+it on records it wrote itself, which is what you were trying to exclude anyway,
+and it is not tied to a version the way `promptId` is. It catches things the
+text screens miss, `Continue from where you left off.` among them.
+
+Where `promptId` is still worth having is telling one submission from the next,
+as above. Just treat an absent one as no information rather than as a shared
+identity, or a whole old session collapses into a single prompt.
 
 ## The schema is loosely typed
 

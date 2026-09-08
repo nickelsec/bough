@@ -7,6 +7,27 @@ Notable changes, newest first. Format follows
 
 Nothing yet.
 
+## 0.3.2 - 2026-09-08
+
+### Fixed
+
+- Transcripts written before Claude Code started recording `promptId` now
+  read normally. bough required that field to recognise a prompt, and it only
+  appeared around 2.1.8x in March 2026, so anything older drew as an empty
+  project. One reader's project of 238 sessions showed as 20 prompts; the same
+  history holds 3,282. Reported by @tenequm, with the measurements that made it
+  findable.
+
+### Changed
+
+- Harness records are recognised by `isMeta` rather than only by how their text
+  begins. That is what `promptId` was really screening out, and it does not
+  depend on the version that wrote the file. It also catches a few the text
+  screens missed, `Continue from where you left off.` among them.
+
+- The warning added in 0.3.1 for old transcripts is gone, because there is no
+  longer anything to warn about. They are read instead of explained away.
+
 ## 0.3.1 - 2026-09-08
 
 ### Fixed

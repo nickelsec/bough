@@ -136,8 +136,15 @@ func TestIsHumanPrompt(t *testing.T) {
 			want: false,
 		},
 		{
+			// Old transcripts predate the field. Requiring it discarded them
+			// whole, so a prompt without one still counts.
 			name: "no prompt id",
 			line: `{"uuid":"a","type":"user","message":{"role":"user","content":[{"type":"text","text":"hi"}]}}`,
+			want: true,
+		},
+		{
+			name: "harness record marked meta",
+			line: `{"uuid":"a","type":"user","isMeta":true,"message":{"role":"user","content":[{"type":"text","text":"Caveat: generated while running local commands."}]}}`,
 			want: false,
 		},
 		{

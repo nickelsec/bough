@@ -42,6 +42,11 @@ type Record struct {
 
 	IsSidechain bool `json:"isSidechain"`
 
+	// IsMeta marks a record the harness wrote rather than the user. It is set
+	// on things like the caveat that precedes local command output, which
+	// otherwise look like ordinary typed prompts.
+	IsMeta bool `json:"isMeta"`
+
 	Message *Message `json:"message"`
 
 	// ToolUseResult carries what a tool returned. Only the git operation is
@@ -247,8 +252,21 @@ func (r *Record) IsCompactBoundary() bool {
 // outnumbered real prompts by more than thirteen to one. A genuine prompt
 // carries text, either as a plain string or as text blocks, and never consists
 // only of tool results.
+//
+// promptId is deliberately not required here. It is a good marker and it is
+// used elsewhere to tell one submission from the next, but Claude Code only
+// began writing it partway through its life, so requiring it silently discards
+// every transcript older than that. One reader measured a project of 238
+// sessions drawing as 20 prompts because only two of them were recent enough
+// to carry the field; the same records read without it hold 3,282. The absence
+// of the field says something about the version that wrote the file, not about
+// whether a person typed anything.
+//
+// isMeta does some of the work promptId was doing. The harness sets it on
+// records it wrote itself, which is version independent in a way promptId is
+// not.
 func (r *Record) IsHumanPrompt() bool {
-	if r.Type != "user" || r.IsSidechain || r.PromptID == "" || r.Message == nil {
+	if r.Type != "user" || r.IsSidechain || r.IsMeta || r.Message == nil {
 		return false
 	}
 	c := r.Message.Content
