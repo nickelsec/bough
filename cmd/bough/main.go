@@ -19,6 +19,7 @@ import (
 
 	"github.com/nickelsec/bough/internal/agent"
 	"github.com/nickelsec/bough/internal/agent/claude"
+	"github.com/nickelsec/bough/internal/agent/pi"
 	"github.com/nickelsec/bough/internal/banner"
 	"github.com/nickelsec/bough/internal/graph"
 	"github.com/nickelsec/bough/internal/pick"
@@ -83,14 +84,15 @@ func run(args []string, stdout, stderr io.Writer) error {
 	fs.SetOutput(stderr)
 
 	var (
-		asJSON  = fs.Bool("json", false, "write the graph as JSON instead of text")
-		asText  = fs.Bool("text", false, "write to the terminal instead of opening a browser")
-		list    = fs.Bool("list", false, "list the projects with history and stop")
-		verbose = fs.Bool("v", false, "include every prompt in the text output")
-		root    = fs.String("root", "", "read history from here instead of the usual location")
-		out     = fs.String("o", "", "write to this file instead of standard output")
-		showVer = fs.Bool("version", false, "print the version and stop")
-		noRepo  = fs.Bool("no-repo", false, "do not read the project's git history")
+		asJSON    = fs.Bool("json", false, "write the graph as JSON instead of text")
+		asText    = fs.Bool("text", false, "write to the terminal instead of opening a browser")
+		list      = fs.Bool("list", false, "list the projects with history and stop")
+		verbose   = fs.Bool("v", false, "include every prompt in the text output")
+		root      = fs.String("root", "", "read history from here instead of the usual location")
+		out       = fs.String("o", "", "write to this file instead of standard output")
+		showVer   = fs.Bool("version", false, "print the version and stop")
+		noRepo    = fs.Bool("no-repo", false, "do not read the project's git history")
+		agentFlag = fs.String("agent", "all", "which agent history to read: claude, pi, or all")
 	)
 	fs.Usage = func() {
 		fmt.Fprint(stderr, usage)
@@ -111,17 +113,46 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return nil
 	}
 
-	src := claude.Source{Root: *root}
-	projects, err := src.Detect()
-	if err != nil {
-		return fmt.Errorf("reading history: %w", err)
+	var sources []agent.Source
+	switch strings.ToLower(*agentFlag) {
+	case "claude", "claude-code":
+		sources = []agent.Source{claude.Source{Root: *root}}
+	case "pi":
+		sources = []agent.Source{pi.Source{Root: *root}}
+	case "all", "":
+		if *root != "" {
+			// A custom root without an explicit --agent is a Claude history path,
+			// preserving existing flag semantics and isolated test runs.
+			sources = []agent.Source{claude.Source{Root: *root}}
+		} else {
+			sources = []agent.Source{
+				claude.Source{},
+				pi.Source{},
+			}
+		}
+	default:
+		return fmt.Errorf("unknown agent %q; supported: claude, pi, all", *agentFlag)
+	}
+
+	sourcesMap := make(map[string]agent.Source, len(sources))
+	var projects []agent.Project
+	for _, s := range sources {
+		sourcesMap[s.Name()] = s
+		found, err := s.Detect()
+		if err != nil {
+			return fmt.Errorf("reading %s history: %w", s.Name(), err)
+		}
+		projects = append(projects, found...)
 	}
 	if len(projects) == 0 {
+		if len(sources) == 1 && sources[0].Name() == "pi" {
+			return errors.New("no Pi history found; looked in ~/.pi/agent/sessions")
+		}
 		return errors.New("no Claude Code history found; looked in ~/.claude/projects")
 	}
 
 	if *list {
-		return writeList(stdout, src, projects)
+		return writeList(stdout, sourcesMap, projects)
 	}
 
 	target, err := choose(projects, name, stderr)
@@ -129,7 +160,12 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	sessions, err := src.Sessions(target)
+	activeSrc, ok := sourcesMap[target.Source]
+	if !ok {
+		return fmt.Errorf("unknown source %q for %s", target.Source, target.Name)
+	}
+
+	sessions, err := activeSrc.Sessions(target)
 	if err != nil {
 		// Some transcripts may be unreadable while others are fine, so say so
 		// and carry on with what did load.
@@ -217,7 +253,7 @@ func splitArgs(args []string) (name string, flags []string) {
 }
 
 // valueFlags are the flags that take a separate value.
-var valueFlags = map[string]bool{"root": true, "o": true}
+var valueFlags = map[string]bool{"root": true, "o": true, "agent": true}
 
 // choose decides which project to read.
 //
@@ -237,7 +273,10 @@ func choose(projects []agent.Project, arg string, _ io.Writer) (agent.Project, e
 
 	var matches []agent.Project
 	for _, p := range projects {
-		if strings.Contains(strings.ToLower(p.Name), strings.ToLower(arg)) {
+		name := strings.ToLower(p.Name)
+		tagged := fmt.Sprintf("%s [%s]", name, strings.ToLower(p.Source))
+		argLower := strings.ToLower(arg)
+		if strings.Contains(name, argLower) || strings.Contains(tagged, argLower) {
 			matches = append(matches, p)
 		}
 	}
@@ -249,7 +288,11 @@ func choose(projects []agent.Project, arg string, _ io.Writer) (agent.Project, e
 	default:
 		var names []string
 		for _, m := range matches {
-			names = append(names, m.Name)
+			if m.Source != "" {
+				names = append(names, fmt.Sprintf("%s [%s]", m.Name, m.Source))
+			} else {
+				names = append(names, m.Name)
+			}
 		}
 		return agent.Project{}, fmt.Errorf("%q matches several projects: %s", arg, strings.Join(names, ", "))
 	}
@@ -314,10 +357,22 @@ func describe(p agent.Project) string {
 	case p.Bytes > 0:
 		size = fmt.Sprintf("%d KB", p.Bytes>>10)
 	}
-	if p.LastWorked.IsZero() {
-		return size
+	detail := size
+	if !p.LastWorked.IsZero() {
+		if detail != "" {
+			detail = fmt.Sprintf("%s, %s", detail, ago(p.LastWorked))
+		} else {
+			detail = ago(p.LastWorked)
+		}
 	}
-	return fmt.Sprintf("%s, %s", size, ago(p.LastWorked))
+	if p.Source != "" && p.Source != "claude-code" {
+		if detail != "" {
+			detail = fmt.Sprintf("[%s] %s", p.Source, detail)
+		} else {
+			detail = fmt.Sprintf("[%s]", p.Source)
+		}
+	}
+	return detail
 }
 
 // ago says how long ago something happened, the way a person would.
@@ -351,14 +406,21 @@ func byPath(projects []agent.Project, path string) (agent.Project, bool) {
 	return agent.Project{}, false
 }
 
-func writeList(w io.Writer, src agent.Source, projects []agent.Project) error {
+func writeList(w io.Writer, sources map[string]agent.Source, projects []agent.Project) error {
 	for _, p := range projects {
-		sessions, _ := src.Sessions(p)
+		src := sources[p.Source]
 		turns := 0
-		for _, s := range sessions {
-			turns += len(s.Turns)
+		if src != nil {
+			sessions, _ := src.Sessions(p)
+			for _, s := range sessions {
+				turns += len(s.Turns)
+			}
 		}
-		fmt.Fprintf(w, "%-24s %-40s %d prompts\n", p.Name, p.Path, turns)
+		label := p.Name
+		if p.Source != "" && p.Source != "claude-code" {
+			label = fmt.Sprintf("%s [%s]", p.Name, p.Source)
+		}
+		fmt.Fprintf(w, "%-24s %-40s %d prompts\n", label, p.Path, turns)
 	}
 	return nil
 }
@@ -372,6 +434,7 @@ const usage = `bough shows the shape of the work in a project's AI coding histor
   bough --json       write the graph as JSON
   bough --version    print the version
   bough --no-repo    leave the project's git history unread
+  bough --agent=pi   read only a specific agent (claude, pi, all)
 
 Anything piped or redirected is written as text, so bough > notes.txt and
 bough | less behave as you would expect.

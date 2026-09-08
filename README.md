@@ -111,6 +111,7 @@ bough --list           show every project with history
 bough -v               include every prompt in the text view
 bough --json           write the graph as JSON
 bough --no-repo        leave the project's git history unread
+bough --agent=pi       read only a specific agent (claude, pi, all)
 ```
 
 `--json` gives you the whole structure to do something else with. It carries no

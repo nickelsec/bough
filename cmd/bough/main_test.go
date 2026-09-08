@@ -45,6 +45,31 @@ func TestListShowsProjects(t *testing.T) {
 	}
 }
 
+func TestAgentFlagPi(t *testing.T) {
+	root := t.TempDir()
+	proj := filepath.Join(root, "--Users-alice-work-web--")
+	if err := os.MkdirAll(proj, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	transcript := filepath.Join(proj, "sess.jsonl")
+	data := `{"type":"session","version":3,"id":"s1","cwd":"/Users/alice/work/web"}
+{"type":"message","id":"m1","message":{"role":"user","content":[{"type":"text","text":"start app"}]}}
+{"type":"message","id":"m2","message":{"role":"assistant","content":[{"type":"toolCall","id":"t1","name":"write","arguments":{"path":"main.go","content":"package main\n"}}],"usage":{"input":10,"output":10}}}
+{"type":"message","id":"m3","message":{"role":"toolResult","toolCallId":"t1","toolName":"write","content":[{"type":"text","text":"ok"}],"isError":false}}
+`
+	if err := os.WriteFile(transcript, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errs bytes.Buffer
+	if err := run([]string{"--list", "--agent", "pi", "--root", root}, &out, &errs); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "web") {
+		t.Errorf("expected listing to include project 'web', got:\n%s", out.String())
+	}
+}
+
 func TestJSONOutputIsValidAndVersioned(t *testing.T) {
 	root := history(t, "example")
 	var out, errs bytes.Buffer
