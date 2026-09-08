@@ -57,6 +57,30 @@ func TestAgentFlagClaude(t *testing.T) {
 	}
 }
 
+func TestAgentFlagCodex(t *testing.T) {
+	root := t.TempDir()
+	dayDir := filepath.Join(root, "2026", "08", "01")
+	if err := os.MkdirAll(dayDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	transcript := filepath.Join(dayDir, "rollout-s1.jsonl")
+	data := `{"type":"session_meta","payload":{"id":"s1","cwd":"/work/my-codex-project"}}
+{"type":"item_meta","payload":{"id":"item-1","turn_id":"turn-1"}}
+{"type":"prompt","payload":{"text":"hello codex"}}
+`
+	if err := os.WriteFile(transcript, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errs bytes.Buffer
+	if err := run([]string{"--list", "--agent", "codex", "--root", root}, &out, &errs); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "my-codex-project") {
+		t.Errorf("expected listing to include project 'my-codex-project', got:\n%s", out.String())
+	}
+}
+
 func TestAgentFlagUnknown(t *testing.T) {
 	var out, errs bytes.Buffer
 	err := run([]string{"--list", "--agent", "unknown"}, &out, &errs)

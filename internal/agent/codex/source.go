@@ -1,0 +1,246 @@
+package codex
+
+import (
+	"bufio"
+	"encoding/json"
+	"errors"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/nickelsec/bough/internal/agent"
+)
+
+const maxLine = 16 << 20
+
+// Source reads OpenAI Codex CLI session history.
+type Source struct {
+	// Root is where Codex stores session rollouts.
+	// Empty means the default ~/.codex/sessions.
+	Root string
+}
+
+// Name identifies this agent source.
+func (Source) Name() string { return "codex" }
+
+func (s Source) root() (string, error) {
+	if s.Root != "" {
+		return s.Root, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".codex", "sessions"), nil
+}
+
+type projectGroup struct {
+	files []string
+}
+
+// Detect reports all projects Codex CLI has history for.
+func (s Source) Detect() ([]agent.Project, error) {
+	root, err := s.root()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := os.Stat(root); errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+
+	byPath := map[string]*projectGroup{}
+
+	err = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil //nolint:nilerr // skip inaccessible paths while discovering sessions
+		}
+		if d.IsDir() || !strings.HasSuffix(d.Name(), ".jsonl") {
+			return nil
+		}
+
+		info, err := d.Info()
+		if err != nil || info.Size() == 0 {
+			return nil //nolint:nilerr // skip unreadable or empty files
+		}
+
+		cwd := detectCWD(p)
+		if cwd == "" {
+			return nil
+		}
+		cwd = filepath.Clean(cwd)
+
+		g := byPath[cwd]
+		if g == nil {
+			g = &projectGroup{}
+			byPath[cwd] = g
+		}
+		g.files = append(g.files, p)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var projects []agent.Project
+	for pPath, g := range byPath {
+		refJSON, err := json.Marshal(g.files)
+		if err != nil {
+			continue
+		}
+		last, size := extent(g.files)
+
+		projects = append(projects, agent.Project{
+			Name:       filepath.Base(pPath),
+			Path:       pPath,
+			Source:     "codex",
+			Ref:        string(refJSON),
+			LastWorked: last,
+			Bytes:      size,
+		})
+	}
+
+	sort.Slice(projects, func(i, j int) bool { return projects[i].Name < projects[j].Name })
+	return projects, nil
+}
+
+// Sessions reads every rollout transcript belonging to a Codex project.
+func (s Source) Sessions(p agent.Project) ([]agent.Session, error) {
+	var files []string
+	if err := json.Unmarshal([]byte(p.Ref), &files); err != nil {
+		files = []string{p.Ref}
+	}
+
+	var sessions []agent.Session
+	var problems []error
+
+	for _, fp := range files {
+		f, err := os.Open(fp) //#nosec G304
+		if err != nil {
+			problems = append(problems, err)
+			continue
+		}
+		recs, err := ReadRecords(f)
+		_ = f.Close()
+		if err != nil {
+			problems = append(problems, err)
+			continue
+		}
+		turns := ExtractTurns(recs)
+		if len(turns) == 0 {
+			continue
+		}
+
+		sessID := extractSessionID(recs, fp)
+		sessions = append(sessions, agent.Session{
+			ID:    sessID,
+			Title: "",
+			Turns: turns,
+		})
+	}
+
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].Turns[0].At.Before(sessions[j].Turns[0].At)
+	})
+	return sessions, errors.Join(problems...)
+}
+
+// ReadRecords parses a Codex rollout transcript into lines of Record.
+func ReadRecords(r io.Reader) ([]*Record, error) {
+	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, 0, 64<<10), maxLine)
+
+	var recs []*Record
+	for sc.Scan() {
+		line := sc.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var rec Record
+		if err := json.Unmarshal(line, &rec); err != nil {
+			continue
+		}
+		recs = append(recs, &rec)
+	}
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+	return recs, nil
+}
+
+func extent(files []string) (time.Time, int64) {
+	var last time.Time
+	var size int64
+	for _, fp := range files {
+		info, err := os.Stat(fp)
+		if err != nil {
+			continue
+		}
+		size += info.Size()
+		if info.ModTime().After(last) {
+			last = info.ModTime()
+		}
+	}
+	return last, size
+}
+
+func detectCWD(transcriptPath string) string {
+	f, err := os.Open(transcriptPath) //#nosec G304
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 64<<10), maxLine)
+
+	for n := 0; n < 20 && sc.Scan(); n++ {
+		var r Record
+		if err := json.Unmarshal(sc.Bytes(), &r); err != nil {
+			continue
+		}
+		if r.Type == "session_meta" {
+			var sm SessionMeta
+			if err := json.Unmarshal(r.Payload, &sm); err == nil && sm.Cwd != "" {
+				if !isInternalPath(sm.Cwd) {
+					return sm.Cwd
+				}
+			}
+		}
+		if r.Type == "turn_context" {
+			var tc TurnContext
+			if err := json.Unmarshal(r.Payload, &tc); err == nil && tc.Cwd != "" {
+				if !isInternalPath(tc.Cwd) {
+					return tc.Cwd
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func extractSessionID(recs []*Record, path string) string {
+	for _, r := range recs {
+		if r.Type == "session_meta" {
+			var sm SessionMeta
+			if err := json.Unmarshal(r.Payload, &sm); err == nil {
+				if sm.SessionID != "" {
+					return sm.SessionID
+				}
+				if sm.ID != "" {
+					return sm.ID
+				}
+			}
+		}
+	}
+	base := filepath.Base(path)
+	return strings.TrimSuffix(base, ".jsonl")
+}
+
+func isInternalPath(p string) bool {
+	norm := strings.ReplaceAll(p, `\`, "/")
+	return strings.Contains(norm, "/.codex/") || strings.HasPrefix(norm, "/tmp/")
+}
