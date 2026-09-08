@@ -11,6 +11,7 @@ linters:
     - dupl             # the renderer builds similar elements on purpose
     - err113           # sentinel errors everywhere would not make this clearer
     - exhaustruct      # partial struct literals are idiomatic here
+    - exhaustruct_v5   # ditto
     - exhaustive       # the switches that matter have a default
     - funcorder        # helpers read better beside what uses them
     - funlen           # length alone is not a defect

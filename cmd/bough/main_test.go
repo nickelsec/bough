@@ -45,6 +45,26 @@ func TestListShowsProjects(t *testing.T) {
 	}
 }
 
+func TestAgentFlagClaude(t *testing.T) {
+	root := history(t, "example")
+	var out, errs bytes.Buffer
+
+	if err := run([]string{"--list", "--agent", "claude", "--root", root}, &out, &errs); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "example") {
+		t.Errorf("listing did not mention the project:\n%s", out.String())
+	}
+}
+
+func TestAgentFlagUnknown(t *testing.T) {
+	var out, errs bytes.Buffer
+	err := run([]string{"--list", "--agent", "unknown"}, &out, &errs)
+	if err == nil || !strings.Contains(err.Error(), "unknown agent") {
+		t.Fatalf("expected unknown agent error, got %v", err)
+	}
+}
+
 func TestJSONOutputIsValidAndVersioned(t *testing.T) {
 	root := history(t, "example")
 	var out, errs bytes.Buffer
