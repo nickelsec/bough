@@ -10,7 +10,7 @@ format moves, so treat the shapes as reliable and the counts as illustrative.
 
 ## What will catch you out
 
-Five things in these files will give you wrong numbers, and none of them fail
+Six things in these files will give you wrong numbers, and none of them fail
 loudly. Each is covered in full below; this is the short version, and it is the
 part worth reading before you write any code.
 
@@ -19,7 +19,16 @@ resumed or rewound, rewriting records it has already written, so the same
 `uuid` turns up several times. Count lines instead of distinct records and the
 largest session here comes out at 36,676 rather than 10,964: **more than three
 times too high**. The overstatement is uneven, so there is no constant to
-correct it by. Deduplicate on `uuid` first, keeping the last copy.
+correct it by. Deduplicate on `uuid` first, keeping the last copy of most
+fields, but see the next entry for the one that has to go the other way.
+
+**Merging the copies rewrites `promptId`.** Later copies usually just fill in
+fields the first one left empty, so taking the later value is right nearly
+everywhere. `promptId` is the exception: resuming a session re-appends old
+records stamped with the id of the prompt that resumed them, not with a better
+version of their own. Take the later value and every replayed record files under
+a handful of ids. On one project here that turned 171 prompts into 22. Keep the
+first `promptId` you see and take the later value for everything else.
 
 **Two fields arrive in more than one shape.** `toolUseResult` is an object
 17,319 times and a bare string 490 times. Type it as an object only and every
@@ -146,6 +155,32 @@ output is recorded the same way. Breaking down the user records that carry a
 
 Tool results outnumbered real prompts by more than thirteen to one. Check that
 the content actually holds text before treating a record as a prompt.
+
+### One submission can be several records
+
+A `promptId` identifies a submission, not a record, and one submission is
+sometimes written as several user records. Invoking a skill files its
+re-invocation notice, and occasionally the skill body itself, as further records
+under the same id. Read each as a new prompt and one request becomes several:
+seventeen prompts across this corpus that nobody typed.
+
+Count the first record under a `promptId` and skip the rest. Do not try to spot
+these by their wording, and do not deduplicate on the text either. The same
+words under a *different* id are a real second prompt, which is what somebody
+typing `retry` after a failure looks like.
+
+### Old transcripts have no promptId at all
+
+Claude Code only began writing `promptId` partway through its life, so a
+transcript from before then holds a full conversation that this rule cannot
+read. Every version in this corpus writes it, on essentially every user record,
+so there was nothing here to measure the boundary against; the report came from
+a reader with an older archive.
+
+The failure is silent, which is the part that matters. A tool that requires the
+field on an old transcript finds no prompts and draws nothing, and an empty
+result looks like lost work rather than a format it declined to guess at. Say
+so instead.
 
 ## The schema is loosely typed
 

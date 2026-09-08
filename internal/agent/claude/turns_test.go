@@ -392,3 +392,59 @@ func TestCommitDetectionHandlesShellAndRehearsals(t *testing.T) {
 		}
 	}
 }
+
+// One submission written as several user records is one prompt. Invoking a
+// skill files its re-invocation notice under the promptId of the request that
+// triggered it, and reading that as a second prompt splits one request in two.
+func TestExtractTurnsOnePromptPerPromptID(t *testing.T) {
+	lines := []string{
+		`{"uuid":"1","type":"user","promptId":"p1","message":{"role":"user","content":[{"type":"text","text":"humanize the docs"}]}}`,
+		`{"uuid":"2","type":"user","promptId":"p1","message":{"role":"user","content":[{"type":"text","text":"(Re-invocation of /humanizer, instructions unchanged.)"}]}}`,
+		`{"uuid":"3","type":"user","promptId":"p2","message":{"role":"user","content":[{"type":"text","text":"now ship it"}]}}`,
+	}
+	recs, _ := ReadRecords(strings.NewReader(strings.Join(lines, "\n")))
+	turns := ExtractTurns(recs)
+
+	if len(turns) != 2 {
+		t.Fatalf("got %d turns, want 2", len(turns))
+	}
+	if turns[0].Text != "humanize the docs" {
+		t.Errorf("first turn = %q, want what the user typed rather than the notice", turns[0].Text)
+	}
+	if turns[1].Text != "now ship it" {
+		t.Errorf("second turn = %q", turns[1].Text)
+	}
+}
+
+// The same words twice is two prompts when the ids differ. Somebody typing
+// "retry" after a failure is asking again, not being echoed by the harness,
+// and the corpus this was built against holds exactly that case.
+func TestExtractTurnsRepeatedTextWithNewIDCountsTwice(t *testing.T) {
+	lines := []string{
+		`{"uuid":"1","type":"user","promptId":"p1","message":{"role":"user","content":[{"type":"text","text":"retry"}]}}`,
+		`{"uuid":"2","type":"user","promptId":"p2","message":{"role":"user","content":[{"type":"text","text":"retry"}]}}`,
+	}
+	recs, _ := ReadRecords(strings.NewReader(strings.Join(lines, "\n")))
+	if turns := ExtractTurns(recs); len(turns) != 2 {
+		t.Fatalf("got %d turns, want 2", len(turns))
+	}
+}
+
+// A synthetic record must not claim the id on its way out. If it did, a real
+// prompt filed under the same one would be dropped rather than deduplicated,
+// turning a fix for double counting into a loss of work.
+func TestExtractTurnsSyntheticDoesNotClaimPromptID(t *testing.T) {
+	lines := []string{
+		`{"uuid":"1","type":"user","promptId":"p1","message":{"role":"user","content":[{"type":"text","text":"[Image: original 800x600]"}]}}`,
+		`{"uuid":"2","type":"user","promptId":"p1","message":{"role":"user","content":[{"type":"text","text":"what is wrong with this screenshot"}]}}`,
+	}
+	recs, _ := ReadRecords(strings.NewReader(strings.Join(lines, "\n")))
+	turns := ExtractTurns(recs)
+
+	if len(turns) != 1 {
+		t.Fatalf("got %d turns, want 1", len(turns))
+	}
+	if turns[0].Text != "what is wrong with this screenshot" {
+		t.Errorf("turn = %q, want the real prompt kept", turns[0].Text)
+	}
+}

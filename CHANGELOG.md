@@ -7,6 +7,26 @@ Notable changes, newest first. Format follows
 
 Nothing yet.
 
+## 0.3.1 - 2026-09-08
+
+### Fixed
+
+- Some prompts were counted twice. Invoking a skill writes its re-invocation
+  notice to the transcript as a second user record under the same promptId, and
+  reading that as a new prompt split one request into two. Seventeen prompts
+  across the histories here were never typed by anyone.
+
+- Merging the replayed copies of a record could rewrite its promptId. Resuming
+  a session re-appends old records stamped with the id of the prompt that
+  resumed them, so taking the later value filed unrelated work under a handful
+  of prompts. On one project that collapsed 171 prompts onto 22. The first
+  promptId now wins; every other field still takes the later value.
+
+- A transcript too old to hold a promptId now says so. bough finds prompts by
+  that field, and Claude Code only started writing it partway through its life,
+  so an older transcript drew as an empty project with no explanation. Thanks
+  to the reader who spotted this against their own archive.
+
 ## 0.3.0 - 2026-09-08
 
 ### Added

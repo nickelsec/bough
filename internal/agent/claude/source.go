@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -117,6 +118,9 @@ func (s Source) Sessions(p agent.Project) ([]agent.Session, error) {
 		}
 		turns := ExtractTurns(recs)
 		if len(turns) == 0 {
+			if err := unreadable(recs); err != nil {
+				problems = append(problems, fmt.Errorf("%s: %w", filepath.Base(fp), err))
+			}
 			continue
 		}
 		sessions = append(sessions, agent.Session{
@@ -130,6 +134,35 @@ func (s Source) Sessions(p agent.Project) ([]agent.Session, error) {
 		return sessions[i].Turns[0].At.Before(sessions[j].Turns[0].At)
 	})
 	return sessions, errors.Join(problems...)
+}
+
+// unreadable explains why a transcript yielded nothing, when the reason is
+// worth telling somebody about.
+//
+// A prompt is recognised by its promptId, and Claude Code only began writing
+// that field partway through its life. A transcript from before then still
+// holds a full conversation but draws as an empty project, which looks like
+// bough losing the work rather than declining to guess at it. An empty file,
+// or one holding only tool traffic, is ordinary and says nothing.
+func unreadable(recs []*Record) error {
+	said := 0
+	for _, r := range recs {
+		if r.Type != "user" || r.IsSidechain || r.Message == nil {
+			continue
+		}
+		if r.PromptID != "" {
+			return nil
+		}
+		if r.PromptText() != "" {
+			said++
+		}
+	}
+	if said == 0 {
+		return nil
+	}
+	return fmt.Errorf("%d prompts carry no promptId, so this transcript is too "+
+		"old for bough to read; it predates the version of Claude Code that "+
+		"started recording the field", said)
 }
 
 // transcriptFiles lists the session files in a project directory.

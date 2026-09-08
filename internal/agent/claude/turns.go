@@ -199,6 +199,15 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 	// Replies already charged for, by their own id rather than the record's.
 	counted := map[string]bool{}
 
+	// Prompts already opened, by promptId. One submission can be written as
+	// several user records: invoking a skill files its re-invocation notice,
+	// and sometimes the skill body itself, as further records carrying the
+	// same promptId. Reading each as a new prompt splits one request into
+	// several, which on the corpus this was built against added seventeen
+	// prompts that nobody typed. The id is what identifies a submission, so
+	// only the first record under one starts a turn.
+	opened := map[string]bool{}
+
 	for _, r := range recs {
 		if r.IsCompactBoundary() {
 			if cur != nil {
@@ -212,6 +221,13 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 			if isSynthetic(text) {
 				continue
 			}
+			// Checked after the synthetic test on purpose. A skipped record
+			// must not claim the id, or a real prompt filed under the same one
+			// would be dropped rather than merely not duplicated.
+			if opened[r.PromptID] {
+				continue
+			}
+			opened[r.PromptID] = true
 			turns = append(turns, agent.Turn{
 				At:    r.Time(),
 				Text:  strings.TrimSpace(text),

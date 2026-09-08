@@ -165,3 +165,23 @@ func TestFixtureCarriesNoRealData(t *testing.T) {
 		}
 	}
 }
+
+// Resuming a session re-appends old records stamped with the id of the prompt
+// that resumed them. Taking the later value files work under the wrong prompt
+// and collapses many prompts onto few, so the first appearance wins.
+func TestMergeKeepsTheFirstPromptID(t *testing.T) {
+	lines := []string{
+		`{"uuid":"a","type":"user","promptId":"original"}`,
+		`{"uuid":"a","type":"user","promptId":"resumed"}`,
+	}
+	recs, err := ReadRecords(strings.NewReader(strings.Join(lines, "\n")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("got %d records, want 1", len(recs))
+	}
+	if recs[0].PromptID != "original" {
+		t.Errorf("promptId = %q, want the first appearance kept", recs[0].PromptID)
+	}
+}

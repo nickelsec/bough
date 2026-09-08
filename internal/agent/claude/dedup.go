@@ -78,7 +78,18 @@ func ReadRecords(r io.Reader) ([]*Record, error) {
 func merge(dst, src *Record) {
 	setStr(&dst.ParentUUID, src.ParentUUID)
 	setStr(&dst.SessionID, src.SessionID)
-	setStr(&dst.PromptID, src.PromptID)
+
+	// promptId is the exception to later-wins. Resuming a session re-appends
+	// records under the id of the prompt that resumed them, so a later copy
+	// carries the new session's id rather than a better version of the old
+	// one. Taking it would file every replayed record under a handful of
+	// prompts: on one project in the corpus this was fitted against, 2,953 of
+	// 4,453 records had the field rewritten, collapsing 171 prompts onto 22
+	// ids. The first appearance is the one that was true.
+	if dst.PromptID == "" {
+		dst.PromptID = src.PromptID
+	}
+
 	setStr(&dst.Type, src.Type)
 	setStr(&dst.Subtype, src.Subtype)
 	setStr(&dst.Timestamp, src.Timestamp)
