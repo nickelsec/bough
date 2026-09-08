@@ -7,6 +7,29 @@ Notable changes, newest first. Format follows
 
 Nothing yet.
 
+## 0.3.4 - 2026-09-08
+
+### Fixed
+
+- The project picker drew itself in pieces across the terminal. It never wrote
+  a carriage return, and the terminal is in raw mode while it runs, so a bare
+  newline dropped a row and left the cursor in the column it was already in.
+  Every line started further right than the one before, and the cursor-up that
+  begins each redraw climbed the same crooked path and cleared the wrong part
+  of each row. Reported against three terminals; the width work in 0.3.3 made
+  it less likely but was not the cause.
+
+- The list is no longer drawn taller than the window. Past about a dozen
+  projects the top scrolled away, and the redraw cannot reach what is no longer
+  on screen. It now shows what fits, scrolls with the selection, and says how
+  many entries lie either side.
+
+### Note
+
+The diagram opens centred on the work rather than on the canvas it is drawn on.
+The layout keeps a wide margin to pan into, and fitting to that margin made a
+short history open at about half the size it could, sitting off centre.
+
 ## 0.3.3 - 2026-09-08
 
 ### Fixed

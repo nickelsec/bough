@@ -3,6 +3,7 @@ package pick
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -301,6 +302,11 @@ func stripSGR(s string) string {
 			esc = true
 			continue
 		}
+		// The carriage return before each newline is a control code, not a
+		// column the user sees.
+		if r == 0x0d {
+			continue
+		}
 		if esc {
 			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
 				esc = false
@@ -383,5 +389,95 @@ func TestDrawSurvivesAbsurdlyNarrowTerminals(t *testing.T) {
 		if sb.Len() == 0 {
 			t.Errorf("width %d drew nothing", width)
 		}
+	}
+}
+
+// The redraw steps the cursor back over what it wrote, which only reaches
+// what is still on screen. A list taller than the window scrolls its top away,
+// the cursor stops at the first visible row, and every pass lands lower than
+// the last, smearing the list down the terminal in pieces. A reader with
+// thirteen projects on a normal window saw exactly that.
+func TestDrawNeverOutgrowsTheWindow(t *testing.T) {
+	restoreW, restoreH := termWidth, termHeight
+	defer func() { termWidth, termHeight = restoreW, restoreH }()
+	termWidth = func() int { return 80 }
+
+	for _, rows := range []int{12, 24, 40, 60} {
+		for _, count := range []int{3, 13, 30, 80} {
+			termHeight = func() int { return rows }
+			items := make([]Item, count)
+			for i := range items {
+				items[i] = Item{Label: "project", Detail: "1 MB, today"}
+			}
+			for _, sel := range []int{0, count / 2, count - 1} {
+				var sb strings.Builder
+				drawn := draw(&sb, "choose", items, sel, detailWidth(items), 0)
+				if drawn > rows {
+					t.Errorf("%d projects in a %d row window drew %d lines (selection %d)",
+						count, rows, drawn, sel)
+				}
+				// What it reports must match what it wrote, or the step back
+				// overshoots even when everything fits.
+				if got := strings.Count(sb.String(), "\n"); got != drawn {
+					t.Errorf("reported %d lines but wrote %d", drawn, got)
+				}
+			}
+		}
+	}
+}
+
+// Every entry has to stay reachable, however long the list.
+func TestDrawScrollsToTheSelection(t *testing.T) {
+	restoreW, restoreH := termWidth, termHeight
+	defer func() { termWidth, termHeight = restoreW, restoreH }()
+	termWidth = func() int { return 80 }
+	termHeight = func() int { return 20 }
+
+	items := make([]Item, 40)
+	for i := range items {
+		items[i] = Item{Label: "project-" + strconv.Itoa(i), Detail: "1 MB, today"}
+	}
+	for _, sel := range []int{0, 7, 20, 39} {
+		var sb strings.Builder
+		draw(&sb, "", items, sel, detailWidth(items), 0)
+		want := "project-" + strconv.Itoa(sel)
+		if !strings.Contains(sb.String(), want) {
+			t.Errorf("selection %d (%s) is not on screen", sel, want)
+		}
+		if !strings.Contains(sb.String(), bulletOn) {
+			t.Errorf("selection %d drew no filled marker", sel)
+		}
+	}
+}
+
+// The terminal is in raw mode while the picker runs, so the translation that
+// normally makes a newline return to column zero is switched off. A bare
+// linefeed then drops a row and leaves the cursor where it was, each line
+// starts further right than the last, and the cursor-up that begins the next
+// redraw climbs the same crooked path and clears the wrong part of each row.
+// It is what put names and frame pieces at scattered columns in three
+// different terminals.
+func TestEveryNewlineCarriesAReturn(t *testing.T) {
+	restoreW, restoreH := termWidth, termHeight
+	defer func() { termWidth, termHeight = restoreW, restoreH }()
+	termWidth = func() int { return 80 }
+	termHeight = func() int { return 40 }
+
+	var buf bytes.Buffer
+	n := draw(&buf, "choose", sample, 1, detailWidth(sample), 0)
+
+	out := buf.String()
+	for i, r := range out {
+		if r == '\n' && (i == 0 || out[i-1] != '\r') {
+			t.Fatalf("a newline at byte %d has no carriage return before it", i)
+		}
+	}
+
+	// And the redraw has to reach column zero before stepping up, or it
+	// climbs from wherever the last line ended.
+	var again bytes.Buffer
+	draw(&again, "choose", sample, 2, detailWidth(sample), n)
+	if !strings.HasPrefix(again.String(), "\r") {
+		t.Error("the redraw does not return to column zero before moving up")
 	}
 }

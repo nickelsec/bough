@@ -330,19 +330,84 @@
     readout();
   }
 
+  // content is the box the drawing actually occupies.
+  //
+  // The layout reserves a wide margin around the diagram so there is somewhere
+  // to pan to, and on every project measured that leaves a 300px band of empty
+  // canvas. Fitting to the canvas rather than to the drawing scales for space
+  // nothing is drawn in: a short history filled barely half the height it was
+  // given, so it opened at about half the size it could have and sat off
+  // centre, which reads as the view having failed to fit at all.
+  function content() {
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    function seen(x, y, r) {
+      x0 = Math.min(x0, x - r); x1 = Math.max(x1, x + r);
+      y0 = Math.min(y0, y - r); y1 = Math.max(y1, y + r);
+    }
+    model.days.forEach(function (day) {
+      seen(day.x, day.y, day.size / 2);
+      day.tasks.forEach(function (task) {
+        seen(task.x, task.y, task.size / 2);
+        task.prompts.forEach(function (p) { seen(p.x, p.y, p.r); });
+      });
+    });
+    // Nothing was drawn, so fall back to the canvas rather than to infinities.
+    if (!isFinite(x0)) return { x: 0, y: 0, width: model.width, height: model.height };
+
+    // The spine is deliberately left out of the horizontal reckoning. It runs
+    // half a margin past the last day at the arrow end and only a few pixels
+    // before the first at the other, so a box drawn round it is lopsided by
+    // about fifty pixels. Centring that box puts the work itself off to one
+    // side, which is the thing being fixed. The nodes are the content; the
+    // line they sit on is a backdrop and may run off the view.
+    //
+    // Vertically it matters, since the spine is the axis every day hangs from
+    // and a diagram with one row of tasks would otherwise be measured from
+    // the tasks alone and sit with the spine against an edge.
+    if (model.spine) {
+      y0 = Math.min(y0, model.spine.y - 13);
+      y1 = Math.max(y1, model.spine.y + 13);
+    }
+
+    // Room under the day squares for their dates, which sit outside the
+    // shapes and would otherwise be cropped at the bottom edge.
+    var labels = 30;
+    return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 + labels };
+  }
+
   // fit shows the whole diagram, which is the first thing anyone should see.
   function fit() {
     if (!model || !model.height) return;
     var box = stage.getBoundingClientRect();
     var margin = 40;
-    view.scale = Math.min(
-      1.1,
-      (box.height - margin * 2) / model.height,
-      (box.width - margin * 2) / model.width
-    );
+    var seen = content();
+    // A window can be smaller than the margins, and a scale of zero or less
+    // leaves an empty stage that no amount of panning recovers.
+    var room = {
+      w: Math.max(box.width - margin * 2, 1),
+      h: Math.max(box.height - margin * 2, 1)
+    };
+    view.scale = Math.min(1.1, room.h / seen.height, room.w / seen.width);
+
+    // The spine runs past the nodes at both ends, further at the arrow. It is
+    // not centred on, or the work sits off to one side, but it still has to
+    // fit, or the arrow is clipped by the edge of the window. Shrinking to
+    // suit is enough: the nodes stay centred because the centring is done
+    // against them at whatever scale this settles on.
+    if (model.spine) {
+      var reach = Math.max(
+        seen.x + seen.width / 2 - (model.spine.x1 - 13),
+        model.spine.x2 + 13 - (seen.x + seen.width / 2)
+      ) * 2;
+      if (reach > 0) view.scale = Math.min(view.scale, room.w / reach);
+    }
+
+    if (!(view.scale > 0)) view.scale = 1;
     whole = view.scale;
-    view.x = (box.width - model.width * view.scale) / 2;
-    view.y = (box.height - model.height * view.scale) / 2;
+    // Centre the drawing rather than the canvas it sits on, which means
+    // offsetting by where the drawing starts.
+    view.x = (box.width - seen.width * view.scale) / 2 - seen.x * view.scale;
+    view.y = (box.height - seen.height * view.scale) / 2 - seen.y * view.scale;
     apply();
   }
 

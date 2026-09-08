@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"golang.org/x/term"
@@ -100,16 +101,105 @@ func realTermWidth() int {
 	return w - 1
 }
 
+// termHeight is how many rows the picker may use.
+//
+// The list is redrawn by stepping the cursor back up over what it wrote, which
+// only reaches what is still on screen. Once the list is taller than the
+// window the top scrolls away, the cursor cannot climb past the first visible
+// row, and every pass lands lower than the last. About a dozen projects is
+// enough to reach that on an ordinary window.
+var termHeight = realTermHeight
+
+func realTermHeight() int {
+	_, h, err := term.GetSize(int(os.Stderr.Fd()))
+	if err != nil || h <= 0 {
+		return 24
+	}
+	return h
+}
+
+// window is how many entries fit at once, and which of them to show.
+//
+// What the frame spends besides the entries: the title and its blank line, the
+// two frame edges, the blank line under the frame, the hint, and a row left
+// clear for the shell prompt.
+func window(count, selected int, titled bool) (first, shown int) {
+	spare := termHeight() - 6
+	if titled {
+		spare -= 2
+	}
+	// Every entry after the first also carries a blank line above it.
+	fits := (spare + 1) / 2
+	if fits < 1 {
+		fits = 1
+	}
+	if fits >= count {
+		return 0, count
+	}
+	// Hold the selection near the middle, so a long list scrolls rather than
+	// jumping a page at a time.
+	first = selected - fits/2
+	if first < 0 {
+		first = 0
+	}
+	if first+fits > count {
+		first = count - fits
+	}
+	return first, fits
+}
+
+// raw writes a carriage return before every newline.
+//
+// The picker puts the terminal in raw mode, which switches off the newline
+// translation a terminal normally does, so a bare linefeed drops a row and
+// leaves the cursor in the column it was already in. Each line then starts
+// further right than the one before, and the cursor-up beginning the next
+// redraw climbs that same crooked path and clears the wrong part of each row.
+// Names and pieces of the frame end up at scattered columns with no left edge
+// in sight, which is what three different terminals showed.
+//
+// Harmless when translation is on, since a terminal collapses the pair.
+type raw struct{ to io.Writer }
+
+func (w raw) Write(p []byte) (int, error) {
+	var out []byte
+	for i, b := range p {
+		if b == '\n' && (i == 0 || p[i-1] != '\r') {
+			out = append(out, '\r')
+		}
+		out = append(out, b)
+	}
+	if _, err := w.to.Write(out); err != nil {
+		return 0, err
+	}
+	// Report the caller's length, not the translated one, or fmt takes output
+	// that went out whole for a short write.
+	return len(p), nil
+}
+
+// marker stands in for an entry at the edge of the view, saying the list
+// carries on past it. The entry it replaces stays reachable, since the view
+// scrolls with the selection.
+func marker(inner int, text string) string {
+	body := fit("  "+text, inner)
+	return fmt.Sprintf("%s%s%s%s%s%s%s%s%s", frame, bar, reset, dim, body, reset, frame, bar, reset)
+}
+
 // hint sits below the frame, with a blank line between them.
 const hint = "↑↓ move    ↵ choose    esc cancel"
 
 // draw renders the list and returns how many lines it used, so the next pass
 // can rewrite exactly those and nothing else.
-func draw(out io.Writer, title string, items []Item, selected, detail, previous int) int {
+func draw(dst io.Writer, title string, items []Item, selected, detail, previous int) int {
+	out := raw{to: dst}
 	if previous > 0 {
 		// Step back over what was drawn last time and overwrite it. Redrawing
 		// in place keeps the list from scrolling away as the user moves.
-		fmt.Fprint(out, strings.Repeat(lineUp+clearLine, previous))
+		//
+		// Back to column zero before climbing: cursor-up keeps whatever column
+		// it is in, so stepping up from where the last line ended would clear
+		// the wrong part of every row on the way.
+		fmt.Fprint(out, "\r"+strings.Repeat(lineUp+clearLine, previous))
 	}
 
 	label := labelColumn(items, detail)
@@ -124,14 +214,25 @@ func draw(out io.Writer, title string, items []Item, selected, detail, previous 
 	fmt.Fprintf(out, "  %s%s%s%s%s\n", frame, cornerTL, strings.Repeat(horizontal, inner), cornerTR, reset)
 	lines++
 
+	// Only what fits is drawn, for the reason on termHeight above.
+	first, shown := window(len(items), selected, title != "")
+
 	// A blank framed line above and below each row, so the list breathes
 	// rather than reading as a solid block of text.
-	for i, it := range items {
-		if i > 0 {
+	for i := first; i < first+shown; i++ {
+		if i > first {
 			fmt.Fprintf(out, "  %s\n", blankRow(inner))
 			lines++
 		}
-		fmt.Fprintf(out, "  %s\n", row(it, i == selected, label, detail, inner))
+		text := row(items[i], i == selected, label, detail, inner)
+		// Say when the list runs on, so a cut one does not look whole.
+		if i == first && first > 0 {
+			text = marker(inner, "↑ "+strconv.Itoa(first)+" more")
+		}
+		if i == first+shown-1 && first+shown < len(items) {
+			text = marker(inner, "↓ "+strconv.Itoa(len(items)-first-shown)+" more")
+		}
+		fmt.Fprintf(out, "  %s\n", text)
 		lines++
 	}
 

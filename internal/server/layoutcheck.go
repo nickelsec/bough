@@ -72,6 +72,68 @@ for (const file of files) {
         " in " + Math.round(out.width) + "x" + Math.round(out.height));
     }
 
+    // The opening view has to frame what is drawn, not the canvas it sits
+    // on. The layout leaves a wide margin to pan into, so fitting to the
+    // canvas scales for space nothing occupies: a short history filled about
+    // half the height it was given and opened at half the size it could,
+    // sitting off centre, which reads as the view having failed entirely.
+    const seen = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+    for (const n of all) {
+      seen.x0 = Math.min(seen.x0, n.x - n.w / 2);
+      seen.x1 = Math.max(seen.x1, n.x + n.w / 2);
+      seen.y0 = Math.min(seen.y0, n.y - n.h / 2);
+      seen.y1 = Math.max(seen.y1, n.y + n.h / 2);
+    }
+    // The spine is the axis, so it counts vertically. Horizontally it runs
+    // past the nodes further at the arrow end than at the start, and a box
+    // drawn round it is lopsided enough to shove the work off to one side.
+    if (out.spine) {
+      seen.y0 = Math.min(seen.y0, out.spine.y - 13);
+      seen.y1 = Math.max(seen.y1, out.spine.y + 13);
+    }
+    const cw = seen.x1 - seen.x0, ch = seen.y1 - seen.y0;
+
+    for (const box of [{ w: 1200, h: 800 }, { w: 1440, h: 900 }, { w: 900, h: 600 }]) {
+      const margin = 40;
+      const room = { w: box.w - margin * 2, h: box.h - margin * 2 };
+      let scale = Math.min(1.1, room.h / (ch + 30), room.w / cw);
+
+      // Shrink until the spine fits too, so the arrow is never clipped.
+      if (out.spine) {
+        const mid = seen.x0 + cw / 2;
+        const reach = Math.max(mid - (out.spine.x1 - 13), out.spine.x2 + 13 - mid) * 2;
+        if (reach > 0) scale = Math.min(scale, room.w / reach);
+      }
+      check(tag + " fit scale is usable", scale > 0 && isFinite(scale), String(scale));
+
+      const vx = (box.w - cw * scale) / 2 - seen.x0 * scale;
+      const vy = (box.h - (ch + 30) * scale) / 2 - seen.y0 * scale;
+
+      // The nodes are what has to sit in the middle.
+      const nodeMid = vx + (seen.x0 + cw / 2) * scale;
+      check(tag + " nodes sit centred at " + box.w,
+        Math.abs(nodeMid - box.w / 2) < 1,
+        "off by " + (nodeMid - box.w / 2).toFixed(1) + "px");
+
+      // And the spine, arrow and all, stays on screen.
+      if (out.spine) {
+        check(tag + " spine fits at " + box.w,
+          vx + (out.spine.x1 - 13) * scale >= -1 &&
+          vx + (out.spine.x2 + 13) * scale <= box.w + 1);
+      }
+
+      // The framed box is the shapes plus the band under them the date
+      // labels are drawn into, so that band is what gets centred.
+      const my = vy + (seen.y0 + (ch + 30) / 2) * scale;
+      check(tag + " fit centres vertically at " + box.h,
+        Math.abs(my - box.h / 2) < 1, "off by " + (my - box.h / 2).toFixed(1) + "px");
+
+      // And everything drawn has to land inside the window.
+      check(tag + " fit keeps it on screen at " + box.w + "x" + box.h,
+        vx + seen.x0 * scale >= -1 && vy + seen.y0 * scale >= -1 &&
+        vx + seen.x1 * scale <= box.w + 1 && vy + seen.y1 * scale <= box.h + 1);
+    }
+
     // Days run left to right through time, and a diagram that doubles back
     // is telling a lie about the order the work happened in.
     for (let i = 1; i < out.days.length; i++) {
