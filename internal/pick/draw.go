@@ -3,7 +3,10 @@ package pick
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
+
+	"golang.org/x/term"
 )
 
 // Terminal control sequences. These are the widely supported ones, so they work
@@ -56,10 +59,46 @@ const (
 	labelWidth = 30
 	gutter     = 4
 
-	// maxRow is the widest the whole framed row may be, borders included, so
-	// the picker still fits an eighty column terminal.
-	maxRow = 78
+	// indent is the margin every line is drawn with, and it counts against the
+	// window just as the frame does.
+	indent = 2
+
+	// defaultRow is the widest a framed row may be when the terminal will not
+	// say how wide it is, borders included, so the picker still fits an eighty
+	// column window.
+	defaultRow = 78
+
+	// minRow is the narrowest frame worth drawing. Below this there is no room
+	// for a name and a size beside it, and the numbered list reads better than
+	// a frame squeezed to nothing.
+	minRow = 34
 )
+
+// termWidth is how wide the picker may draw.
+//
+// It asks the terminal rather than assuming, because a frame wider than the
+// window wraps every row onto a second line. The redraw then steps back by the
+// number of rows it believes it wrote, which is fewer than the rows actually
+// on screen, so each pass overwrites the wrong lines and the list smears into
+// itself. A picker that works at eighty columns and shreds at sixty is worse
+// than one that is always plain.
+//
+// Standard error is the one it measures, since that is where the list goes.
+var termWidth = realTermWidth
+
+func realTermWidth() int {
+	w, _, err := term.GetSize(int(os.Stderr.Fd()))
+	if err != nil || w <= 0 {
+		return defaultRow
+	}
+	// One column short of the edge. A row drawn right up to the last cell
+	// wraps on some terminals and not others, and the ones that wrap put a
+	// stray blank line under every entry.
+	if w > defaultRow {
+		return defaultRow
+	}
+	return w - 1
+}
 
 // hint sits below the frame, with a blank line between them.
 const hint = "↑↓ move    ↵ choose    esc cancel"
@@ -118,10 +157,18 @@ func labelColumn(items []Item, detail int) int {
 	if w < labelWidth {
 		w = labelWidth
 	}
-	// Everything the row spends besides the name: two frame edges, the marker
-	// and the spaces around it, the gutter, the detail, and a trailing space.
-	if room := maxRow - detail - gutter - 7; w > room {
+	// Everything the row spends besides the name: the two space indent every
+	// line carries, two frame edges, the marker and the spaces around it, the
+	// gutter, the detail, and a trailing space.
+	if room := termWidth() - detail - gutter - indent - 7; w > room {
 		w = room
+	}
+	// A narrow window can take that below nothing, and a negative column
+	// panics the formatter rather than merely looking wrong. Keep enough for a
+	// name worth reading; the caller drops to the numbered list when even this
+	// will not fit.
+	if w < 8 {
+		w = 8
 	}
 	return w
 }
@@ -137,7 +184,8 @@ func row(it Item, selected bool, label, detail, inner int) string {
 	}
 
 	name := clip(it.Label, label)
-	content := fmt.Sprintf(" %s  %-*s%*s%*s ", bullet, label, name, gutter, "", detail, it.Detail)
+	size := clip(it.Detail, detail)
+	content := fmt.Sprintf(" %s  %-*s%*s%*s ", bullet, label, name, gutter, "", detail, size)
 	content = fit(content, inner)
 
 	if selected {
@@ -153,10 +201,17 @@ func blankRow(inner int) string {
 }
 
 // clip shortens a name that will not fit, marking that it was cut.
+//
+// A column with no room at all yields nothing rather than a lone ellipsis, and
+// never a negative slice: a window can be narrow enough to leave the detail no
+// space whatever, and that must look empty rather than panic.
 func clip(s string, w int) string {
 	r := []rune(s)
 	if len(r) <= w {
 		return s
+	}
+	if w <= 1 {
+		return strings.Repeat("…", w)
 	}
 	return string(r[:w-1]) + "…"
 }
@@ -164,9 +219,15 @@ func clip(s string, w int) string {
 // fit pads or trims a row so every one is the same width and the frame's near
 // edge stays straight.
 func fit(s string, w int) string {
+	if w <= 0 {
+		return ""
+	}
 	r := []rune(s)
 	switch {
 	case len(r) > w:
+		if w == 1 {
+			return "…"
+		}
 		return string(r[:w-1]) + "…"
 	case len(r) < w:
 		return s + strings.Repeat(" ", w-len(r))
@@ -183,12 +244,18 @@ func clearRows(out io.Writer, lines int) {
 }
 
 // detailWidth is how much room the right hand column needs.
+//
+// It is capped at a share of the window, because the name is what a person
+// picks by. Given a narrow terminal the size should lose its room first.
 func detailWidth(items []Item) int {
 	w := 0
 	for _, it := range items {
 		if n := len([]rune(it.Detail)); n > w {
 			w = n
 		}
+	}
+	if room := (termWidth() - indent) / 3; w > room {
+		w = room
 	}
 	return w
 }

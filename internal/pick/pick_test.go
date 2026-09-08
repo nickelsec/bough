@@ -2,6 +2,7 @@ package pick
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -251,8 +252,8 @@ func TestLongNamesAreCutNotOverflowed(t *testing.T) {
 		if strings.TrimSpace(plain) == "" {
 			continue
 		}
-		if n := len([]rune(strings.TrimSpace(plain))); n > maxRow {
-			t.Errorf("a line ran to %d columns, past the cap of %d", n, maxRow)
+		if n := len([]rune(strings.TrimSpace(plain))); n > defaultRow {
+			t.Errorf("a line ran to %d columns, past the cap of %d", n, defaultRow)
 		}
 	}
 	if !strings.Contains(buf.String(), "\u2026") {
@@ -287,5 +288,100 @@ func TestRowsAreSpacedApart(t *testing.T) {
 	}
 	if want := len(sample) - 1; blanks != want {
 		t.Errorf("found %d spacers between %d rows, want %d", blanks, len(sample), want)
+	}
+}
+
+// stripSGR removes the colour and cursor sequences so a row can be measured as
+// the user sees it.
+func stripSGR(s string) string {
+	var out []rune
+	esc := false
+	for _, r := range s {
+		if r == 0x1b {
+			esc = true
+			continue
+		}
+		if esc {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+				esc = false
+			}
+			continue
+		}
+		out = append(out, r)
+	}
+	return string(out)
+}
+
+// A frame wider than the window wraps every row, and the redraw then steps
+// back over fewer lines than are actually on screen, so the list overwrites
+// itself. This is the picker a reader saw scattered across their terminal.
+func TestDrawFitsNarrowTerminals(t *testing.T) {
+	items := []Item{
+		{Label: "mark_users", Detail: "701 KB, 5 days ago"},
+		{Label: "members", Detail: "1 MB, 4 days ago"},
+		{Label: "a-project-with-a-very-long-name-indeed", Detail: "203 KB, 5 days ago"},
+	}
+
+	for _, width := range []int{40, 50, 60, 72, 80, 120} {
+		t.Run(fmt.Sprintf("cols%d", width), func(t *testing.T) {
+			restore := termWidth
+			termWidth = func() int { return width }
+			defer func() { termWidth = restore }()
+
+			var sb strings.Builder
+			draw(&sb, "", items, 0, detailWidth(items), 0)
+
+			for _, line := range strings.Split(sb.String(), "\n") {
+				clean := stripSGR(line)
+				if clean == "" {
+					continue
+				}
+				if n := len([]rune(clean)); n > width {
+					t.Errorf("row is %d columns in a %d column window: %q", n, width, clean)
+				}
+			}
+		})
+	}
+}
+
+// Every row has to be the same width or the frame's edges bend.
+func TestDrawRowsAreUniform(t *testing.T) {
+	restore := termWidth
+	termWidth = func() int { return 46 }
+	defer func() { termWidth = restore }()
+
+	items := []Item{
+		{Label: "short", Detail: "1 KB, today"},
+		{Label: "a-much-longer-project-name", Detail: "701 KB, 5 days ago"},
+	}
+	var sb strings.Builder
+	draw(&sb, "", items, 0, detailWidth(items), 0)
+
+	seen := map[int]bool{}
+	for _, line := range strings.Split(sb.String(), "\n") {
+		clean := stripSGR(line)
+		if strings.Contains(clean, "│") || strings.Contains(clean, "╭") || strings.Contains(clean, "╰") {
+			seen[len([]rune(clean))] = true
+		}
+	}
+	if len(seen) != 1 {
+		t.Errorf("framed lines have %d different widths, want 1: %v", len(seen), seen)
+	}
+}
+
+// A window with no room for a name must not produce a negative column, which
+// panics the formatter rather than merely looking wrong.
+func TestDrawSurvivesAbsurdlyNarrowTerminals(t *testing.T) {
+	restore := termWidth
+	defer func() { termWidth = restore }()
+
+	items := []Item{{Label: "project", Detail: "701 KB, 5 days ago"}}
+	for _, width := range []int{1, 5, 12, 20, 33} {
+		termWidth = func() int { return width }
+		var sb strings.Builder
+		draw(&sb, "", items, 0, detailWidth(items), 0) // must not panic
+		if sb.Len() == 0 {
+			t.Errorf("width %d drew nothing", width)
+		}
 	}
 }

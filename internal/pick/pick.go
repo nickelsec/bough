@@ -42,7 +42,11 @@ func Choose(title string, items []Item) (int, error) {
 		return 0, nil
 	}
 
-	if term.IsTerminal(int(os.Stdin.Fd())) {
+	// A window too narrow for the frame gets the numbered list instead. The
+	// frame would wrap every row, and a wrapped row breaks the redraw: it
+	// steps back by the rows it thinks it wrote rather than the rows on
+	// screen, so the list overwrites itself and smears.
+	if term.IsTerminal(int(os.Stdin.Fd())) && termWidth() >= minRow {
 		if i, err := interactive(os.Stderr, os.Stdin, title, items); err == nil || errors.Is(err, ErrCancelled) {
 			return i, err
 		}

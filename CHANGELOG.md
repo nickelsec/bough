@@ -7,6 +7,21 @@ Notable changes, newest first. Format follows
 
 Nothing yet.
 
+## 0.3.3 - 2026-09-08
+
+### Fixed
+
+- The project picker scattered itself across narrow terminals. It drew to a
+  fixed width instead of asking how wide the window was, so every row wrapped
+  and the redraw then stepped back over fewer lines than were really on screen,
+  overwriting the wrong ones. Six projects in a 60 column window put 28 rows on
+  screen while the picker counted 15. It now measures the terminal, gives the
+  name the room the size does not need, and falls back to the numbered list
+  when there is no room for a frame at all.
+
+- Clipping a column to nothing crashed rather than drawing nothing, which a
+  narrow enough window could reach.
+
 ## 0.3.2 - 2026-09-08
 
 ### Fixed
