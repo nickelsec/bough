@@ -18,6 +18,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/nickelsec/bough/internal/agent"
+	"github.com/nickelsec/bough/internal/agent/antigravity"
 	"github.com/nickelsec/bough/internal/agent/claude"
 	"github.com/nickelsec/bough/internal/agent/pi"
 	"github.com/nickelsec/bough/internal/banner"
@@ -92,7 +93,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		out       = fs.String("o", "", "write to this file instead of standard output")
 		showVer   = fs.Bool("version", false, "print the version and stop")
 		noRepo    = fs.Bool("no-repo", false, "do not read the project's git history")
-		agentFlag = fs.String("agent", "all", "which agent history to read: claude, pi, or all")
+		agentFlag = fs.String("agent", "all", "which agent history to read: claude, pi, antigravity, or all")
 	)
 	fs.Usage = func() {
 		fmt.Fprint(stderr, usage)
@@ -119,6 +120,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 		sources = []agent.Source{claude.Source{Root: *root}}
 	case "pi":
 		sources = []agent.Source{pi.Source{Root: *root}}
+	case "antigravity", "agy":
+		sources = []agent.Source{antigravity.Source{Root: *root}}
 	case "all", "":
 		if *root != "" {
 			// A custom root without an explicit --agent is a Claude history path,
@@ -128,10 +131,11 @@ func run(args []string, stdout, stderr io.Writer) error {
 			sources = []agent.Source{
 				claude.Source{},
 				pi.Source{},
+				antigravity.Source{},
 			}
 		}
 	default:
-		return fmt.Errorf("unknown agent %q; supported: claude, pi, all", *agentFlag)
+		return fmt.Errorf("unknown agent %q; supported: claude, pi, antigravity, all", *agentFlag)
 	}
 
 	sourcesMap := make(map[string]agent.Source, len(sources))
@@ -145,10 +149,16 @@ func run(args []string, stdout, stderr io.Writer) error {
 		projects = append(projects, found...)
 	}
 	if len(projects) == 0 {
-		if len(sources) == 1 && sources[0].Name() == "pi" {
+		switch {
+		case len(sources) == 1 && sources[0].Name() == "pi":
 			return errors.New("no Pi history found; looked in ~/.pi/agent/sessions")
+		case len(sources) == 1 && sources[0].Name() == "antigravity":
+			return errors.New("no Antigravity history found; looked in ~/.gemini/antigravity-cli/brain")
+		case len(sources) == 1 && sources[0].Name() == "claude-code":
+			return errors.New("no Claude Code history found; looked in ~/.claude/projects")
+		default:
+			return errors.New("no agent history found; looked in ~/.claude/projects, ~/.pi/agent/sessions, and ~/.gemini/antigravity-cli/brain")
 		}
-		return errors.New("no Claude Code history found; looked in ~/.claude/projects")
 	}
 
 	if *list {
@@ -434,7 +444,7 @@ const usage = `bough shows the shape of the work in a project's AI coding histor
   bough --json       write the graph as JSON
   bough --version    print the version
   bough --no-repo    leave the project's git history unread
-  bough --agent=pi   read only a specific agent (claude, pi, all)
+  bough --agent=pi   read only a specific agent (claude, pi, antigravity, all)
 
 Anything piped or redirected is written as text, so bough > notes.txt and
 bough | less behave as you would expect.

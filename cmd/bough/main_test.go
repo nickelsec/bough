@@ -70,6 +70,29 @@ func TestAgentFlagPi(t *testing.T) {
 	}
 }
 
+func TestAgentFlagAntigravity(t *testing.T) {
+	root := t.TempDir()
+	logsDir := filepath.Join(root, "conv-1", ".system_generated", "logs")
+	if err := os.MkdirAll(logsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	transcript := filepath.Join(logsDir, "transcript.jsonl")
+	data := `{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-09-08T10:00:00Z","content":"<USER_REQUEST>\nfix backend\n</USER_REQUEST>"}
+{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-09-08T10:00:05Z","tool_calls":[{"name":"run_command","args":{"CommandLine":"\"echo ok\"","Cwd":"\"/Users/alice/projects/backend\""}}]}
+`
+	if err := os.WriteFile(transcript, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errs bytes.Buffer
+	if err := run([]string{"--list", "--agent", "antigravity", "--root", root}, &out, &errs); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "backend") {
+		t.Errorf("expected listing to include project 'backend', got:\n%s", out.String())
+	}
+}
+
 func TestJSONOutputIsValidAndVersioned(t *testing.T) {
 	root := history(t, "example")
 	var out, errs bytes.Buffer
