@@ -7,6 +7,24 @@ Notable changes, newest first. Format follows
 
 Nothing yet.
 
+## 0.3.6 - 2026-09-09
+
+### Changed
+
+- What a shell command means now lives in one place rather than inside the
+  Claude package. A commit is a commit whoever wrote the transcript, so commit
+  detection, the heredoc and dry-run guards and path normalisation moved to
+  `internal/agent/shell` for every agent to share. Nothing about the output
+  changed: the graph is byte for byte what it was on six projects here.
+
+### Added
+
+- A test for the heredoc guard that actually needs it. The guard is why a
+  script about committing is not counted as a commit, and it was carrying seven
+  false positives on one project before it existed, but nothing pinned it: the
+  cases around it are turned away earlier and passed with the guard removed. It
+  would have survived any refactor by luck rather than by test.
+
 ## 0.3.5 - 2026-09-08
 
 ### Fixed
