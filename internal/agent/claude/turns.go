@@ -2,11 +2,11 @@ package claude
 
 import (
 	"encoding/json"
-	"path"
 	"regexp"
 	"strings"
 
 	"github.com/nickelsec/bough/internal/agent"
+	"github.com/nickelsec/bough/internal/agent/shell"
 )
 
 // synthetic matches prompts the harness injected rather than the user typing.
@@ -39,23 +39,6 @@ func isSynthetic(text string) bool {
 	return false
 }
 
-// normalisePath puts a file path into a comparable form.
-//
-// The same file turns up written several ways across a session, because the
-// drive letter changes case between records and separators differ by platform.
-// Grouping by path only works once those are settled.
-//
-// This deliberately does not use path/filepath. A transcript written on
-// Windows can be read on any machine, so backslashes have to be understood
-// everywhere rather than only where the host happens to use them.
-func normalisePath(p string) string {
-	if p == "" {
-		return ""
-	}
-	p = path.Clean(strings.ReplaceAll(p, `\`, "/"))
-	return strings.ToLower(p)
-}
-
 // toolInput is the subset of tool arguments worth reading. Tools name their
 // file argument differently, so several spellings are accepted.
 type toolInput struct {
@@ -72,82 +55,9 @@ type toolInput struct {
 	Command string `json:"command"`
 }
 
-// commitCall matches a git commit in a shell command.
-//
-// Anchored to the start of a command or to a shell separator, so a commit
-// somebody merely mentioned inside an echoed string is not counted. Options
-// between git and the subcommand are allowed, since "git -C dir commit" is
-// ordinary. "commit-tree" is excluded by requiring a word boundary that is not
-// a hyphen.
-// Options may sit between git and the subcommand, and an option or its value
-// may carry a quoted run with spaces in it. That last part is not a nicety:
-// setting an identity inline, as
-//
-//	git -c user.name="Ada Lovelace" commit -q
-//
-// is common, and a pattern that stops at the space inside the quotes misses
-// the commit entirely. Seven of one project's thirty one were lost that way.
-var optionRun = `-\S*(?:"[^"]*"|'[^']*'|\S)*\s+` +
-	`(?:(?:"[^"]*"|'[^']*'|[^-\s])(?:"[^"]*"|'[^']*'|\S)*\s+)?`
-
-// A commit can also open the body of a conditional or a loop, where the
-// keyword does the separating that a semicolon would elsewhere.
-var commitCall = regexp.MustCompile(`(?:^|[|;&(]|&&|\|\||\b(?:then|else|do)\b)\s*(?:cd\s+\S+\s*&&\s*)*` +
-	`git\s+(?:` + optionRun + `)*commit(?:\s|$)`)
-
-// heredoc opens a run of text written into a file or piped to a program.
-//
-// Everything after it is content rather than command, and content mentioning
-// git commit is not a commit. Writing a script or a test about committing does
-// exactly that: it accounted for seven of one project's forty seven apparent
-// commits and two of another's forty nine, which is the whole of that project's
-// disagreement with its own git log.
-var heredoc = regexp.MustCompile(`<<-?\s*['"]?\w`)
-
-// dryRun marks a commit that reports what it would do and then does nothing.
-// It is a rehearsal, and counting it would credit work that never landed.
-var dryRun = regexp.MustCompile(`(?:^|\s)--dry-run\b`)
-
-// isCommit reports whether a shell command actually commits.
-//
-// Every match is considered rather than only the first, because one line can
-// hold several git calls and the first is not always the one that lands. A
-// rehearsal followed by the real thing is exactly that shape, and stopping at
-// the first match would throw the commit away.
-func isCommit(cmd string) bool {
-	h := heredoc.FindStringIndex(cmd)
-	for _, at := range commitCall.FindAllStringIndex(cmd, -1) {
-		// A heredoc before it means the match is inside written text, and so
-		// is everything after it.
-		if h != nil && h[0] < at[0] {
-			return false
-		}
-		// A rehearsal reports what it would do and does nothing. The flag sits
-		// after the subcommand, and only as far as the next separator: beyond
-		// that it belongs to some other command on the line.
-		if dryRun.MatchString(firstCommand(cmd[at[1]:])) {
-			continue
-		}
-		return true
-	}
-	return false
-}
-
-// separator ends one command and begins the next.
-var separator = regexp.MustCompile(`[|;&]`)
-
-// firstCommand is the run of text up to the next command separator, which is
-// the part an option can belong to.
-func firstCommand(s string) string {
-	if at := separator.FindStringIndex(s); at != nil {
-		return s[:at[0]]
-	}
-	return s
-}
-
-// amendCall marks a commit that rewrites the one before it rather than adding
-// to the history.
-var amendCall = regexp.MustCompile(`\bgit\s[^|;&]*\s--amend\b`)
+// The shell package reads meaning out of the commands an agent ran, and does
+// it the same way for every agent. What counts as a commit does not depend on
+// which harness wrote the transcript.
 
 // path returns whichever file argument the tool supplied.
 func (t toolInput) path() string {
@@ -272,14 +182,14 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 					})
 				}
 				// Hold the commit until its result says whether it worked.
-				if in.Command != "" && b.ID != "" && isCommit(in.Command) {
+				if in.Command != "" && b.ID != "" && shell.IsCommit(in.Command) {
 					pending[b.ID] = pendingCommit{
 						turn:  len(turns) - 1,
-						amend: amendCall.MatchString(in.Command),
+						amend: shell.IsAmend(in.Command),
 						dir:   commitDir(in.Command),
 					}
 				}
-				p := normalisePath(in.path())
+				p := shell.NormalisePath(in.path())
 				if p == "" {
 					continue
 				}
@@ -423,7 +333,7 @@ func commitDir(cmd string) string {
 	}
 	for _, g := range m[1:] {
 		if g != "" {
-			return normalisePath(g)
+			return shell.NormalisePath(g)
 		}
 	}
 	return ""
