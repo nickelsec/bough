@@ -134,6 +134,40 @@ for (const file of files) {
         vx + seen.x1 * scale <= box.w + 1 && vy + seen.y1 * scale <= box.h + 1);
     }
 
+    // A long history is a ribbon: it grows sideways with every day worked and
+    // never grows taller. Fitting one to a window scales for the width alone,
+    // and a hundred days drew its day squares at under three pixels, which is
+    // a line rather than a diagram. The view opens at a size the nodes can be
+    // read at instead, and time becomes something to travel along.
+    const READABLE = 32 / 36;
+    for (const box of [{ w: 1440, h: 900 }, { w: 390, h: 844 }]) {
+      const margin = box.w < 560 ? 16 : 40;
+      const r = { w: box.w - margin * 2, h: box.h - margin * 2 };
+      let all = Math.min(1.1, r.h / (ch + 30), r.w / cw);
+      if (out.spine) {
+        const mid = seen.x0 + cw / 2;
+        const far = Math.max(mid - (out.spine.x1 - 13), out.spine.x2 + 13 - mid) * 2;
+        if (far > 0) all = Math.min(all, r.w / far);
+      }
+      let home = all;
+      if (all < READABLE * 0.75) {
+        home = Math.min(READABLE, Math.max(all, r.h / (ch + 30)));
+      }
+
+      // Whatever the length, the opening view has to be legible.
+      check(tag + " opens legibly at " + box.w,
+        home >= Math.min(READABLE, all) - 0.001,
+        "day square " + (36 * home).toFixed(1) + "px");
+
+      // And it never opens larger than showing everything would need.
+      check(tag + " never opens past the whole at " + box.w,
+        home <= Math.max(all, READABLE) + 0.001);
+
+      // The readout is a share of home, so a hundred percent means the same
+      // on every project however long.
+      check(tag + " home is usable at " + box.w, home > 0 && isFinite(home));
+    }
+
     // Days run left to right through time, and a diagram that doubles back
     // is telling a lie about the order the work happened in.
     for (let i = 1; i < out.days.length; i++) {

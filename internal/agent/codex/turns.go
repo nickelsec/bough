@@ -52,6 +52,17 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 	var pending *pendingCommit
 
 	seenItems := make(map[string]bool)
+	seenUsage := make(map[string]bool)
+
+	// Whether this session uses the newer usage records decides which stream to
+	// believe, and that has to be known before the first one is read.
+	haveRecords := false
+	for _, r := range recs {
+		if r.Type == "token_usage_record" {
+			haveRecords = true
+			break
+		}
+	}
 
 	for _, r := range recs {
 		if r.Type == "turn_context" {
@@ -62,7 +73,11 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 			continue
 		}
 
-		if r.IsHumanPrompt() {
+		// A turn opens on a request, and a request reaches an agent one of two
+		// ways: a person types it, or another agent delegates it. A sub-agent
+		// only ever gets the second kind, so counting the first alone leaves its
+		// rollout empty and its work uncounted.
+		if r.IsHumanPrompt() || r.IsNewTask() {
 			var item ResponseItem
 			_ = json.Unmarshal(r.Payload, &item)
 			if item.ID != "" && seenItems[item.ID] {
@@ -73,6 +88,9 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 			}
 
 			text := r.PromptText()
+			if r.IsNewTask() {
+				text = r.AgentTaskText()
+			}
 			turns = append(turns, agent.Turn{
 				At:     r.Time(),
 				Text:   text,
@@ -91,8 +109,8 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 			continue
 		}
 
-		if r.Type == "event_msg" {
-			handleTokenCount(cur, r, currentModel)
+		if r.Type == "event_msg" || r.Type == "token_usage_record" {
+			handleTokenCount(cur, r, currentModel, seenUsage, haveRecords)
 			continue
 		}
 
@@ -120,25 +138,65 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 	return turns
 }
 
-func handleTokenCount(cur *agent.Turn, r *Record, currentModel string) {
-	var evt struct {
-		Type string `json:"type"`
-		Info struct {
-			LastTokenUsage struct {
-				InputTokens       int `json:"input_tokens"`
-				CachedInputTokens int `json:"cached_input_tokens"`
-				OutputTokens      int `json:"output_tokens"`
-			} `json:"last_token_usage"`
-		} `json:"info"`
-	}
-	if err := json.Unmarshal(r.Payload, &evt); err == nil && evt.Type == "token_count" {
-		usage := evt.Info.LastTokenUsage
-		cur.Tokens.Input += usage.InputTokens
-		cur.Tokens.CacheRead += usage.CachedInputTokens
-		cur.Tokens.Output += usage.OutputTokens
-		if currentModel != "" && usage.OutputTokens > 0 {
-			cur.Models[currentModel] += usage.OutputTokens
+// handleTokenCount adds one response's usage to the turn.
+//
+// Two streams carry the same numbers. Older rollouts report usage in an
+// event_msg of type "token_count", under info.last_token_usage. Newer ones also
+// write a token_usage_record line of their own, carrying "usage" for the
+// response that just finished.
+//
+// Where both appear, only the record counts. They report identical figures, and
+// adding both doubles every total in the graph. The record is preferred because
+// it carries a response_id, which is what lets a replayed response be
+// recognised as one already counted; the event carries no id at all.
+//
+// The per-response figure is the one added. A running total is also available
+// and is the wrong thing to sum: adding it once per response counts the first
+// response as many times as there are responses.
+func handleTokenCount(cur *agent.Turn, r *Record, currentModel string, seen map[string]bool, haveRecords bool) {
+	var usage tokenUsage
+	var id string
+
+	switch r.Type {
+	case "token_usage_record":
+		var rec struct {
+			ResponseID string     `json:"response_id"`
+			Usage      tokenUsage `json:"usage"`
 		}
+		if err := json.Unmarshal(r.Payload, &rec); err != nil {
+			return
+		}
+		usage, id = rec.Usage, rec.ResponseID
+	case "event_msg":
+		if haveRecords {
+			return
+		}
+		var evt struct {
+			Type string `json:"type"`
+			Info struct {
+				LastTokenUsage tokenUsage `json:"last_token_usage"`
+			} `json:"info"`
+		}
+		if err := json.Unmarshal(r.Payload, &evt); err != nil || evt.Type != "token_count" {
+			return
+		}
+		usage = evt.Info.LastTokenUsage
+	default:
+		return
+	}
+
+	if id != "" {
+		if seen[id] {
+			return
+		}
+		seen[id] = true
+	}
+
+	cur.Tokens.Input += usage.InputTokens
+	cur.Tokens.CacheRead += usage.CachedInputTokens
+	cur.Tokens.Output += usage.OutputTokens
+	if currentModel != "" && usage.OutputTokens > 0 {
+		cur.Models[currentModel] += usage.OutputTokens
 	}
 }
 
@@ -275,6 +333,7 @@ func handleCommand(args json.RawMessage, turnIdx int, pending **pendingCommit) {
 func handleSpawnAgent(cur *agent.Turn, args json.RawMessage) {
 	var parsed struct {
 		AgentType string `json:"agent_type"`
+		TaskName  string `json:"task_name"`
 		Message   string `json:"message"`
 	}
 	var rawStr string
@@ -285,11 +344,21 @@ func handleSpawnAgent(cur *agent.Turn, args json.RawMessage) {
 	}
 	kind := parsed.AgentType
 	if kind == "" {
+		kind = parsed.TaskName
+	}
+	if kind == "" {
 		kind = "subagent"
+	}
+	// The brief is encrypted when one agent spawns another, so there is nothing
+	// to show. The delegation is still recorded: that the work was handed off is
+	// worth knowing even when what was asked for is not readable.
+	desc := parsed.Message
+	if Encrypted(desc) {
+		desc = ""
 	}
 	cur.Delegated = append(cur.Delegated, agent.Delegation{
 		Kind:        kind,
-		Description: parsed.Message,
+		Description: desc,
 	})
 }
 

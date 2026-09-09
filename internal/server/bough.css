@@ -180,29 +180,11 @@ body.reading #stage { right: var(--drawer); }
   border-left: 1px solid var(--rule);
 }
 
-.mark-title {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
 .mark h1 {
   margin: 0;
   font: 600 1.05rem/1.15 var(--display);
   letter-spacing: 0.01em;
   color: var(--ink);
-}
-
-.mark-agent {
-  display: inline-block;
-  font: 500 0.65rem/1 var(--mono);
-  padding: 0.15rem 0.35rem;
-  border-radius: 3px;
-  background: var(--raised);
-  border: 1px solid var(--rule);
-  color: var(--ink-mid);
-  text-transform: lowercase;
-  letter-spacing: 0.02em;
 }
 
 .mark .where {
@@ -1159,6 +1141,24 @@ body.reading .zoom { right: calc(var(--drawer) + 1.1rem); }
 .zoom-btn:focus-visible,
 .zoom-level:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
 
+/* Showing every day at once is a different kind of act from stepping the zoom,
+   so it sits apart from the pair either side of the readout rather than
+   reading as a third step in the same sequence. */
+.zoom-all {
+  margin-left: 0.15rem;
+  border-left: 1px solid var(--rule);
+  border-radius: 0 999px 999px 0;
+  padding-left: 0.1rem;
+  width: 2rem;
+}
+
+/* It is a state, not just a jump: pressed means the whole span is on screen,
+   so the button says where you are as well as where it takes you. */
+.zoom-all[aria-pressed="true"] {
+  background: var(--sunk);
+  color: var(--leaf);
+}
+
 /* ---- the reading drawer ------------------------------------------------ */
 
 #reader {
@@ -1349,6 +1349,22 @@ p.commit {
   :root { --drawer: 100vw; }
   body.reading #stage { right: 0; }
   body.reading .rail { right: -6rem; }
+}
+
+/* A phone. The diagram is drawn at a size the nodes can be read at whatever
+   the window, so what changes here is the furniture around it: controls big
+   enough for a thumb, and clear of the bar at the bottom of the screen. */
+@media (max-width: 34rem) {
+  .zoom {
+    right: 0.6rem;
+    bottom: calc(0.6rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Apple asks for 44px and it is the right number: below it people miss. */
+  .zoom-btn { width: 2.4rem; height: 2.4rem; }
+  .zoom-all { width: 2.55rem; }
+  .zoom-btn svg { width: 17px; height: 17px; }
+  .zoom-level { min-width: 3.1rem; padding: 0 0.35rem; }
 }
 
 /* The prompt that was clicked is marked in the panel, so the diagram and the

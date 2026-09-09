@@ -19,10 +19,7 @@
 <div class="mark">
   <img src="/img/logo.png" alt="bough" width="96" height="38">
   <div class="mark-who">
-    <div class="mark-title">
-      <h1 id="name"></h1>
-      <span class="mark-agent" id="agent"></span>
-    </div>
+    <h1 id="name"></h1>
     <p class="where" id="where"></p>
   </div>
 </div>
@@ -144,11 +141,20 @@
   <button type="button" id="z-out" class="zoom-btn" aria-label="Zoom out">
     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10"/></svg>
   </button>
-  <button type="button" id="z-reset" class="zoom-level" aria-label="Fit the whole diagram">
+  <button type="button" id="z-reset" class="zoom-level" aria-label="Back to the opening view">
     <span id="z-now">100%</span>
   </button>
   <button type="button" id="z-in" class="zoom-btn" aria-label="Zoom in">
     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10"/></svg>
+  </button>
+  <!-- Only shown when the history is longer than one screen at a size the
+       nodes can be read at. On a short project it would do nothing, since the
+       opening view is already the whole thing. -->
+  <button type="button" id="z-all" class="zoom-btn zoom-all"
+          aria-label="Show every day at once" aria-pressed="false" hidden>
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M7.5 3.5H4.5a1 1 0 00-1 1v3M12.5 3.5h3a1 1 0 011 1v3M7.5 16.5H4.5a1 1 0 01-1-1v-3M12.5 16.5h3a1 1 0 001-1v-3"/>
+    </svg>
   </button>
 </div>
 

@@ -32,11 +32,30 @@
 
   var sized = [];
 
-  // The scale that shows the whole diagram. The bar reads against this rather
-  // than against the raw transform, so 100% means "all of it", which is what
-  // resetting gives you and what the number ought to agree with.
+  // Two scales worth naming.
+  //
+  // whole shows every day at once. On a short history that is the right first
+  // sight of it. On a long one it is a thin line: the diagram grows sideways
+  // with each day worked and never grows taller, so a hundred days is a ribbon
+  // around twenty nine times wider than it is tall, and fitting that to a
+  // window draws the day squares at under three pixels.
+  //
+  // home is the scale the nodes are legible at, and it is where the view
+  // opens. Where the whole diagram fits at that scale the two are the same and
+  // nothing changes; where it does not, time becomes something you travel
+  // along rather than something squeezed onto one screen.
   var whole = 1;
-  var LIMIT = { min: 0.15, max: 3 };
+  var home = 1;
+
+  // A day square is 36 units. Legible means about this many pixels for one,
+  // which keeps a prompt circle near eleven and comfortably clickable.
+  var READABLE = 32 / 36;
+
+  // The zoom range, as multiples of home rather than as absolute scales. An
+  // absolute cap means something different on every project: at three it was
+  // 273% of the opening view on a short history and 4092% on a long one, which
+  // is why the readout could say 499% while the diagram was still a line.
+  var RANGE = { min: 0.25, max: 4 };
 
   var filters = {
     file: "",
@@ -131,7 +150,7 @@
 
     host.appendChild(svg);
     apply();
-    fit();
+    reset();
     grow(svg);
   }
 
@@ -375,46 +394,109 @@
     return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 + labels };
   }
 
-  // fit shows the whole diagram, which is the first thing anyone should see.
-  function fit() {
-    if (!model || !model.height) return;
+  // room is the drawable area, less a margin, and never smaller than a pixel.
+  // A window narrower than its own margins would otherwise give a scale of
+  // zero or less, and an empty stage no amount of panning recovers.
+  function room() {
     var box = stage.getBoundingClientRect();
-    var margin = 40;
-    var seen = content();
-    // A window can be smaller than the margins, and a scale of zero or less
-    // leaves an empty stage that no amount of panning recovers.
-    var room = {
+    var margin = box.width < 560 ? 16 : 40;
+    return {
       w: Math.max(box.width - margin * 2, 1),
-      h: Math.max(box.height - margin * 2, 1)
+      h: Math.max(box.height - margin * 2, 1),
+      box: box
     };
-    view.scale = Math.min(1.1, room.h / seen.height, room.w / seen.width);
+  }
+
+  // wholeScale is the largest scale that still shows every day at once.
+  function wholeScale(seen, r) {
+    var s = Math.min(1.1, r.h / seen.height, r.w / seen.width);
 
     // The spine runs past the nodes at both ends, further at the arrow. It is
     // not centred on, or the work sits off to one side, but it still has to
-    // fit, or the arrow is clipped by the edge of the window. Shrinking to
-    // suit is enough: the nodes stay centred because the centring is done
-    // against them at whatever scale this settles on.
+    // fit, or the arrow is clipped by the edge of the window.
     if (model.spine) {
-      var reach = Math.max(
-        seen.x + seen.width / 2 - (model.spine.x1 - 13),
-        model.spine.x2 + 13 - (seen.x + seen.width / 2)
-      ) * 2;
-      if (reach > 0) view.scale = Math.min(view.scale, room.w / reach);
+      var mid = seen.x + seen.width / 2;
+      var reach = Math.max(mid - (model.spine.x1 - 13), model.spine.x2 + 13 - mid) * 2;
+      if (reach > 0) s = Math.min(s, r.w / reach);
     }
+    return s > 0 ? s : 1;
+  }
 
-    if (!(view.scale > 0)) view.scale = 1;
-    whole = view.scale;
-    // Centre the drawing rather than the canvas it sits on, which means
-    // offsetting by where the drawing starts.
-    view.x = (box.width - seen.width * view.scale) / 2 - seen.x * view.scale;
-    view.y = (box.height - seen.height * view.scale) / 2 - seen.y * view.scale;
+  // homeScale is where the view opens: legible, but never larger than showing
+  // the whole thing, since blowing up a two day history helps nobody.
+  function homeScale(seen, r) {
+    var all = wholeScale(seen, r);
+    if (all >= READABLE) return all;
+
+    // A diagram that very nearly fits is better shown whole. Measured on an
+    // eleven day history: opening at the legible scale gained seventeen
+    // percent on the nodes and cost seven percent off the right hand edge,
+    // which trades a complete picture for almost nothing. Below three
+    // quarters legible the nodes are small enough that panning is the better
+    // bargain.
+    if (all >= READABLE * 0.75) return all;
+
+    // Legible, but still bounded by the height. A ribbon may be scrolled
+    // sideways; one taller than the window has nowhere to go.
+    return Math.min(READABLE, Math.max(all, r.h / seen.height));
+  }
+
+  // frame puts the view at a scale, centred, or against the end of a diagram
+  // too wide to show at once.
+  //
+  // Time runs left to right, so the end is the most recent work. That is what
+  // somebody opening this came to see, and the spine runs back into the
+  // history behind it.
+  function frame(scale, atEnd) {
+    var seen = content();
+    var r = room();
+    view.scale = scale;
+
+    var wide = seen.width * scale > r.w;
+    if (wide && atEnd) {
+      var margin = (r.box.width - r.w) / 2;
+      view.x = r.box.width - margin - (seen.x + seen.width) * scale;
+    } else {
+      view.x = (r.box.width - seen.width * scale) / 2 - seen.x * scale;
+    }
+    view.y = (r.box.height - seen.height * scale) / 2 - seen.y * scale;
     apply();
+  }
+
+  // measure works out both anchors for the current window. Called on load and
+  // whenever the window changes, since either can move.
+  function measure() {
+    if (!model || !model.height) return false;
+    var seen = content();
+    var r = room();
+    whole = wholeScale(seen, r);
+    home = homeScale(seen, r);
+    return true;
+  }
+
+  // reset returns to the opening view, which is the one meant to be worked in.
+  function reset() {
+    if (!measure()) return;
+    frame(home, true);
+  }
+
+  // fit shows every day at once, however small that makes them. On a short
+  // history it is the same view as reset; on a long one it is the shape of the
+  // whole thing rather than a piece of it.
+  function fit() {
+    if (!measure()) return;
+    frame(whole, false);
   }
 
   // zoomTo changes the scale about a point, which is the pointer for a wheel
   // and the middle of the view for a button.
   function zoomTo(next, ax, ay) {
-    next = Math.min(LIMIT.max, Math.max(LIMIT.min, next));
+    // The range is relative to the opening scale, so four hundred percent
+    // means the same thing on a two day history and a two hundred day one.
+    // The whole view is always reachable, however far out that is, or a long
+    // project could never be seen entire.
+    var low = Math.min(home * RANGE.min, whole);
+    next = Math.min(home * RANGE.max, Math.max(low, next));
     view.x = ax - (ax - view.x) * (next / view.scale);
     view.y = ay - (ay - view.y) * (next / view.scale);
     view.scale = next;
@@ -424,9 +506,21 @@
   function readout() {
     var now = document.getElementById("z-now");
     if (!now) return;
-    now.textContent = Math.round((view.scale / whole) * 100) + "%";
-    document.getElementById("z-in").disabled = view.scale >= LIMIT.max - 0.001;
-    document.getElementById("z-out").disabled = view.scale <= LIMIT.min + 0.001;
+    // Against home, not against the whole. The number now means the same on
+    // every project: a hundred percent is the view it opened at.
+    now.textContent = Math.round((view.scale / home) * 100) + "%";
+
+    var low = Math.min(home * RANGE.min, whole);
+    document.getElementById("z-in").disabled = view.scale >= home * RANGE.max - 0.001;
+    document.getElementById("z-out").disabled = view.scale <= low + 0.001;
+
+    // The button that shows everything is only worth offering when there is
+    // more than the screen already holds.
+    var all = document.getElementById("z-all");
+    if (all) {
+      all.hidden = whole >= home - 0.001;
+      all.setAttribute("aria-pressed", String(Math.abs(view.scale - whole) < 0.001));
+    }
   }
 
   function bindZoom() {
@@ -443,7 +537,12 @@
       var m = middle();
       zoomTo(view.scale / step, m[0], m[1]);
     });
-    document.getElementById("z-reset").addEventListener("click", function () { fit(); });
+    // The readout returns to the view it opened at, which is the one meant to
+    // be worked in. Showing every day at once is its own button, and only
+    // appears when there is more than the screen already holds.
+    document.getElementById("z-reset").addEventListener("click", function () { reset(); });
+    var all = document.getElementById("z-all");
+    if (all) all.addEventListener("click", function () { fit(); });
   }
 
   function bindPanZoom() {
@@ -497,7 +596,7 @@
     });
 
     window.addEventListener("resize", function () {
-      if (!selected) fit();
+      if (!selected) reset();
     });
   }
 
@@ -1109,10 +1208,6 @@
   function chrome() {
     document.getElementById("name").textContent = graph.project.name;
     document.getElementById("where").textContent = graph.project.path;
-    var agentEl = document.getElementById("agent");
-    if (agentEl) {
-      agentEl.textContent = graph.project.agent || "claude-code";
-    }
 
     var t = graph.totals;
 
@@ -1129,9 +1224,6 @@
     ];
 
     var rest = [];
-    if (graph.project && graph.project.agent) {
-      rest.push([graph.project.agent, "harness"]);
-    }
     var made = (t.commits || []).length;
     if (made) rest.push([made, made === 1 ? "commit" : "commits", true]);
     // As a ratio rather than a share of the total. Every project measured came

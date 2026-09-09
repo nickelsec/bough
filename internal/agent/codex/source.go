@@ -125,8 +125,9 @@ func (s Source) Sessions(p agent.Project) ([]agent.Session, error) {
 
 	// Records by session, in the order the sessions were first seen.
 	type group struct {
-		id   string
-		recs []*Record
+		id     string
+		parent string
+		recs   []*Record
 	}
 	var order []string
 	byID := map[string]*group{}
@@ -147,10 +148,10 @@ func (s Source) Sessions(p agent.Project) ([]agent.Session, error) {
 			continue
 		}
 
-		id := extractSessionID(recs, fp)
+		id, parent := identify(recs, fp)
 		g := byID[id]
 		if g == nil {
-			g = &group{id: id}
+			g = &group{id: id, parent: parent}
 			byID[id] = g
 			order = append(order, id)
 		}
@@ -171,9 +172,10 @@ func (s Source) Sessions(p agent.Project) ([]agent.Session, error) {
 			continue
 		}
 		sessions = append(sessions, agent.Session{
-			ID:    id,
-			Title: "",
-			Turns: turns,
+			ID:       id,
+			Title:    "",
+			Turns:    turns,
+			ParentID: g.parent,
 		})
 	}
 
@@ -257,22 +259,38 @@ func detectCWD(transcriptPath string) string {
 	return ""
 }
 
-func extractSessionID(recs []*Record, path string) string {
+// identify names the session a rollout belongs to, and the session that
+// delegated it where there is one.
+//
+// A resumed rollout shares its predecessor's SessionID and joins it. A
+// sub-agent's rollout also carries the parent's SessionID, but it is its own
+// piece of work and keeps its own id, so it is grouped on ID instead. Without
+// that split a spawned agent's prompts and tokens disappear into the agent that
+// spawned it.
+//
+// The parent is returned alongside so the graph can put the work back where it
+// happened: inside the turn that asked for it, rather than beside it.
+func identify(recs []*Record, path string) (id, parent string) {
 	for _, r := range recs {
-		if r.Type == "session_meta" {
-			var sm SessionMeta
-			if err := json.Unmarshal(r.Payload, &sm); err == nil {
-				if sm.SessionID != "" {
-					return sm.SessionID
-				}
-				if sm.ID != "" {
-					return sm.ID
-				}
-			}
+		if r.Type != "session_meta" {
+			continue
+		}
+		var sm SessionMeta
+		if err := json.Unmarshal(r.Payload, &sm); err != nil {
+			continue
+		}
+		if sm.ParentThreadID != "" && sm.ID != "" {
+			return sm.ID, sm.ParentThreadID
+		}
+		if sm.SessionID != "" {
+			return sm.SessionID, ""
+		}
+		if sm.ID != "" {
+			return sm.ID, ""
 		}
 	}
 	base := filepath.Base(path)
-	return strings.TrimSuffix(base, ".jsonl")
+	return strings.TrimSuffix(base, ".jsonl"), ""
 }
 
 func isInternalPath(p string) bool {
