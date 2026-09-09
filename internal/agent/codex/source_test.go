@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/nickelsec/bough/internal/agent"
+	"github.com/nickelsec/bough/internal/agent/shell"
 )
 
 // Ensure Source satisfies agent.Source interface.
@@ -76,7 +77,7 @@ func TestDetectAndSessions(t *testing.T) {
 	if turn.Text != "implement user repository and commit" {
 		t.Errorf("expected turn text 'implement user repository and commit', got %q", turn.Text)
 	}
-	expectedFile := normalisePath("/Users/alice/work/codex-app/repo.go")
+	expectedFile := shell.NormalisePath("/Users/alice/work/codex-app/repo.go")
 	if turn.Files[expectedFile] != 1 {
 		t.Errorf("expected repo.go touched once, got %d", turn.Files[expectedFile])
 	}
@@ -94,5 +95,61 @@ func TestDetectAndSessions(t *testing.T) {
 	}
 	if turn.Delegated[0].Kind != "db-tester" {
 		t.Errorf("expected delegation kind 'db-tester', got %q", turn.Delegated[0].Kind)
+	}
+}
+
+// Resuming a Codex session writes a new rollout file that replays the earlier
+// items under the ids they already had. The repeats therefore sit across files
+// rather than within one, and reading each file on its own never sees the
+// first copy: two prompts came back as three across two sessions.
+func TestResumedSessionIsOneSessionWithoutRepeats(t *testing.T) {
+	dir := t.TempDir()
+	day := filepath.Join(dir, "sessions", "2026", "09", "08")
+	if err := os.MkdirAll(day, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	first := `{"timestamp":"2026-09-08T00:00:00Z","type":"session_meta","payload":{"id":"s1","cwd":"/w/app"}}
+{"timestamp":"2026-09-08T00:00:02Z","type":"response_item","payload":{"type":"message","id":"item-1","role":"user","content":[{"type":"input_text","text":"add the parser"}]}}
+`
+	// The resume replays item-1 verbatim before carrying on.
+	second := `{"timestamp":"2026-09-08T01:00:00Z","type":"session_meta","payload":{"id":"s1","cwd":"/w/app"}}
+{"timestamp":"2026-09-08T00:00:02Z","type":"response_item","payload":{"type":"message","id":"item-1","role":"user","content":[{"type":"input_text","text":"add the parser"}]}}
+{"timestamp":"2026-09-08T01:00:05Z","type":"response_item","payload":{"type":"message","id":"item-2","role":"user","content":[{"type":"input_text","text":"now the tests"}]}}
+`
+	write := func(name, body string) {
+		if err := os.WriteFile(filepath.Join(day, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("rollout-a.jsonl", first)
+	write("rollout-b.jsonl", second)
+
+	src := Source{Root: dir}
+	projects, err := src.Detect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(projects) != 1 {
+		t.Fatalf("got %d projects, want 1", len(projects))
+	}
+
+	sessions, err := src.Sessions(projects[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 {
+		t.Fatalf("got %d sessions, want 1: a resume is the same session", len(sessions))
+	}
+
+	var said []string
+	for _, turn := range sessions[0].Turns {
+		said = append(said, turn.Text)
+	}
+	if len(said) != 2 {
+		t.Fatalf("got %d prompts %q, want 2: the replayed item was counted twice", len(said), said)
+	}
+	if said[0] != "add the parser" || said[1] != "now the tests" {
+		t.Errorf("prompts = %q, want them in the order they were typed", said)
 	}
 }

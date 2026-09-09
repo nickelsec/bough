@@ -108,14 +108,28 @@ func (s Source) Detect() ([]agent.Project, error) {
 }
 
 // Sessions reads every rollout transcript belonging to a Codex project.
+//
+// Rollouts are gathered by session id rather than read one file at a time.
+// Resuming a session writes a fresh rollout that replays the earlier items
+// under the ids they already had, so the repeats sit across files rather than
+// within one. Reading each file on its own means the deduplication never sees
+// the first copy, and a resumed session comes back as several sessions with
+// its early prompts counted once per resume.
 func (s Source) Sessions(p agent.Project) ([]agent.Session, error) {
 	var files []string
 	if err := json.Unmarshal([]byte(p.Ref), &files); err != nil {
 		files = []string{p.Ref}
 	}
 
-	var sessions []agent.Session
 	var problems []error
+
+	// Records by session, in the order the sessions were first seen.
+	type group struct {
+		id   string
+		recs []*Record
+	}
+	var order []string
+	byID := map[string]*group{}
 
 	for _, fp := range files {
 		f, err := os.Open(fp) //#nosec G304
@@ -129,14 +143,35 @@ func (s Source) Sessions(p agent.Project) ([]agent.Session, error) {
 			problems = append(problems, err)
 			continue
 		}
-		turns := ExtractTurns(recs)
-		if len(turns) == 0 {
+		if len(recs) == 0 {
 			continue
 		}
 
-		sessID := extractSessionID(recs, fp)
+		id := extractSessionID(recs, fp)
+		g := byID[id]
+		if g == nil {
+			g = &group{id: id}
+			byID[id] = g
+			order = append(order, id)
+		}
+		g.recs = append(g.recs, recs...)
+	}
+
+	var sessions []agent.Session
+	for _, id := range order {
+		g := byID[id]
+		// Rollouts are named by date and read in order, but a replay carries
+		// the timestamps it had the first time, so sort by record rather than
+		// trusting the order the files arrived in.
+		sort.SliceStable(g.recs, func(i, j int) bool {
+			return g.recs[i].Time().Before(g.recs[j].Time())
+		})
+		turns := ExtractTurns(g.recs)
+		if len(turns) == 0 {
+			continue
+		}
 		sessions = append(sessions, agent.Session{
-			ID:    sessID,
+			ID:    id,
 			Title: "",
 			Turns: turns,
 		})

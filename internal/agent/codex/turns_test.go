@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+
+	"github.com/nickelsec/bough/internal/agent"
+	"github.com/nickelsec/bough/internal/agent/shell"
 )
 
 func TestExtractTurnsFromFixture(t *testing.T) {
@@ -40,7 +43,7 @@ func TestExtractTurnsFromFixture(t *testing.T) {
 	}
 
 	// Files and Edits
-	repoGo := normalisePath("/Users/alice/work/codex-app/repo.go")
+	repoGo := shell.NormalisePath("/Users/alice/work/codex-app/repo.go")
 	if turn.Files[repoGo] != 1 {
 		t.Errorf("expected 1 touch on repo.go, got %d", turn.Files[repoGo])
 	}
@@ -148,5 +151,42 @@ func TestPromptClean(t *testing.T) {
 		if got != tc.want {
 			t.Errorf("cleanPrompt(%q) = %q, want %q", tc.input, got, tc.want)
 		}
+	}
+}
+
+// A patch may carry several files, and the lines under each header belong to
+// that file. Counting the whole patch and crediting the first file named it a
+// rewrite and left the rest looking untouched, which is the wrong answer for a
+// score that reads how much a file moved. Removals count too, as they do on
+// the Claude side.
+func TestPatchLinesLandOnTheirOwnFile(t *testing.T) {
+	patch := "*** Begin Patch\n" +
+		"*** Update File: /w/app/one.go\n" +
+		"+added to one\n" +
+		"+added to one again\n" +
+		"-removed from one\n" +
+		"*** Update File: /w/app/two.go\n" +
+		"+added to two\n" +
+		"*** End Patch\n"
+
+	turn := agent.Turn{
+		Tools: map[string]int{},
+		Files: map[string]int{},
+		Edits: map[string]int{},
+		Lines: map[string]int{},
+	}
+	applyPatch(&turn, patch)
+
+	one := shell.NormalisePath("/w/app/one.go")
+	two := shell.NormalisePath("/w/app/two.go")
+
+	if got := turn.Lines[one]; got != 3 {
+		t.Errorf("%s changed %d lines, want 3 (two added, one removed)", one, got)
+	}
+	if got := turn.Lines[two]; got != 1 {
+		t.Errorf("%s changed %d lines, want 1", two, got)
+	}
+	if turn.Edits[one] != 1 || turn.Edits[two] != 1 {
+		t.Errorf("edits = %v, want one apiece", turn.Edits)
 	}
 }

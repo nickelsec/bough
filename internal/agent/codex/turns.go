@@ -2,13 +2,13 @@ package codex
 
 import (
 	"encoding/json"
-	"path"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/nickelsec/bough/internal/agent"
+	"github.com/nickelsec/bough/internal/agent/shell"
 )
 
 var exitCodeRegex = regexp.MustCompile(`(?:Process exited with code|Command failed with exit code|Exit code:?)\s*(\d+)`)
@@ -17,46 +17,12 @@ var patchFileRegex = regexp.MustCompile(`(?m)^\*\*\*\s*(?:Add|Update|Delete)\s*F
 var execCmdRegex = regexp.MustCompile(`cmd:\s*"((?:\\.|[^"\\])*)"`)
 var execWorkdirRegex = regexp.MustCompile(`workdir:\s*"((?:\\.|[^"\\])*)"`)
 
-func normalisePath(p string) string {
-	if p == "" {
-		return ""
-	}
-	p = path.Clean(strings.ReplaceAll(p, `\`, "/"))
-	return strings.ToLower(p)
-}
-
-var optionRun = `-\S*(?:"[^"]*"|'[^']*'|\S)*\s+` +
-	`(?:(?:"[^"]*"|'[^']*'|[^-\s])(?:"[^"]*"|'[^']*'|\S)*\s+)?`
-
-var commitCall = regexp.MustCompile(`(?:^|[|;&(]|&&|\|\||\b(?:then|else|do)\b)\s*(?:cd\s+\S+\s*&&\s*)*` +
-	`git\s+(?:` + optionRun + `)*commit(?:\s|$)`)
-
-var heredoc = regexp.MustCompile(`<<-?\s*['"]?\w`)
-var dryRun = regexp.MustCompile(`(?:^|\s)--dry-run\b`)
-var amendCall = regexp.MustCompile(`\bgit\s[^|;&]*\s--amend\b`)
-var separator = regexp.MustCompile(`[|;&]`)
+// leadingCD picks the directory out of a "cd somewhere && git commit" run.
+//
+// Codex records the command it ran but not always the directory it ran in, so
+// where the command changes directory first that is the better answer than the
+// session's working directory.
 var leadingCD = regexp.MustCompile(`^\s*cd\s+(?:"([^"]*)"|'([^']*)'|([^\s;&|]+))`)
-
-func isCommit(cmd string) bool {
-	h := heredoc.FindStringIndex(cmd)
-	for _, at := range commitCall.FindAllStringIndex(cmd, -1) {
-		if h != nil && h[0] < at[0] {
-			return false
-		}
-		if dryRun.MatchString(firstCommand(cmd[at[1]:])) {
-			continue
-		}
-		return true
-	}
-	return false
-}
-
-func firstCommand(s string) string {
-	if at := separator.FindStringIndex(s); at != nil {
-		return s[:at[0]]
-	}
-	return s
-}
 
 func commitDir(cmd string) string {
 	m := leadingCD.FindStringSubmatch(cmd)
@@ -65,7 +31,7 @@ func commitDir(cmd string) string {
 	}
 	for _, g := range m[1:] {
 		if g != "" {
-			return normalisePath(g)
+			return shell.NormalisePath(g)
 		}
 	}
 	return ""
@@ -191,28 +157,57 @@ func handleToolCall(cur *agent.Turn, item *ResponseItem, turnIdx int, pending **
 	}
 }
 
+// applyPatch reads a Codex patch and credits each file with what changed in it.
+//
+// A patch may carry several files, each opened by its own "*** Add File:"
+// header, and the lines that follow belong to whichever header came last.
+// Counting the whole patch and putting the total on the first file named it a
+// rewrite and left the others looking untouched, which is exactly the wrong
+// answer for a score that reads how much a file moved.
+//
+// Removals count as well as additions. Deleting code is work, and the Claude
+// side has always counted both, so a file changed by the same amount should
+// read the same whichever agent did it.
 func applyPatch(cur *agent.Turn, input string) {
-	matches := patchFileRegex.FindAllStringSubmatch(input, -1)
-	for _, m := range matches {
-		if len(m) > 1 {
-			f := normalisePath(strings.TrimSpace(m[1]))
-			if f != "" {
-				cur.Files[f]++
-				cur.Edits[f]++
-			}
+	at := patchFileRegex.FindAllStringSubmatchIndex(input, -1)
+	if len(at) == 0 {
+		return
+	}
+
+	for i, m := range at {
+		file := shell.NormalisePath(strings.TrimSpace(input[m[2]:m[3]]))
+		if file == "" {
+			continue
+		}
+		cur.Files[file]++
+		cur.Edits[file]++
+
+		// This file's hunk runs to the next header, or to the end.
+		to := len(input)
+		if i+1 < len(at) {
+			to = at[i+1][0]
+		}
+		if n := changed(input[m[1]:to]); n > 0 {
+			cur.Lines[file] += n
 		}
 	}
-	lines := strings.Split(input, "\n")
-	added := 0
-	for _, l := range lines {
-		if strings.HasPrefix(l, "+") && !strings.HasPrefix(l, "+++") {
-			added++
+}
+
+// changed counts the lines a patch hunk adds or removes.
+//
+// The +++ and --- markers name files rather than change them, and the end of
+// the patch is punctuation, so none of those count.
+func changed(hunk string) int {
+	n := 0
+	for _, l := range strings.Split(hunk, "\n") {
+		switch {
+		case strings.HasPrefix(l, "+++"), strings.HasPrefix(l, "---"):
+		case strings.HasPrefix(l, "***"):
+		case strings.HasPrefix(l, "+"), strings.HasPrefix(l, "-"):
+			n++
 		}
 	}
-	if len(matches) > 0 && added > 0 {
-		firstFile := normalisePath(strings.TrimSpace(matches[0][1]))
-		cur.Lines[firstFile] += added
-	}
+	return n
 }
 
 func handleExec(input string, turnIdx int, pending **pendingCommit) {
@@ -224,17 +219,17 @@ func handleExec(input string, turnIdx int, pending **pendingCommit) {
 	workdirMatch := execWorkdirRegex.FindStringSubmatch(input)
 	workdir := ""
 	if len(workdirMatch) > 1 {
-		workdir = normalisePath(strings.ReplaceAll(workdirMatch[1], `\"`, `"`))
+		workdir = shell.NormalisePath(strings.ReplaceAll(workdirMatch[1], `\"`, `"`))
 	}
 
-	if isCommit(cmd) {
+	if shell.IsCommit(cmd) {
 		cDir := commitDir(cmd)
 		if cDir == "" {
 			cDir = workdir
 		}
 		*pending = &pendingCommit{
 			turn:  turnIdx,
-			amend: amendCall.MatchString(cmd),
+			amend: shell.IsAmend(cmd),
 			dir:   cDir,
 		}
 	}
@@ -259,19 +254,19 @@ func handleCommand(args json.RawMessage, turnIdx int, pending **pendingCommit) {
 	if cmd == "" {
 		cmd = parsed.Command
 	}
-	cwd := normalisePath(parsed.Workdir)
+	cwd := shell.NormalisePath(parsed.Workdir)
 	if cwd == "" {
-		cwd = normalisePath(parsed.Cwd)
+		cwd = shell.NormalisePath(parsed.Cwd)
 	}
 
-	if isCommit(cmd) {
+	if shell.IsCommit(cmd) {
 		cDir := commitDir(cmd)
 		if cDir == "" {
 			cDir = cwd
 		}
 		*pending = &pendingCommit{
 			turn:  turnIdx,
-			amend: amendCall.MatchString(cmd),
+			amend: shell.IsAmend(cmd),
 			dir:   cDir,
 		}
 	}
