@@ -14,6 +14,11 @@
 </p>
 
 <p align="center">
+  <a href="#reads"><img src="https://img.shields.io/badge/reads-Claude%20Code-C87941" alt="Reads Claude Code"></a>
+  <a href="#reads"><img src="https://img.shields.io/badge/reads-OpenAI%20Codex%20CLI-C87941" alt="Reads OpenAI Codex CLI"></a>
+</p>
+
+<p align="center">
   <video width="100%" src="https://github.com/user-attachments/assets/af70eb60-cff7-42cc-af73-19c9cfb0c1d3" controls></video>
 </p>
 
@@ -148,13 +153,32 @@ histories this was built against, between 176 and 732 times more context than
 output. A long session is expensive because it is long, not because the model
 said much.
 
+## Reads
+
+Claude Code and OpenAI Codex CLI. Both are found automatically, and a project
+worked on with either shows up in the same list.
+
+```
+bough --agent=claude      only Claude Code
+bough --agent=codex       only Codex CLI
+bough --agent=all         both, which is the default
+```
+
+Codex support is newer and has had far less exposure than Claude Code, so treat
+its numbers with more suspicion and please report any that look wrong.
+
+The two agents record different things, so the diagram shows what each one
+actually wrote down rather than inventing the rest. Both carry prompts, tools,
+files, commits and token counts. Codex additionally records work handed to a
+sub-agent, which bough draws inside the prompt that asked for it.
+
 ## What it does not do
 
 No cost in pounds or dollars, and no streaks. It says how many tokens the work
 took and what most of them went on, which is not the same as pricing it.
 
-No writes of any kind, to your history or your repository. No network. It reads
-Claude Code only, though the seam for other agents is already in place.
+No writes of any kind, to your history or your repository. No network. Agent
+directories are opened read only and never written to.
 
 ## How the grouping was arrived at
 
@@ -169,16 +193,17 @@ somebody else's differently. What each one does, what set it, and what happens
 when you move it is in [docs/tuning.md](docs/tuning.md). They are constants
 rather than flags for now, so changing one means editing Go.
 
-## The transcript format
+## The transcript formats
 
-Reading these files correctly is most of the work, and Anthropic does not
-document them. What was learned is written down in
-[docs/format.md](docs/format.md): where they live, the append-only replay that
-makes a naive parser overcount by more than three to one, the tool results
+Reading these files correctly is most of the work, and neither format is
+documented by the people who write it. What was learned is written down in
+[docs/format.md](docs/format.md): where the files live, the append-only replay
+that makes a naive parser overcount by more than three to one, the tool results
 filed as though the user typed them, and the fields that carry less than they
-look like they do.
+look like they do. Codex has its own section, including the replay that spans
+files rather than sitting inside one.
 
-That document is probably useful to anyone else reading this format, whatever
+That document is probably useful to anyone else reading either format, whatever
 they are building.
 
 ## Layout
@@ -215,8 +240,11 @@ work, on three projects, and it picked out the sittings they remembered as the
 hard ones. That is why it exists. It is one person checking a score fitted to
 their own history, which is why it is still off by default.
 
-Claude Code and OpenAI Codex CLI are supported so far. The seam for adding
-another agent is documented in `internal/agent`.
+Claude Code and OpenAI Codex CLI are what bough reads, and they are the whole
+of the focus for now. Getting two agents right is worth more than getting five
+agents roughly, and the second one turned up defects in the first. More agents
+will come once these two are solid; the seam for adding one is documented in
+`internal/agent`.
 
 ## Contributing
 

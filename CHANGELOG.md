@@ -7,6 +7,94 @@ Notable changes, newest first. Format follows
 
 Nothing yet.
 
+## 0.4.0 - 2026-09-09
+
+bough reads OpenAI Codex CLI as well as Claude Code. Thanks to
+[@valdecircarvalho](https://github.com/valdecircarvalho), who wrote the
+multi-agent plumbing and the first Codex parser, and who went and measured
+their own corpus to answer a question about deduplication rather than guessing
+at it. That measurement is what the cross-file replay handling is built on.
+
+Codex support is new and has had far less exposure than Claude Code. The
+numbers here were checked by hand against a real corpus, but a small one.
+Please report any that look wrong.
+
+### Added
+
+- Reading of OpenAI Codex CLI history from `~/.codex/sessions`, grouped by
+  project the same way Claude Code history is. Prompts, tools, files, edits,
+  lines, errors, commits and token counts all come through.
+- `--agent=claude`, `--agent=codex` and `--agent=all`, which is the default. A
+  project worked on with either agent appears in the same list.
+- Work handed to a Codex sub-agent is read and counted. A sub-agent has its own
+  rollout with its own prompts and token spend, and all of it is part of what
+  answering the original prompt cost.
+- A Codex section in [docs/format.md](docs/format.md), covering the rollout
+  layout, the replay that spans files, the sub-agent records and the two token
+  streams that report the same figures.
+
+### Fixed
+
+- Delegated work no longer appears as a sitting of its own. A Codex sub-agent
+  runs inside one turn of the session that spawned it, usually finishing before
+  the next prompt, so drawing it alongside said the person started two things
+  when they started one and it branched. It now folds into the turn that asked
+  for it. This also put a second date heading on a single afternoon.
+- A resumed Codex session came back as several sessions with its early prompts
+  counted once per resume. Codex replays earlier items into a new rollout under
+  the ids they already had, so deduplicating within a file never sees the first
+  copy. Rollouts are now grouped by session before anything is deduplicated.
+- Every Codex session gained a prompt nobody typed. The desktop app packs a
+  plugin catalogue, the environment and more into one user record as separate
+  chunks, and testing only how the joined text began let a wholly machine
+  generated record read as a prompt. Each known block is now stripped by its own
+  closing tag.
+- Every Codex token figure was doubled. Newer rollouts carry a
+  `token_usage_record` per response and an `event_msg` saying the same thing;
+  both were being added. The record now wins where it exists, with the event
+  kept as a fallback for older rollouts.
+- A Codex sub-agent's work went missing entirely. Its rollout carries the
+  parent's session id, so grouping on that folded it away, and it has no user
+  message at all since its task arrives as an `agent_message`. Both are now
+  handled, and a reply from a sub-agent no longer opens a turn on the parent
+  that nobody asked for.
+- A wall of ciphertext could appear as the label on a piece of work. What one
+  Codex agent asks another is encrypted, and the brief was being read straight
+  into the diagram. Encrypted payloads are recognised and left out; the
+  delegation is still recorded.
+- Multi-file Codex patches credited every changed line to the first file named,
+  which corrupts the churn the struggle score reads. Each hunk now counts
+  against the file its own header names.
+- Codex counted added lines only, where Claude Code has always counted added and
+  removed both. The same change measured differently depending on which agent
+  made it.
+
+### Changed
+
+- The diagram opens centred, at a size worth looking at, whatever the shape of
+  the history.
+
+  Two things were wrong. A long history was fitted to the window whole, which on
+  a project that grows sideways and never grows taller drew the day squares at
+  under three pixels: a line rather than a diagram. It now opens at a size the
+  nodes can be read at, anchored to the most recent work, with a new button to
+  see every day at once when that is what you want.
+
+  A short history had the opposite problem. Node sizes come from how much work
+  they hold, so a one day project draws smaller shapes, and a fixed cap on the
+  opening scale left the whole diagram forty pixels across in the middle of a
+  fourteen hundred pixel window: centred, and still reading as lost. The ceiling
+  is now the size a node may reach rather than a raw scale.
+
+- The drawing is moved by one transform rather than two. The page carried a
+  viewBox that fitted and centred the canvas inside the window before the pan
+  and zoom transform ran at all, and the canvas is not the drawing: the layout
+  leaves a wide, lopsided margin to pan into. On a one day history that put the
+  middle of the tree eleven hundred pixels right of the middle of the window,
+  off the screen. Every layout test in the repository worked in canvas units and
+  so agreed the view was centred while the page showed it against the right hand
+  edge.
+
 ## 0.3.6 - 2026-09-09
 
 ### Changed

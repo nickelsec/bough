@@ -20,6 +20,27 @@ defaults are wrong is how a tool ends up with fifteen options nobody uses. If
 you move one of these and it works better on your history, that is worth an
 issue, and it is the evidence that would justify a flag.
 
+## What each agent gives you to work with
+
+The thresholds below are the same whichever agent wrote the history, because
+everything above `internal/agent` sees normalised turns and nothing else. What
+differs is the evidence arriving underneath, and one difference is worth
+knowing.
+
+Claude Code records a context compaction, which bough passes up as
+`SegmentHint`. That is the agent itself saying a boundary happened, and it is
+better evidence than anything inferred from timing. Codex records no equivalent,
+so a Codex session leans entirely on the gap and churn signals. Where a Claude
+session would have been cut on a compaction it saw, a Codex one is cut only if
+the ordinary thresholds agree.
+
+Codex records something Claude does not: work handed to a sub-agent, with its
+own prompts and token spend. bough folds that into the turn that asked for it,
+so it adds to that turn's weight rather than appearing as a sitting of its own.
+
+Everything else, prompts, tools, files, edits, lines, errors, commits and
+tokens, comes through from both.
+
 ## Where a task begins
 
 `internal/segment`, `DefaultOptions()`.
