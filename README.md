@@ -11,11 +11,7 @@
   <a href="https://github.com/nickelsec/bough/releases"><img src="https://img.shields.io/github/v/release/nickelsec/bough?color=7C8A46" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-7C8A46" alt="MIT"></a>
   <a href="https://bough.run/docs"><img src="https://img.shields.io/badge/Docs-7C8A46" alt="Documentation"></a>
-</p>
-
-<p align="center">
-  <a href="#reads"><img src="https://img.shields.io/badge/reads-Claude%20Code-C87941" alt="Reads Claude Code"></a>
-  <a href="#reads"><img src="https://img.shields.io/badge/reads-OpenAI%20Codex%20CLI-C87941" alt="Reads OpenAI Codex CLI"></a>
+  <a href="#agents"><img src="https://img.shields.io/badge/agents-Claude%20Code%20%2F%20Codex-C87941" alt="Agents: Claude Code and Codex"></a>
 </p>
 
 <p align="center">
@@ -153,7 +149,7 @@ histories this was built against, between 176 and 732 times more context than
 output. A long session is expensive because it is long, not because the model
 said much.
 
-## Reads
+## Agents
 
 Claude Code and OpenAI Codex CLI. Both are found automatically, and a project
 worked on with either shows up in the same list.
