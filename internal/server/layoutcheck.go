@@ -93,10 +93,17 @@ for (const file of files) {
     }
     const cw = seen.x1 - seen.x0, ch = seen.y1 - seen.y0;
 
+    // The ceiling on the opening view, expressed as the size a day square is
+    // allowed to reach rather than as a raw scale. Node sizes come from how
+    // much work a day held, so a short history draws smaller shapes, and a
+    // fixed scale cap left one at forty pixels across in the middle of a
+    // fourteen hundred pixel window: centred, and still reading as lost.
+    const COMFORTABLE = 72 / 36;
+
     for (const box of [{ w: 1200, h: 800 }, { w: 1440, h: 900 }, { w: 900, h: 600 }]) {
       const margin = 40;
       const room = { w: box.w - margin * 2, h: box.h - margin * 2 };
-      let scale = Math.min(1.1, room.h / (ch + 30), room.w / cw);
+      let scale = Math.min(COMFORTABLE, room.h / (ch + 30), room.w / cw);
 
       // Shrink until the spine fits too, so the arrow is never clipped.
       if (out.spine) {
@@ -143,15 +150,15 @@ for (const file of files) {
     for (const box of [{ w: 1440, h: 900 }, { w: 390, h: 844 }]) {
       const margin = box.w < 560 ? 16 : 40;
       const r = { w: box.w - margin * 2, h: box.h - margin * 2 };
-      let all = Math.min(1.1, r.h / (ch + 30), r.w / cw);
+      let all = Math.min(COMFORTABLE, r.h / (ch + 30), r.w / cw);
       if (out.spine) {
         const mid = seen.x0 + cw / 2;
         const far = Math.max(mid - (out.spine.x1 - 13), out.spine.x2 + 13 - mid) * 2;
         if (far > 0) all = Math.min(all, r.w / far);
       }
       let home = all;
-      if (all < READABLE * 0.75) {
-        home = Math.min(READABLE, Math.max(all, r.h / (ch + 30)));
+      if (all < READABLE) {
+        home = Math.max(all, Math.min(READABLE, Math.max(all, r.h / (ch + 30))));
       }
 
       // Whatever the length, the opening view has to be legible.
@@ -166,6 +173,75 @@ for (const file of files) {
       // The readout is a share of home, so a hundred percent means the same
       // on every project however long.
       check(tag + " home is usable at " + box.w, home > 0 && isFinite(home));
+
+      // A diagram small enough to fit whole has to fill the window it was
+      // given, or it floats in the middle of it. That was the bug: a fixed
+      // scale cap of 1.1 left a one day history forty pixels across on a
+      // fourteen hundred pixel screen, centred and still reading as lost.
+      //
+      // What has to be full is the space the drawing is actually allowed to
+      // use, and that is not always the window. The spine runs past the nodes
+      // at both ends and has to stay on screen, so on a narrow window it, not
+      // the nodes, is what reaches the edges. Measuring the nodes against the
+      // room would call that a failure when the view is correct.
+      const spread = out.spine
+        ? Math.max(cw, (out.spine.x2 + 13) - (out.spine.x1 - 13))
+        : cw;
+      const fitsWhole = spread * home <= r.w + 1 && (ch + 30) * home <= r.h + 1;
+      // The ceiling is not used as the guard. Reading it from the same
+      // constant the scale came from makes the check agree with whatever that
+      // constant happens to be, which is no check at all: lowering the cap
+      // would lower the bar with it. The size a day square has to reach is
+      // written down instead.
+      if (fitsWhole) {
+        const uses = Math.max(spread * home / r.w, (ch + 30) * home / r.h);
+        check(tag + " a short history fills the window at " + box.w,
+          uses > 0.9 || 36 * home >= 64,
+          "uses " + (uses * 100).toFixed(0) + "% of the room, day square " +
+          (36 * home).toFixed(1) + "px");
+      }
+    }
+
+    // A wider window must never draw smaller nodes.
+    //
+    // Desktop is what this is for, so these are the sizes that matter. The
+    // rule was broken by a threshold that took the whole diagram whenever it
+    // came close to legible: a twelve day history opened at thirty two pixels
+    // on a 1440 screen and thirty on a 1920 one, because the wider screen
+    // brought the whole view inside the threshold and the narrower one did
+    // not. Growing the window made the diagram worse.
+    let previous = 0;
+    for (const box of [{ w: 1440, h: 900 }, { w: 1920, h: 1080 }, { w: 2560, h: 1440 }]) {
+      const margin = 40;
+      const r = { w: box.w - margin * 2, h: box.h - margin * 2 };
+      let all = Math.min(COMFORTABLE, r.h / (ch + 30), r.w / cw);
+      if (out.spine) {
+        const mid = seen.x0 + cw / 2;
+        const far = Math.max(mid - (out.spine.x1 - 13), out.spine.x2 + 13 - mid) * 2;
+        if (far > 0) all = Math.min(all, r.w / far);
+      }
+      if (!(all > 0)) all = 1;
+      let home = all;
+      if (all < READABLE) {
+        home = Math.max(all, Math.min(READABLE, Math.max(all, r.h / (ch + 30))));
+      }
+
+      check(tag + " a wider window never shrinks the nodes at " + box.w,
+        home >= previous - 0.001,
+        (36 * home).toFixed(1) + "px after " + (36 * previous).toFixed(1) + "px");
+      previous = home;
+
+      // And whatever the shape, the opening view is worth looking at.
+      //
+      // The page is drawn in the reading form, which spaces nodes further
+      // apart so their labels have room, so that is the form this has to hold
+      // for. Checking the overview form as well would pass on numbers nobody
+      // sees. The floor is a little under the legible scale because the wider
+      // spacing means a diagram of the same shape fits at a smaller scale.
+      if (mode === "reading") {
+        check(tag + " opens at a workable size on a desktop at " + box.w,
+          36 * home >= 30, (36 * home).toFixed(1) + "px");
+      }
     }
 
     // Days run left to right through time, and a diagram that doubles back

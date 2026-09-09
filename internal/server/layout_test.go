@@ -48,6 +48,11 @@ func writeGraphs(t *testing.T, dir string) []string {
 		"busy":   synthetic(10, 11),
 		"quiet":  synthetic(2, 1),
 		"single": synthetic(1, 4),
+		// Around three times wider than tall. Long enough not to fit at a
+		// legible scale on a 1440 screen, short enough to fit whole on a 1920
+		// one, which is the shape that used to shrink as the window grew. The
+		// busy fixture is eight times wider and never comes close.
+		"middling": synthetic(12, 3),
 	}
 	for name, g := range cases {
 		body, err := json.Marshal(g)

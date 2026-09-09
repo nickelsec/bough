@@ -51,6 +51,19 @@
   // which keeps a prompt circle near eleven and comfortably clickable.
   var READABLE = 32 / 36;
 
+  // The other end of the same question. Node sizes come from how much work
+  // they hold, so a project with one day of history draws a day square of 26
+  // units where a busy one draws 36, and a single task 14 where a busy day
+  // draws far more.
+  //
+  // Capping the opening scale at a fixed 1.1 therefore meant something quite
+  // different on a small project: the whole diagram came to forty pixels
+  // across in the middle of a window fourteen hundred wide, geometrically
+  // centred and still reading as lost. The cap belongs on how big a node ends
+  // up rather than on the raw scale, which is the same measure READABLE uses
+  // at the small end.
+  var COMFORTABLE = 72 / 36;
+
   // The zoom range, as multiples of home rather than as absolute scales. An
   // absolute cap means something different on every project: at three it was
   // 273% of the opening view on a short history and 4092% on a long one, which
@@ -89,10 +102,23 @@
     host.textContent = "";
     sized = [];
 
-    var svg = el("svg", {
-      viewBox: "0 0 " + model.width + " " + model.height,
-      preserveAspectRatio: "xMidYMid meet"
-    });
+    // The svg spans the window and its coordinates are CSS pixels, so the pan
+    // and zoom transform is the only thing that moves the drawing.
+    //
+    // It used to carry a viewBox of the canvas size with xMidYMid meet, which
+    // fitted and centred the canvas inside the window before the transform ran
+    // at all. Two scalings stacked: fit() worked out a scale and an offset in
+    // pixels, and the browser then multiplied both by whatever the viewBox
+    // needed and shifted them again. On a one day history that put the middle
+    // of the drawing eleven hundred pixels right of the middle of the window,
+    // which is why the tree appeared jammed against the right hand edge with
+    // an empty canvas beside it.
+    //
+    // The centring the viewBox did was on the canvas box, and the canvas is
+    // not the drawing: the layout leaves a wide margin to pan into, and it is
+    // not symmetrical. content() already measures what was actually drawn.
+    var svg = el("svg", { preserveAspectRatio: "none" });
+    sizeToStage(svg);
 
     var root = el("g", { id: "canvas" });
     svg.appendChild(root);
@@ -394,6 +420,24 @@
     return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 + labels };
   }
 
+  // restage puts the svg back in step with the stage after the stage changes
+  // width, which happens when the record drawer opens or closes. The drawer
+  // takes 320ms to slide, and the size that matters is the one it settles at,
+  // so this listens for the transition rather than guessing at a delay.
+  function restage() {
+    var svg = host.querySelector("svg");
+    if (svg) sizeToStage(svg);
+  }
+
+  // sizeToStage gives the svg a coordinate system of CSS pixels the size of
+  // the window, so one unit in the transform is one pixel on screen.
+  function sizeToStage(svg) {
+    var box = stage.getBoundingClientRect();
+    var w = Math.max(box.width, 1);
+    var h = Math.max(box.height, 1);
+    svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+  }
+
   // room is the drawable area, less a margin, and never smaller than a pixel.
   // A window narrower than its own margins would otherwise give a scale of
   // zero or less, and an empty stage no amount of panning recovers.
@@ -408,8 +452,11 @@
   }
 
   // wholeScale is the largest scale that still shows every day at once.
+  //
+  // The ceiling is the size a day square is allowed to reach, not a scale, so
+  // a short history fills its window instead of floating in the middle of it.
   function wholeScale(seen, r) {
-    var s = Math.min(1.1, r.h / seen.height, r.w / seen.width);
+    var s = Math.min(COMFORTABLE, r.h / seen.height, r.w / seen.width);
 
     // The spine runs past the nodes at both ends, further at the arrow. It is
     // not centred on, or the work sits off to one side, but it still has to
@@ -428,17 +475,23 @@
     var all = wholeScale(seen, r);
     if (all >= READABLE) return all;
 
-    // A diagram that very nearly fits is better shown whole. Measured on an
-    // eleven day history: opening at the legible scale gained seventeen
-    // percent on the nodes and cost seven percent off the right hand edge,
-    // which trades a complete picture for almost nothing. Below three
-    // quarters legible the nodes are small enough that panning is the better
-    // bargain.
-    if (all >= READABLE * 0.75) return all;
-
     // Legible, but still bounded by the height. A ribbon may be scrolled
     // sideways; one taller than the window has nowhere to go.
-    return Math.min(READABLE, Math.max(all, r.h / seen.height));
+    var legible = Math.min(READABLE, Math.max(all, r.h / seen.height));
+
+    // Showing the whole diagram is worth having, but never at the cost of the
+    // nodes being smaller than they need to be. Where the whole thing fits at
+    // the legible scale it is already being shown; where it does not, opening
+    // whole means shrinking below legible, and that is the thing being fixed.
+    //
+    // An earlier version took the whole view whenever it came within a fixed
+    // fraction of legible. That fraction ignored how much bigger the nodes
+    // would actually be, and it produced a diagram that shrank as the window
+    // grew: a twelve day history opened at thirty two pixels on a 1440 screen
+    // and thirty on a 1920 one, because the wider screen brought the whole
+    // view inside the threshold. A larger window must never give smaller
+    // nodes.
+    return Math.max(all, legible);
   }
 
   // frame puts the view at a scale, centred, or against the end of a diagram
@@ -596,7 +649,17 @@
     });
 
     window.addEventListener("resize", function () {
+      // The svg's coordinates are CSS pixels, so its viewBox has to follow the
+      // window or one unit stops being one pixel and the drawing stretches.
+      restage();
       if (!selected) reset();
+    });
+
+    // The drawer slides the stage narrower and back again. Its width is what
+    // the svg's coordinates are measured in, so the svg follows it once the
+    // slide has finished rather than partway through.
+    stage.addEventListener("transitionend", function (e) {
+      if (e.propertyName === "right") restage();
     });
   }
 
@@ -873,8 +936,12 @@
       // Prompts are the reader's own words and the reason to look, so they
       // are never trimmed.
       li.appendChild(node("p", "said", turn.text));
+      // Agents differ in what they record about a hand-off. Claude writes a
+      // brief describing the work; Codex encrypts that and leaves only the name
+      // of the sub-agent. Showing the description alone left an empty line.
       (turn.delegated || []).forEach(function (job) {
-        li.appendChild(node("p", "handoff", job.description));
+        var said = job.description || job.kind;
+        if (said) li.appendChild(node("p", "handoff", said));
       });
       // A commit sits under the prompt that produced it, so the record reads
       // as what was asked for and what came of it.
