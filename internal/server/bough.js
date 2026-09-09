@@ -1109,6 +1109,10 @@
   function chrome() {
     document.getElementById("name").textContent = graph.project.name;
     document.getElementById("where").textContent = graph.project.path;
+    var agentEl = document.getElementById("agent");
+    if (agentEl) {
+      agentEl.textContent = graph.project.agent || "claude-code";
+    }
 
     var t = graph.totals;
 
@@ -1125,6 +1129,9 @@
     ];
 
     var rest = [];
+    if (graph.project && graph.project.agent) {
+      rest.push([graph.project.agent, "harness"]);
+    }
     var made = (t.commits || []).length;
     if (made) rest.push([made, made === 1 ? "commit" : "commits", true]);
     // As a ratio rather than a share of the total. Every project measured came

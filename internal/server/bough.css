@@ -180,11 +180,29 @@ body.reading #stage { right: var(--drawer); }
   border-left: 1px solid var(--rule);
 }
 
+.mark-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
 .mark h1 {
   margin: 0;
   font: 600 1.05rem/1.15 var(--display);
   letter-spacing: 0.01em;
   color: var(--ink);
+}
+
+.mark-agent {
+  display: inline-block;
+  font: 500 0.65rem/1 var(--mono);
+  padding: 0.15rem 0.35rem;
+  border-radius: 3px;
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  color: var(--ink-mid);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
 }
 
 .mark .where {
