@@ -71,6 +71,15 @@ Please report any that look wrong.
 
 ### Changed
 
+- Every project says which agent wrote its history, in the picker, in `--list`
+  and on the page. Only Codex was named before, which read as though Claude
+  Code were the absence of an agent rather than a choice of one. That was fair
+  while there was one agent to read and stopped being fair at the second.
+
+- The project columns are measured rather than fixed. A Codex project is named
+  after a directory and can run well past the old 24 characters, and one long
+  row then pushed its own path and count out of line with every other row.
+
 - The diagram opens centred, at a size worth looking at, whatever the shape of
   the history.
 

@@ -14,6 +14,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/term"
 
@@ -364,11 +365,15 @@ func describe(p agent.Project) string {
 			detail = ago(p.LastWorked)
 		}
 	}
-	if p.Source != "" && p.Source != "claude-code" {
+	// Named for every agent, and spelled the way the listing and the page spell
+	// it. Naming only the unfamiliar one made the others look like the absence
+	// of an agent rather than a choice of one.
+	if p.Source != "" {
+		badge := "[" + agent.Display(p.Source) + "]"
 		if detail != "" {
-			detail = fmt.Sprintf("[%s] %s", p.Source, detail)
+			detail = badge + " " + detail
 		} else {
-			detail = fmt.Sprintf("[%s]", p.Source)
+			detail = badge
 		}
 	}
 	return detail
@@ -405,7 +410,29 @@ func byPath(projects []agent.Project, path string) (agent.Project, bool) {
 	return agent.Project{}, false
 }
 
+// writeList prints one line per project, in columns wide enough for what is
+// actually in them.
+//
+// The widths used to be fixed at 24 and 40, which held while every project was
+// a short name in a short path. A Codex project is named after a directory that
+// can run well past both, and one long row then pushed its own path and count
+// out of line with every other row. Measuring first costs a pass over a list
+// that is already in memory.
+//
+// The agent gets a column of its own rather than being stuck onto the name. It
+// is the same width on every row so the eye can run down it, and it is filled
+// in for every agent: naming only the unfamiliar one implies the others are
+// somehow the default, which stopped being true when the second one arrived.
 func writeList(w io.Writer, sources map[string]agent.Source, projects []agent.Project) error {
+	type row struct {
+		name    string
+		agent   string
+		path    string
+		prompts int
+	}
+
+	rows := make([]row, 0, len(projects))
+	var nameW, agentW, pathW int
 	for _, p := range projects {
 		src := sources[p.Source]
 		turns := 0
@@ -415,11 +442,28 @@ func writeList(w io.Writer, sources map[string]agent.Source, projects []agent.Pr
 				turns += len(s.Turns)
 			}
 		}
-		label := p.Name
-		if p.Source != "" && p.Source != "claude-code" {
-			label = fmt.Sprintf("%s [%s]", p.Name, p.Source)
+		r := row{name: p.Name, path: p.Path, prompts: turns}
+		if p.Source != "" {
+			r.agent = "[" + agent.Display(p.Source) + "]"
 		}
-		fmt.Fprintf(w, "%-24s %-40s %d prompts\n", label, p.Path, turns)
+		rows = append(rows, r)
+		nameW = wider(nameW, r.name)
+		agentW = wider(agentW, r.agent)
+		pathW = wider(pathW, r.path)
+	}
+
+	// The path column is padded to what the paths need, up to a limit. Paths
+	// vary by far more than names do, and padding to the longest let one deep
+	// path push the counts on every other row most of a screen to the right to
+	// line up with nothing. Capping it means the common case still lines up and
+	// an unusually long path overflows its own row rather than everyone else's.
+	if pathW > pathLimit {
+		pathW = pathLimit
+	}
+
+	for _, r := range rows {
+		fmt.Fprintf(w, "%-*s  %-*s  %-*s  %d prompts\n",
+			nameW, r.name, agentW, r.agent, pathW, r.path, r.prompts)
 	}
 	return nil
 }
@@ -440,3 +484,16 @@ bough | less behave as you would expect.
 
 Options:
 `
+
+// pathLimit caps the path column. Chosen so an ordinary project path lines up
+// and a deep one overflows its own row instead of everyone else's.
+const pathLimit = 44
+
+// wider reports the greater of a width and the width of a string, counting
+// runes rather than bytes so a name outside ASCII still lines up.
+func wider(at int, s string) int {
+	if n := utf8.RuneCountInString(s); n > at {
+		return n
+	}
+	return at
+}

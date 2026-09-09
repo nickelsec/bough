@@ -37,7 +37,7 @@ type Project struct {
 	// than from any directory name the agent may have mangled.
 	Path string
 
-	// Source names the agent this came from.
+	// Source names the agent this came from, as that agent's package spells it.
 	Source string
 
 	// Ref locates the project inside the agent's own storage. Its meaning is
@@ -75,6 +75,25 @@ type Session struct {
 	// alongside the parent says the person started two things when they started
 	// one.
 	ParentID string
+}
+
+// Display names an agent for a person to read.
+//
+// Source strings are what each agent's package calls itself and are not always
+// what somebody wants to see: "claude-code" is the name of a source, "Claude
+// Code" is the name of a tool. Both views ask here rather than spelling it
+// themselves, so the terminal and the page cannot drift apart.
+//
+// An agent nobody has named yet comes back as it was given, which is better
+// than an empty column.
+func Display(source string) string {
+	switch source {
+	case "claude-code":
+		return "Claude Code"
+	case "codex":
+		return "Codex"
+	}
+	return source
 }
 
 // Delegation is a unit of work the agent handed to a sub-agent.

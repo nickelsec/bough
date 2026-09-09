@@ -111,8 +111,17 @@ func interactive(out io.Writer, in *os.File, title string, items []Item) (int, e
 // numbered offers the same choice without needing a capable terminal.
 func numbered(out io.Writer, in io.Reader, title string, items []Item) (int, error) {
 	fmt.Fprintf(out, "%s\n\n", title)
+	// The label column is measured rather than fixed. A project named after a
+	// deep directory runs past any width chosen in advance, and one long name
+	// then pushed its own detail out of line with every other row.
+	label := 0
+	for _, it := range items {
+		if n := len([]rune(it.Label)); n > label {
+			label = n
+		}
+	}
 	for i, it := range items {
-		fmt.Fprintf(out, "  %2d  %-24s %s\n", i+1, it.Label, it.Detail)
+		fmt.Fprintf(out, "  %2d  %-*s  %s\n", i+1, label, it.Label, it.Detail)
 	}
 	fmt.Fprintf(out, "\nChoose 1 to %d: ", len(items))
 

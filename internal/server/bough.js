@@ -1272,9 +1272,31 @@
     return String(s).replace(/([.:#[\]])/g, "\\$1");
   }
 
+  // agentName spells an agent the way a person would read it.
+  //
+  // The graph carries the source's own name for itself, which is not always
+  // what somebody wants to see. This mirrors agent.Display in Go, so the page
+  // and the terminal call the same tool the same thing. An agent nobody has
+  // named yet shows as it arrived, which beats an empty badge.
+  function agentName(source) {
+    if (source === "claude-code") return "Claude Code";
+    if (source === "codex") return "Codex";
+    return source || "";
+  }
+
   function chrome() {
     document.getElementById("name").textContent = graph.project.name;
     document.getElementById("where").textContent = graph.project.path;
+
+    // Named for every agent, not only the unfamiliar one. Showing it for Codex
+    // alone made Claude Code look like the absence of an agent rather than a
+    // choice of one.
+    var badge = document.getElementById("agent");
+    if (badge) {
+      var said = agentName(graph.project.agent);
+      badge.textContent = said;
+      badge.hidden = said === "";
+    }
 
     var t = graph.totals;
 

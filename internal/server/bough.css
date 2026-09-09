@@ -187,6 +187,29 @@ body.reading #stage { right: var(--drawer); }
   color: var(--ink);
 }
 
+/* The name and the agent share a line, so the agent reads as a note about the
+   project rather than as part of its name. Baseline aligned, since the badge
+   is much smaller than the heading and centring it would leave it floating. */
+.mark-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Quiet by design. It answers "which agent" for anyone who wonders and stays
+   out of the way of the project name for everyone else. */
+.mark-agent {
+  font: 500 0.62rem/1 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-low);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 0.2rem 0.45rem;
+  white-space: nowrap;
+}
+
 .mark .where {
   margin: 0.15rem 0 0;
   font-size: 0.7rem;
