@@ -92,8 +92,15 @@ jobs:
       # that changes underneath us, and everything downstream trusts it. A
       # minute per push is cheap next to shipping a crash on somebody's
       # history.
+      # Forty five seconds of fuzzing rather than sixty. The budget is how long
+      # the fuzzer runs, not how long the job takes, and the harness needs a
+      # few seconds after it to shut down. Asking for the whole minute left no
+      # room for that, so a slower runner failed with "context deadline
+      # exceeded" after several million executions and no crash at all. A job
+      # that fails on timing rather than on defects is one people learn to
+      # ignore.
       - name: Fuzz
-        run: go test -run=xxx -fuzz=FuzzReadRecords -fuzztime=60s ./internal/agent/claude
+        run: go test -run=xxx -fuzz=FuzzReadRecords -fuzztime=45s ./internal/agent/claude
 
   gosec:
     name: gosec
