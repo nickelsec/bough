@@ -7,6 +7,19 @@ Notable changes, newest first. Format follows
 
 Nothing yet.
 
+## 0.4.1 - 2026-09-10
+
+### Fixed
+
+- Work was filed under the wrong day for anyone not on UTC. Agents write
+  timestamps with a Z suffix and those were being read as UTC and printed as
+  UTC, so east of Greenwich a good part of every evening landed on the previous
+  date: a prompt typed at 01:55 in Asia/Calcutta was headed 9 September rather
+  than the 10th, and the times beside prompts were out by the whole offset.
+  Durations are the same in any zone, so nothing about the grouping noticed and
+  every test passed. Timestamps now come back in the reader's own zone, which
+  is the frame the question "which day was this" is asked in.
+
 ## 0.4.0 - 2026-09-10
 
 bough reads OpenAI Codex CLI as well as Claude Code. Thanks to
