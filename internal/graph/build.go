@@ -55,6 +55,12 @@ func Build(p agent.Project, sessions []agent.Session, opt Options) Graph {
 		opt.Now = time.Now
 	}
 
+	// Delegated work belongs inside the turn that asked for it, so it is put
+	// back before anything is measured or divided. Doing it here rather than in
+	// each agent keeps the sub-agent's own session intact up to this point,
+	// which is what makes its prompts and tokens countable at all.
+	sessions = fold(sessions)
+
 	// A commit made in another repository is not this project's work, whether
 	// or not the repository can be read, so it goes first either way.
 	onlyHere(p.Path, sessions)

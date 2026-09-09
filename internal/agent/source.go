@@ -64,6 +64,17 @@ type Session struct {
 	ID    string
 	Title string // the agent's own label for the session, when it has one
 	Turns []Turn
+
+	// ParentID names the session that delegated this work, empty when a person
+	// started it.
+	//
+	// An agent that spawns another gets a session of its own, because the
+	// sub-agent has its own prompts and its own token spend and folding those
+	// into the parent would hide work that did happen. But it is not a separate
+	// stretch of work: it runs inside the turn that asked for it, and drawing it
+	// alongside the parent says the person started two things when they started
+	// one.
+	ParentID string
 }
 
 // Delegation is a unit of work the agent handed to a sub-agent.

@@ -108,7 +108,7 @@ func WriteText(w io.Writer, g Graph, verbose bool) error {
 					fmt.Fprintf(w, "      %s  %s\n",
 						turn.At.Format("02 Jan 15:04"), oneLine(turn.Text, 60))
 					for _, d := range turn.Delegated {
-						fmt.Fprintf(w, "                      handed off: %s\n", d.Description)
+						fmt.Fprintf(w, "                      handed off: %s\n", handoff(d))
 					}
 				}
 			}
@@ -243,4 +243,17 @@ func models(m map[string]int) string {
 	}
 	parts[0] = fmt.Sprintf("%s %d%%", names[0], rest)
 	return strings.Join(parts, ", ")
+}
+
+// handoff names a piece of delegated work.
+//
+// Agents differ in what they record. Claude writes a brief before handing work
+// over, and that describes it. Codex encrypts the brief and leaves only the
+// name of the sub-agent, so the name is what there is to show. Printing the
+// description alone left a bare "handed off:" with nothing after it.
+func handoff(d Delegation) string {
+	if d.Description != "" {
+		return d.Description
+	}
+	return d.Kind
 }
