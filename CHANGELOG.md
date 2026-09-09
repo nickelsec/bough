@@ -7,7 +7,7 @@ Notable changes, newest first. Format follows
 
 Nothing yet.
 
-## 0.4.0 - 2026-09-09
+## 0.4.0 - 2026-09-10
 
 bough reads OpenAI Codex CLI as well as Claude Code. Thanks to
 [@valdecircarvalho](https://github.com/valdecircarvalho), who wrote the
