@@ -1,0 +1,11 @@
+{"timestamp":"2026-09-08T00:00:00Z","ordinal":0,"type":"session_meta","payload":{"id":"codex-sess-001","session_id":"codex-sess-001","cwd":"/Users/alice/work/codex-app","timestamp":"2026-09-08T00:00:00Z"}}
+{"timestamp":"2026-09-08T00:00:01Z","ordinal":1,"type":"response_item","payload":{"type":"message","role":"developer","content":[{"type":"input_text","text":"system instructions"}]}}
+{"timestamp":"2026-09-08T00:00:02Z","ordinal":2,"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"# AGENTS.md instructions for /Users/alice/work/codex-app\n<INSTRUCTIONS>\nGuidelines\n</INSTRUCTIONS>"}]}}
+{"timestamp":"2026-09-08T00:00:03Z","ordinal":3,"type":"turn_context","payload":{"model":"gpt-5.5","cwd":"/Users/alice/work/codex-app"}}
+{"timestamp":"2026-09-08T00:00:04Z","ordinal":4,"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"implement user repository and commit"}]}}
+{"timestamp":"2026-09-08T00:00:05Z","ordinal":5,"type":"response_item","payload":{"type":"custom_tool_call","name":"apply_patch","input":"*** Begin Patch\n*** Add File: /Users/alice/work/codex-app/repo.go\n+package main\n+\n+type Repo struct {}\n*** End Patch\n"}}
+{"timestamp":"2026-09-08T00:00:06Z","ordinal":6,"type":"response_item","payload":{"type":"custom_tool_call_output","output":"Success"}}
+{"timestamp":"2026-09-08T00:00:07Z","ordinal":7,"type":"response_item","payload":{"type":"function_call","name":"exec_command","arguments":"{\"cmd\":\"git commit -m \\\"add user repo\\\"\",\"workdir\":\"/Users/alice/work/codex-app\"}"}}
+{"timestamp":"2026-09-08T00:00:08Z","ordinal":8,"type":"response_item","payload":{"type":"function_call_output","output":"Process exited with code 0\n[main 1a2b3c4] add user repo\n 1 file changed"}}
+{"timestamp":"2026-09-08T00:00:09Z","ordinal":9,"type":"response_item","payload":{"type":"function_call","name":"spawn_agent","arguments":"{\"agent_type\":\"db-tester\",\"message\":\"test db connections\"}"}}
+{"timestamp":"2026-09-08T00:00:10Z","ordinal":10,"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":200,"cached_input_tokens":1500,"output_tokens":80}}}}

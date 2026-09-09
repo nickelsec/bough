@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  Reads your Claude Code session history and draws what you actually built.
+  Reads your Claude Code and OpenAI Codex CLI session history and draws what you actually built.
 </p>
 
 <p align="center">
@@ -186,7 +186,8 @@ they are building.
 ```
 cmd/bough        the command
 internal/agent   the boundary between bough and the agents it reads
-  .../claude     reading Claude Code, the only one so far
+  .../claude     reading Claude Code
+  .../codex      reading OpenAI Codex CLI rollouts
 internal/segment prompts into tasks
 internal/rollup  tasks into sittings, and the links between them
 internal/metrics how long, how much, how hard
@@ -199,8 +200,8 @@ assets           the artwork, and the script that sizes it for the page
 ```
 
 Nothing above `internal/agent` knows which agent the history came from, and a
-test fails if that ever stops being true. That is what makes a second agent
-cheap to add.
+test fails if that ever stops being true. That is what makes adding another agent
+cheap.
 
 ## Status
 
@@ -214,8 +215,8 @@ work, on three projects, and it picked out the sittings they remembered as the
 hard ones. That is why it exists. It is one person checking a score fitted to
 their own history, which is why it is still off by default.
 
-Only Claude Code is read so far. The seam for a second agent exists and is
-tested, but nothing else is implemented yet.
+Claude Code and OpenAI Codex CLI are supported so far. The seam for adding
+another agent is documented in `internal/agent`.
 
 ## Contributing
 

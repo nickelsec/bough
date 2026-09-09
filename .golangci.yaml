@@ -69,7 +69,7 @@ linters:
       # The paths come from reading the agent's own directory, which is the
       # job. There is nothing to sanitise against: the user already owns
       # every file being read, and nothing is written.
-      - path: internal/agent/claude/
+      - path: internal/agent/
         text: "G304"
         linters:
           - gosec
