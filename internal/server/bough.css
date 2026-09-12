@@ -531,6 +531,31 @@ body.nothing .empty { display: flex; }
 .task.hard .task-node { stroke: var(--warm); }
 .task.hard .prompt-node { stroke: var(--warm); }
 
+/* A prompt whose text matched the search.
+
+   A ring rather than a fill, because fill is spoken for twice over: olive fill
+   is what a hover does and what the prompt being read looks like, so a search
+   that borrowed either would go dark the moment the pointer crossed the
+   diagram. The ring survives a hover landing on top of it, which is exactly
+   when you still want to see which circles were the hits.
+
+   No new colour. Every hue on this page already means something, and rust in
+   particular only appears where the work was hard. A match is not a kind of
+   work, it is a thing you asked for, so it is drawn in the ink the page
+   already uses for outlines.
+
+   Written above the .lit rules on purpose. The specificity is equal, so source
+   order decides, and hover has to win: found is a standing state read across
+   the whole diagram, lit is the one node under the pointer. */
+.prompt-node.found {
+  fill: var(--sunk);
+  stroke: var(--deep);
+  stroke-width: 1.9;
+}
+
+/* Hard work keeps its rust when found, the same way it keeps it when lit. */
+.prompt-node.found.found-hard { stroke: var(--warm-text); }
+
 /* A task that ended in a commit. Small, and in the one colour on the page that
    means nothing else, because plenty of good work never commits and this must
    not read as a mark of quality. It says the work landed, nothing more. */
@@ -874,8 +899,12 @@ body.reading .rail { right: calc(var(--drawer) + 1.1rem); }
 
 .rail-btn[aria-selected="true"] .dot { border-color: var(--leaf); }
 
+/* Wide enough for the longest heading to sit beside its Clear button on one
+   line. At 17.5rem the search heading and a showing Clear did not fit
+   together, so the heading wrapped the moment a search was typed and the card
+   grew by a row while it was being used. */
 .rail-card {
-  width: 17.5rem;
+  width: 18.5rem;
   padding: 1rem 1.1rem 0.9rem;
   border-radius: 12px;
   background: var(--raised);
@@ -895,6 +924,10 @@ body.reading .rail { right: calc(var(--drawer) + 1.1rem); }
   margin: 0;
   font: 600 0.95rem/1.3 var(--display);
   color: var(--ink);
+  /* A heading on one line, always. The row holds a back button and, once a
+     filter is on, a Clear button, and a heading that wraps between them makes
+     the card change height while it is being used. */
+  white-space: nowrap;
 }
 
 .rail-back {

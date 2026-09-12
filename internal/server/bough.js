@@ -71,6 +71,7 @@
   var RANGE = { min: 0.25, max: 4 };
 
   var filters = {
+    said: "",
     file: "",
     from: null,
     to: null,
@@ -1021,9 +1022,21 @@
 
   // Filters fade rather than remove. Dropping a node would change the shape,
   // and the shape is the thing being looked at.
+  //
+  // The prompt search is the one filter that goes a level deeper. Fading the
+  // task is not enough on its own when the task holds thirty prompts and the
+  // person is trying to find the one they remember writing, so the prompts
+  // that matched are ringed as well. The ringing only happens on a task that
+  // survived every other filter: a match inside a day the dates excluded is
+  // not a match, and lighting it would make the filters look as though they
+  // did not compose.
   function refilter() {
     var needle = filters.file.toLowerCase();
+    var words = terms(filters.said);
     var anyShown = false;
+    var rung = 0;
+
+    if (words.length) readyHay();
 
     model.days.forEach(function (day) {
       var group = host.querySelector('.day[data-id="' + cssEscape(day.id) + '"]');
@@ -1039,11 +1052,21 @@
       day.tasks.forEach(function (task) {
         var t = host.querySelector('.task[data-id="' + cssEscape(task.id) + '"]');
         if (!t) return;
+
+        // The hits decide whether the task survives, so they are worked out
+        // before anything is faded rather than after.
+        var hits = words.length ? said(task, words) : null;
         var out = dayOut ||
           (needle && !touches(task.task, needle)) ||
-          (filters.hardOnly && !task.hard);
+          (filters.hardOnly && !task.hard) ||
+          (hits && hits.length === 0);
+
         t.classList.toggle("faded", Boolean(out));
-        if (!out) shown++;
+        ring(task, out ? null : hits);
+        if (!out) {
+          shown++;
+          if (hits) rung += hits.length;
+        }
       });
 
       group.classList.toggle("faded", dayOut || shown === 0);
@@ -1051,6 +1074,7 @@
     });
 
     document.body.classList.toggle("nothing", !anyShown && filtering());
+    tally(rung);
     marks();
   }
 
@@ -1062,8 +1086,90 @@
     return false;
   }
 
+  // terms splits what was typed into the words that all have to appear.
+  //
+  // Not a substring match the way the file filter is. A path is something you
+  // know exactly; a prompt you wrote three weeks ago is not. Somebody hunting
+  // for "fix the timezone handling in the parser" types "timezone parser", and
+  // a substring match answers that with nothing at all, which reads as the
+  // search being broken rather than as the wording being misremembered.
+  //
+  // Each word matches inside a longer one, so "pars" still finds "parser".
+  // Half remembering a word is as common as half remembering a phrase.
+  function terms(said) {
+    return String(said).toLowerCase().split(/\s+/).filter(Boolean);
+  }
+
+  // Searching prompt text means scanning every prompt on every keystroke, and
+  // the text is the untrimmed thing the person actually typed: a pasted stack
+  // trace or a dictated paragraph runs to kilobytes. Lowercasing all of it
+  // inside the keystroke handler allocates the whole corpus again for every
+  // character typed.
+  //
+  // So it is lowercased once and kept. Not at draw time, though: most people
+  // open a diagram and never search it, and boot is the moment they feel. The
+  // first search pays for it, and every keystroke after that scans strings
+  // that are already in the right case. On the largest history here, 324
+  // prompts and 116KB of prose, that one pass costs under a millisecond.
+  var hayReady = false;
+
+  function readyHay() {
+    if (hayReady) return;
+    hayReady = true;
+    model.days.forEach(function (day) {
+      day.tasks.forEach(function (task) {
+        task.prompts.forEach(function (p) {
+          p.hay = String((p.turn && p.turn.text) || "").toLowerCase();
+        });
+      });
+    });
+  }
+
+  // said returns the prompts of one task whose text holds every word searched
+  // for, or an empty list if none do.
+  function said(task, words) {
+    var hits = [];
+    task.prompts.forEach(function (p) {
+      for (var i = 0; i < words.length; i++) {
+        if (p.hay.indexOf(words[i]) === -1) return;
+      }
+      hits.push(p);
+    });
+    return hits;
+  }
+
+  // ring marks the prompts that matched and unmarks the rest. Every task is
+  // visited on every refilter, so clearing here is what takes the rings off
+  // when the search is emptied. A separate sweep would be a second pass over
+  // the same nodes to do what this one already has in hand.
+  function ring(task, hits) {
+    task.prompts.forEach(function (p) {
+      if (!p.node) return;
+      var on = Boolean(hits) && hits.indexOf(p) !== -1;
+      p.node.classList.toggle("found", on);
+      p.node.classList.toggle("found-hard", on && Boolean(task.hard));
+    });
+  }
+
+  // tally is the one thing the note has to say that the diagram cannot.
+  //
+  // A file filter fades whole tasks and a date range fades whole days, both of
+  // which can be seen at any zoom. A prompt search rings a handful of small
+  // circles that may all be off the side of a wide history, so a screen with
+  // no visible rings looks the same whether there were no matches or forty of
+  // them somewhere else.
+  function tally(n) {
+    var note = document.getElementById("f-said-note");
+    if (!note) return;
+    if (!filters.said) {
+      note.textContent = "Rings every prompt holding all of those words.";
+      return;
+    }
+    note.textContent = n ? "Ringed " + count(n, "prompt") + "." : "No prompt says that.";
+  }
+
   function filtering() {
-    return Boolean(filters.file || filters.from || filters.to ||
+    return Boolean(filters.said || filters.file || filters.from || filters.to ||
       filters.substantialOnly || filters.hardOnly);
   }
 
@@ -1073,6 +1179,7 @@
   function bindRail() {
     var card = document.getElementById("rail-card");
     var tabs = [].slice.call(document.querySelectorAll(".rail-btn[data-panel]"));
+    var says = document.getElementById("f-said");
     var file = document.getElementById("f-file");
     var from = document.getElementById("f-from");
     var to = document.getElementById("f-to");
@@ -1096,6 +1203,10 @@
         if (mine) showing = true;
       });
       card.hidden = !showing;
+      // The two panels that are a text field open with the cursor already in
+      // it. Reaching for a search and then having to click the box is the sort
+      // of small friction that stops a thing being used at all.
+      if (showing && name === "said") says.focus();
       if (showing && name === "file") file.focus();
     };
 
@@ -1112,8 +1223,14 @@
       b.addEventListener("click", function () { openPanel(null); });
     });
 
-    // The file search runs as you type, since seeing the shape react is the
-    // whole point of it.
+    // Both searches run as you type, since seeing the shape react is the whole
+    // point of them. On the prompt search it is also the feedback that says
+    // whether the wording is being remembered right.
+    says.addEventListener("input", function () {
+      filters.said = says.value.trim();
+      refilter();
+    });
+
     file.addEventListener("input", function () {
       filters.file = file.value.trim();
       refilter();
@@ -1137,6 +1254,13 @@
 
     // A panel's own Clear undoes only that panel, which is what you expect of
     // a button sitting inside it.
+    document.getElementById("f-said-clear").addEventListener("click", function () {
+      says.value = "";
+      filters.said = "";
+      refilter();
+      says.focus();
+    });
+
     document.getElementById("f-file-clear").addEventListener("click", function () {
       file.value = "";
       filters.file = "";
@@ -1180,6 +1304,7 @@
   // left on in a closed panel is never invisible.
   function marks() {
     var live = {
+      said: Boolean(filters.said),
       file: Boolean(filters.file),
       when: Boolean(filters.from || filters.to),
       show: filters.substantialOnly || filters.hardOnly
@@ -1191,8 +1316,10 @@
       tab.querySelector(".dot").hidden = !on;
     });
 
-    // A panel's Clear only appears when it has something to clear.
-    ["file", "when", "show"].forEach(function (name) {
+    // A panel's Clear only appears when it has something to clear. The names
+    // come from live rather than from a list written out a second time, which
+    // is what went out of step the moment a fourth filter was added.
+    Object.keys(live).forEach(function (name) {
       document.getElementById("f-" + name + "-clear").hidden = !live[name];
     });
   }

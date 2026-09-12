@@ -7,6 +7,26 @@ Notable changes, newest first. Format follows
 
 Nothing yet.
 
+## 0.4.2 - 2026-09-13
+
+### Added
+
+- Search the prompts. A fourth tab in the filter rail takes what you type and
+  rings every prompt that holds all of those words, in any order, so half
+  remembering the wording is enough to find it. Nobody recalls the sentence
+  they typed three weeks ago, but they usually recall two words of it.
+
+  The prompt text was already in the page, which is why this is a filter rather
+  than a feature: bough keeps what you wrote in full because that is the reason
+  to click into anything, and nothing was reading it.
+
+### Changed
+
+- The magnifying glass in the rail now belongs to the prompt search, which is
+  what people mean by searching. Find a file keeps its place and its behaviour
+  but is drawn as a page with a folded corner: a file is looked up rather than
+  searched for.
+
 ## 0.4.1 - 2026-09-10
 
 ### Fixed

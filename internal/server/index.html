@@ -32,9 +32,17 @@
 
 <nav class="rail" aria-label="Filters">
   <div class="rail-tabs" role="tablist" aria-label="What to filter by">
+    <button type="button" class="rail-btn" role="tab" data-panel="said"
+            aria-selected="false" aria-controls="p-said" title="Search your prompts">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/></svg>
+      <span class="dot" hidden></span>
+    </button>
+    <!-- The magnifier belongs to the prompt search, since that is the one
+         people mean by searching. A file is looked up rather than searched for,
+         so it gets a page with a folded corner. -->
     <button type="button" class="rail-btn" role="tab" data-panel="file"
             aria-selected="false" aria-controls="p-file" title="Find a file">
-      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/></svg>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11.5 2.5H6a1.5 1.5 0 00-1.5 1.5v12A1.5 1.5 0 006 17.5h8a1.5 1.5 0 001.5-1.5V6.5zM11.5 2.5v4h4"/></svg>
       <span class="dot" hidden></span>
     </button>
     <button type="button" class="rail-btn" role="tab" data-panel="when"
@@ -49,9 +57,28 @@
     </button>
   </div>
 
-  <!-- One card, whose contents change with the tab. Three panels floating in
-       slightly different places made the rail feel unsettled. -->
+  <!-- One card, whose contents change with the tab. Separate panels floating
+       in slightly different places made the rail feel unsettled. -->
   <div class="rail-card" id="rail-card" hidden>
+    <div class="rail-body" id="p-said" role="tabpanel" hidden>
+      <div class="rail-head">
+        <button type="button" class="rail-back" aria-label="Close">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 4l-6 6 6 6"/></svg>
+        </button>
+        <h2>Search your prompts</h2>
+        <button type="button" class="rail-reset" id="f-said-clear" hidden>Clear</button>
+      </div>
+      <div class="field">
+        <input type="search" id="f-said" placeholder="timezone parser" autocomplete="off">
+      </div>
+      <!-- Every word has to appear, in any order. Nobody remembers the exact
+           sentence they typed three weeks ago, they remember two words of it.
+           The note carries the count once a search is running, since rings
+           scattered across a wide history can all be off the side of the
+           screen. -->
+      <p class="rail-note" id="f-said-note">Rings every prompt holding all of those words.</p>
+    </div>
+
     <div class="rail-body" id="p-file" role="tabpanel" hidden>
       <div class="rail-head">
         <button type="button" class="rail-back" aria-label="Close">
