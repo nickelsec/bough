@@ -16,6 +16,8 @@
 package repo
 
 import (
+	"errors"
+	"fmt"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -45,6 +47,13 @@ type History struct {
 	// without git look identical, and they mean different things for a hash
 	// the transcript carried.
 	Read bool
+
+	// Unread says why, when Read is false. Three different things used to
+	// arrive as the same empty history: there was no directory to look in, git
+	// is not installed, or git ran and failed. The first is ordinary and the
+	// other two are worth telling somebody about, and nothing could tell them
+	// apart.
+	Unread error
 }
 
 // Read returns the commit history of the repository at dir.
@@ -61,9 +70,17 @@ type History struct {
 // every hash on a machine with no git installed.
 func Read(dir string) History {
 	if dir == "" {
+		// Nothing to read, which is not a failure: plenty of work happens
+		// outside a repository.
 		return History{}
 	}
 	dir = filepath.Clean(dir)
+
+	// Git missing is worth saying plainly. It is the one cause a reader can do
+	// something about, and it makes every hash in the output unverified.
+	if _, err := exec.LookPath("git"); err != nil {
+		return History{Unread: ErrNoGit}
+	}
 
 	// --numstat gives lines added and removed per file. The record separator is
 	// a character that cannot appear in a subject line.
@@ -74,10 +91,21 @@ func Read(dir string) History {
 	out, err := run(dir, "log", "--no-merges", "--numstat",
 		"--max-count=5000", "--format=%x1e%h%x1f%aI%x1f%s")
 	if err != nil {
-		return History{}
+		// Ran and refused. Usually because the directory is not a repository,
+		// which is ordinary, but it also covers a repository too broken to
+		// read, and the message says which.
+		return History{Unread: fmt.Errorf("%w: %w", ErrGitFailed, err)}
 	}
 	return History{Commits: parseLog(out), Read: true}
 }
+
+// ErrNoGit is returned when git is not installed, and ErrGitFailed when it ran
+// and would not answer. Neither is returned when there was simply no directory
+// to look in, which is not a failure at all.
+var (
+	ErrNoGit     = errors.New("git is not installed")
+	ErrGitFailed = errors.New("git could not read the repository")
+)
 
 // parseLog turns git's output into commits.
 func parseLog(out string) []Commit {

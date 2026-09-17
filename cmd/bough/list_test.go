@@ -18,7 +18,7 @@ func TestListNamesTheAgentForEveryProject(t *testing.T) {
 	root := history(t, "example")
 	var out, errs bytes.Buffer
 
-	if err := run([]string{"--list", "--root", root}, &out, &errs); err != nil {
+	if err := run([]string{"--list", "--root", root}, testEnv(&out, &errs)); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "[Claude Code]") {
@@ -35,7 +35,7 @@ func TestListColumnsLineUp(t *testing.T) {
 	root := twoProjects(t, "short", "a-considerably-longer-project-name")
 	var out, errs bytes.Buffer
 
-	if err := run([]string{"--list", "--root", root}, &out, &errs); err != nil {
+	if err := run([]string{"--list", "--root", root}, testEnv(&out, &errs)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -106,7 +106,7 @@ func TestListSaysWhenAHistoryCannotBeRead(t *testing.T) {
 	}
 
 	var out, errs bytes.Buffer
-	if err := run([]string{"--list", "--root", root}, &out, &errs); err != nil {
+	if err := run([]string{"--list", "--root", root}, testEnv(&out, &errs)); err != nil {
 		t.Fatal(err)
 	}
 

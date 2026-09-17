@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -60,13 +61,25 @@ func (s Source) Detect() ([]agent.Project, error) {
 	}
 
 	var projects []agent.Project
+
+	// What could not be read is collected rather than dropped. A directory
+	// that is there but unreadable used to look exactly like one holding no
+	// transcripts, so a project disappeared and nothing said why.
+	var problems []error
+
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
 		}
 		dir := filepath.Join(root, e.Name())
 		transcripts, err := transcriptFiles(dir)
-		if err != nil || len(transcripts) == 0 {
+		if err != nil {
+			problems = append(problems, fmt.Errorf("reading %s: %w", dir, err))
+			continue
+		}
+		// A directory holding no transcripts is not a failure. Claude leaves
+		// them behind for projects that were opened and never used.
+		if len(transcripts) == 0 {
 			continue
 		}
 
@@ -91,7 +104,7 @@ func (s Source) Detect() ([]agent.Project, error) {
 		})
 	}
 	sort.Slice(projects, func(i, j int) bool { return projects[i].Name < projects[j].Name })
-	return projects, nil
+	return projects, errors.Join(problems...)
 }
 
 // Sessions reads every transcript belonging to a project.

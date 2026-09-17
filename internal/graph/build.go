@@ -117,15 +117,15 @@ func Build(p agent.Project, sessions []agent.Session, opt Options) Graph {
 			Label:  rollup.Label(turns),
 			Title:  titles[i],
 			Period: rollup.Period(first(turns), last(turns)),
-			Stats:  statsOf(turns),
+			Stats:  statsOf(turns, repoRead),
 		}
 		for j, t := range goal.Tasks {
 			out.Tasks = append(out.Tasks, Task{
 				ID:      fmt.Sprintf("g%d.t%d", i+1, j+1),
 				Label:   rollup.Label(t.Turns),
 				Reasons: reasonsOf(t),
-				Stats:   statsOf(t.Turns),
-				Turns:   turnsOf(t.Turns),
+				Stats:   statsOf(t.Turns, repoRead),
+				Turns:   turnsOf(t.Turns, repoRead),
 			})
 		}
 		g.Goals = append(g.Goals, out)
@@ -140,7 +140,7 @@ func Build(p agent.Project, sessions []agent.Session, opt Options) Graph {
 		})
 	}
 
-	g.Totals = statsOf(everyTurn)
+	g.Totals = statsOf(everyTurn, repoRead)
 	return g
 }
 
@@ -171,7 +171,7 @@ func inTimeOrder(goals []rollup.Goal, titles map[int]string) ([]rollup.Goal, map
 	return out, newTitles
 }
 
-func statsOf(turns []agent.Turn) Stats {
+func statsOf(turns []agent.Turn, repoRead bool) Stats {
 	s := metrics.Summarise(turns)
 	out := Stats{
 		Start:         s.Start,
@@ -207,7 +207,7 @@ func statsOf(turns []agent.Turn) Stats {
 		out.TopFiles = append(out.TopFiles, FileCount{Path: f.Path, Edits: f.Edits})
 	}
 	for _, c := range s.Commits {
-		out.Commits = append(out.Commits, commitOf(c))
+		out.Commits = append(out.Commits, commitOf(c, repoRead))
 	}
 	return out
 }
@@ -216,7 +216,7 @@ func statsOf(turns []agent.Turn) Stats {
 // and the full list would dwarf everything else in the file.
 const topFileLimit = 8
 
-func turnsOf(turns []agent.Turn) []Turn {
+func turnsOf(turns []agent.Turn, repoRead bool) []Turn {
 	out := make([]Turn, 0, len(turns))
 	for _, t := range turns {
 		row := Turn{
@@ -234,7 +234,7 @@ func turnsOf(turns []agent.Turn) []Turn {
 			row.Delegated = append(row.Delegated, Delegation{Kind: d.Kind, Name: d.Name, Description: d.Description})
 		}
 		for _, c := range t.Committed {
-			row.Committed = append(row.Committed, commitOf(c))
+			row.Committed = append(row.Committed, commitOf(c, repoRead))
 		}
 		out = append(out, row)
 	}
@@ -469,14 +469,18 @@ func pair(made []*agent.Commit, have []repo.Commit, window time.Duration) []*age
 //
 // Written out twice before, once for a task's list and once for a prompt's, so
 // a field added to one arrived in the graph from one place and not the other.
-func commitOf(c agent.Commit) Commit {
+// confirmed is true when the repository was read. A hash that survived
+// fromRepo with the repository read is one the repository still has, since
+// every hash it could not reach was cleared there.
+func commitOf(c agent.Commit, confirmed bool) Commit {
 	return Commit{
-		SHA:     c.SHA,
-		Kind:    c.Kind,
-		Branch:  c.Branch,
-		Subject: c.Subject,
-		Added:   c.Added,
-		Removed: c.Removed,
+		SHA:       c.SHA,
+		Kind:      c.Kind,
+		Branch:    c.Branch,
+		Confirmed: confirmed && c.SHA != "",
+		Subject:   c.Subject,
+		Added:     c.Added,
+		Removed:   c.Removed,
 	}
 }
 

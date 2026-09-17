@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -64,17 +65,29 @@ func (s Source) Detect() ([]agent.Project, error) {
 
 	byPath := map[string]*projectGroup{}
 
+	// What could not be read is collected rather than dropped. A history that
+	// is there but unreadable used to look exactly like a history that is not
+	// there, so a project disappeared and nothing said why.
+	var problems []error
+
 	err = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil //nolint:nilerr // skip inaccessible paths while discovering sessions
+			problems = append(problems, fmt.Errorf("looking in %s: %w", p, err))
+			return nil //nolint:nilerr // one unreadable path does not end the walk
 		}
 		if d.IsDir() || !strings.HasSuffix(d.Name(), ".jsonl") {
 			return nil
 		}
 
 		info, err := d.Info()
-		if err != nil || info.Size() == 0 {
-			return nil //nolint:nilerr // skip unreadable or empty files
+		if err != nil {
+			problems = append(problems, fmt.Errorf("reading %s: %w", p, err))
+			return nil //nolint:nilerr // one unreadable file does not end the walk
+		}
+		// An empty file is not a failure. A session that recorded nothing is
+		// ordinary and there is nothing to say about it.
+		if info.Size() == 0 {
+			return nil
 		}
 
 		cwd := detectCWD(p)
@@ -104,6 +117,7 @@ func (s Source) Detect() ([]agent.Project, error) {
 		pPath := g.shown
 		refJSON, err := json.Marshal(g.files)
 		if err != nil {
+			problems = append(problems, fmt.Errorf("recording the file list for %s: %w", pPath, err))
 			continue
 		}
 		last, size := shell.Extent(g.files)
@@ -119,7 +133,7 @@ func (s Source) Detect() ([]agent.Project, error) {
 	}
 
 	sort.Slice(projects, func(i, j int) bool { return projects[i].Name < projects[j].Name })
-	return projects, nil
+	return projects, errors.Join(problems...)
 }
 
 // Sessions reads every rollout transcript belonging to a Codex project.
@@ -131,9 +145,13 @@ func (s Source) Detect() ([]agent.Project, error) {
 // the first copy, and a resumed session comes back as several sessions with
 // its early prompts counted once per resume.
 func (s Source) Sessions(p agent.Project) ([]agent.Session, error) {
+	// A ref is the list of rollout files this project was found in, written by
+	// Detect. Reading a malformed one as a single file path invented a path
+	// nobody recorded and then reported the project as empty, which reads as
+	// history that is not there rather than as a ref that could not be read.
 	var files []string
 	if err := json.Unmarshal([]byte(p.Ref), &files); err != nil {
-		files = []string{p.Ref}
+		return nil, fmt.Errorf("reading the file list for %s: %w", p.Name, err)
 	}
 
 	var problems []error
