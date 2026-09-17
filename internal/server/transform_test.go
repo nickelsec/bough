@@ -3,6 +3,8 @@ package server
 import (
 	"strings"
 	"testing"
+
+	"github.com/nickelsec/bough/internal/graph"
 )
 
 // The drawing is moved by one transform and one only.
@@ -67,4 +69,22 @@ func withoutComments(src string) string {
 		out = append(out, line)
 	}
 	return strings.Join(out, "\n")
+}
+
+// The page and the terminal call an unrecorded hand-off the same thing.
+//
+// A spawn that named neither the sort of sub-agent nor the task, which is what
+// Codex writes when the brief is encrypted, has nothing to show. The terminal
+// used to print "handed off:" and stop; the page dropped the row entirely. Both
+// now say so in the same words, and this pins them together because the string
+// lives in two files and would otherwise drift apart unnoticed.
+func TestTheUnnamedHandoffReadsTheSameInBothPlaces(t *testing.T) {
+	b, err := assets.ReadFile("bough.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := withoutComments(string(b))
+	if !strings.Contains(src, graph.UnnamedHandoff) {
+		t.Errorf("bough.js does not say %q, so the page and the terminal disagree about an unrecorded hand-off", graph.UnnamedHandoff)
+	}
 }

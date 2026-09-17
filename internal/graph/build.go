@@ -220,8 +220,10 @@ func turnsOf(turns []agent.Turn) []Turn {
 	out := make([]Turn, 0, len(turns))
 	for _, t := range turns {
 		row := Turn{
-			At:     t.At,
-			Text:   t.Text,
+			At: t.At,
+			// Says rather than Text, so a turn that was handed over rather
+			// than typed shows what it was called instead of nothing.
+			Text:   t.Says(),
 			Files:  len(t.Files),
 			Errors: t.Errors,
 		}
@@ -481,22 +483,46 @@ func commitOf(c agent.Commit) Commit {
 // clone copies the sessions deeply enough that nothing below can be seen by
 // the caller.
 //
-// Only as deep as it needs to be. The turns are rewritten, so those are
-// copied, and so is each turn's commit list because commits are dropped from
-// it and their hashes overwritten. The maps counting tools, files and lines
-// are read and never written here, so they are shared rather than duplicated:
-// copying them on every build would be the expensive part and would buy
-// nothing.
+// Deep enough that nothing here writes to the caller's data.
+//
+// This used to copy only the turns and their commit lists, on the reasoning
+// that the maps counting tools, files and lines were read and never written.
+// Folding a sub-agent writes them: absorb adds the sub-agent's counts into the
+// parent turn's own maps, and describe names the parent's delegation. So one
+// build left the caller holding different numbers than it passed in, and a
+// second build added the sub-agent's work on top again.
 func clone(sessions []agent.Session) []agent.Session {
 	out := make([]agent.Session, len(sessions))
 	for i, s := range sessions {
 		s.Turns = append([]agent.Turn(nil), s.Turns...)
 		for j := range s.Turns {
-			if s.Turns[j].Committed != nil {
-				s.Turns[j].Committed = append([]agent.Commit(nil), s.Turns[j].Committed...)
+			t := &s.Turns[j]
+			t.Tools = copyCount(t.Tools)
+			t.Files = copyCount(t.Files)
+			t.Edits = copyCount(t.Edits)
+			t.Lines = copyCount(t.Lines)
+			t.Models = copyCount(t.Models)
+			if t.Committed != nil {
+				t.Committed = append([]agent.Commit(nil), t.Committed...)
+			}
+			if t.Delegated != nil {
+				t.Delegated = append([]agent.Delegation(nil), t.Delegated...)
 			}
 		}
 		out[i] = s
+	}
+	return out
+}
+
+// copyCount copies one counting map, keeping nil as nil so a turn that never
+// had one does not gain an empty map and stop comparing equal to itself.
+func copyCount(m map[string]int) map[string]int {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]int, len(m))
+	for k, v := range m {
+		out[k] = v
 	}
 	return out
 }

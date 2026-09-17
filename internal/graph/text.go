@@ -256,15 +256,28 @@ func models(m map[string]int) string {
 //
 // Agents differ in what they record. Claude writes a brief before handing work
 // over, and that describes it. Codex encrypts the brief and leaves only the
-// name of the task, so the name is what there is to show. Printing the
-// description alone left a bare "handed off:" with nothing after it.
+// name of the task, so the name is what there is to show.
+//
+// When a spawn recorded none of the three, the line said so rather than
+// trailing off after the colon. That happens on Codex where the brief is
+// encrypted and the call names neither the sort of sub-agent nor the task, and
+// it was the case this function was written for: printing the description
+// alone left a bare "handed off:" with nothing after it, and so did returning
+// an empty string here.
 func handoff(d Delegation) string {
 	switch {
 	case d.Description != "":
 		return d.Description
 	case d.Name != "":
 		return d.Name
-	default:
+	case d.Kind != "":
 		return d.Kind
+	default:
+		return UnnamedHandoff
 	}
 }
+
+// UnnamedHandoff is what a hand-off is called when the transcript recorded
+// nothing about it. Said plainly, because the alternative is a line that looks
+// truncated, and a reader cannot tell a bug from a silence.
+const UnnamedHandoff = "an unnamed task"

@@ -150,10 +150,17 @@ func addCounts(dst, src map[string]int) {
 // So the name goes on Kind, which says which agent ran, and Description is left
 // alone. An honest blank beats a label nobody wrote.
 func describe(dst *agent.Turn, kid agent.Session) {
-	if len(kid.Turns) == 0 || kid.Turns[0].Text == "" {
+	if len(kid.Turns) == 0 {
 		return
 	}
-	name := kid.Turns[0].Text
+	// Says, not Text. The Codex reader puts a sub-agent's task name in TaskName
+	// and leaves Text empty, because nobody typed anything, so reading Text
+	// alone meant every Codex hand-off returned here with no name at all. The
+	// fold tests put the name in Text, so they kept passing.
+	name := kid.Turns[0].Says()
+	if name == "" {
+		return
+	}
 
 	// The hand-off is usually already recorded, from the spawn call in the
 	// parent's own transcript. The two name the same task differently: the

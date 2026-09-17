@@ -119,6 +119,12 @@ type Turn struct {
 
 	// Text is what the user typed, in full. This is their own writing and it
 	// is the reason to click into anything, so it is not trimmed.
+	//
+	// A turn nobody typed carries the name of the work instead. A sub-agent's
+	// rollout has no prompt in it, and when the parent session is absent there
+	// is nothing to fold the turn into, so it stays a turn of its own. Leaving
+	// this empty showed it as a blank prompt that could not be read or searched
+	// for, even though the transcript named the task.
 	Text string `json:"text"`
 
 	Edits  int `json:"edits,omitempty"`
