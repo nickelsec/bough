@@ -371,9 +371,9 @@ func here(in, project string) bool {
 		if !strings.Contains(in, "..") {
 			return true
 		}
-		return sameDir(path.Join(agent.NormalisePath(project), in), project)
+		return agent.SamePath(path.Join(agent.NormalisePath(project), in), project)
 	}
-	return sameDir(in, project)
+	return agent.SamePath(in, project)
 }
 
 // rooted reports whether a path says for itself where it starts.
@@ -387,18 +387,6 @@ func rooted(p string) bool {
 
 // driveLetter matches a path that opens with a Windows drive, as "d:/work".
 var driveLetter = regexp.MustCompile(`^[a-zA-Z]:/`)
-
-// sameDir compares two paths for being the same place.
-//
-// The same directory is written several ways in one session. On this corpus a
-// single project's commits arrived as "d:/thing", "/d/thing" and with no
-// path at all, which are one directory and have to compare equal or real work
-// is thrown away. The drive is folded into a leading letter so the two spellings
-// meet, and the result is compared whole rather than by suffix, since a suffix
-// test would make "site" and "my-site" the same place.
-func sameDir(a, b string) bool {
-	return agent.NormalisePath(a) == agent.NormalisePath(b)
-}
 
 // pair matches the commits an agent made to the ones in the repository,
 // closest pair first, and returns the ones nothing matched.
