@@ -72,8 +72,10 @@ func (s Source) Detect() ([]agent.Project, error) {
 
 	err = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
+			// Recorded and stepped over: one unreadable path does not end
+			// the walk.
 			problems = append(problems, fmt.Errorf("looking in %s: %w", p, err))
-			return nil //nolint:nilerr // one unreadable path does not end the walk
+			return nil
 		}
 		if d.IsDir() || !strings.HasSuffix(d.Name(), ".jsonl") {
 			return nil
@@ -82,7 +84,7 @@ func (s Source) Detect() ([]agent.Project, error) {
 		info, err := d.Info()
 		if err != nil {
 			problems = append(problems, fmt.Errorf("reading %s: %w", p, err))
-			return nil //nolint:nilerr // one unreadable file does not end the walk
+			return nil
 		}
 		// An empty file is not a failure. A session that recorded nothing is
 		// ordinary and there is nothing to say about it.
