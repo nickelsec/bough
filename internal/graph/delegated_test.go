@@ -1,6 +1,8 @@
 package graph
 
 import (
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -178,4 +180,173 @@ func TestBuildFoldsDelegatedWork(t *testing.T) {
 	if g.Totals.Tokens.Input != 140 {
 		t.Errorf("input = %d, want 140", g.Totals.Tokens.Input)
 	}
+}
+
+// A Codex hand-off takes its name from the sub-agent's own transcript.
+//
+// The Codex reader puts a sub-agent's task name in TaskName and leaves Text
+// empty, because nobody typed anything. describe read Text, so it returned
+// early on every Codex hand-off and the spawn stayed nameless even though the
+// transcript named the work. The existing fold tests put the name in Text, so
+// they went on passing.
+func TestDelegationTakesItsNameFromTheSubAgentsTranscript(t *testing.T) {
+	at := time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)
+	parent := session("p", "", turnAt(at, func(tn *agent.Turn) {
+		tn.Text = "make the art"
+		tn.Delegated = []agent.Delegation{{Kind: "worker"}}
+	}))
+	kid := session("k", "p", turnAt(at.Add(time.Minute), func(tn *agent.Turn) {
+		tn.TaskName = "/root/pixel_art"
+	}))
+
+	g := Build(agent.Project{Name: "app", Path: "/w/app"}, []agent.Session{parent, kid}, Options{})
+
+	var sb strings.Builder
+	if err := WriteText(&sb, g, true); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(sb.String(), "pixel_art") {
+		t.Errorf("the hand-off does not name the task the sub-agent's transcript recorded:\n%s", sb.String())
+	}
+}
+
+// A sub-agent turn that was never folded still says what it was.
+//
+// Folding only happens when the parent session is present. Otherwise the turn
+// stays a prompt of its own, and its task name never reached the graph, so the
+// page showed an empty popover, the reader an empty line, and search could not
+// find it at all.
+func TestAnUnfoldedSubAgentTurnShowsItsTaskName(t *testing.T) {
+	at := time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)
+	orphan := session("k", "gone", turnAt(at, func(tn *agent.Turn) {
+		tn.TaskName = "/root/pixel_art"
+	}))
+
+	g := Build(agent.Project{Name: "app", Path: "/w/app"}, []agent.Session{orphan}, Options{})
+
+	if n := len(g.Goals); n == 0 {
+		t.Fatal("the turn produced no work at all")
+	}
+	var sb strings.Builder
+	if err := WriteText(&sb, g, true); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(sb.String(), "pixel_art") {
+		t.Errorf("an unfolded sub-agent turn shows as a blank prompt:\n%s", sb.String())
+	}
+}
+
+// Every hand-off line says something.
+//
+// A spawn that recorded no description, no name and no kind printed
+// "handed off:" and stopped, which is the bare line handoff exists to prevent.
+func TestAHandoffWithNothingRecordedStillSaysSomething(t *testing.T) {
+	at := time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)
+	s := session("p", "", turnAt(at, func(tn *agent.Turn) {
+		tn.Text = "do it"
+		tn.Delegated = []agent.Delegation{{}}
+	}))
+
+	g := Build(agent.Project{Name: "app", Path: "/w/app"}, []agent.Session{s}, Options{})
+
+	var sb strings.Builder
+	if err := WriteText(&sb, g, true); err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(sb.String(), "\n") {
+		if strings.Contains(line, "handed off:") && strings.TrimSpace(line) == "handed off:" {
+			t.Error("a hand-off printed a bare line with nothing after the colon")
+		}
+	}
+	if !strings.Contains(sb.String(), UnnamedHandoff) {
+		t.Errorf("an unrecorded hand-off does not say so:\n%s", sb.String())
+	}
+}
+
+// Building does not change the sessions it was given, sub-agents included.
+//
+// clone copies the turns and each turn's commit list, on the reasoning that the
+// counting maps are read and never written. absorb writes them: folding a
+// sub-agent adds its counts into the parent turn's own maps, which still belong
+// to the caller. So one build changed the caller's data and a second build
+// counted the sub-agent's work again on top of it.
+func TestBuildDoesNotChangeSessionsWhenItFoldsASubAgent(t *testing.T) {
+	at := time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)
+	parent := session("p", "", turnAt(at, func(tn *agent.Turn) {
+		tn.Text = "make the art"
+		tn.Tools["Bash"] = 1
+		tn.Delegated = []agent.Delegation{{Kind: "worker"}}
+	}))
+	kid := session("k", "p", turnAt(at.Add(time.Minute), func(tn *agent.Turn) {
+		tn.TaskName = "/root/pixel_art"
+		tn.Tools["Bash"] = 2
+	}))
+	in := []agent.Session{parent, kid}
+	before := deepCopy(in)
+
+	p := agent.Project{Name: "app", Path: "/w/app"}
+	first := Build(p, in, Options{})
+
+	if !reflect.DeepEqual(in, before) {
+		t.Errorf("Build changed the sessions it was given:\n got %+v\nwant %+v", in, before)
+	}
+
+	// And so the same input builds the same graph twice.
+	second := Build(p, in, Options{})
+	if !reflect.DeepEqual(first.Totals, second.Totals) {
+		t.Errorf("two builds of one input disagree:\n first %+v\nsecond %+v", first.Totals, second.Totals)
+	}
+}
+
+// session builds a session the way a reader would hand one over.
+func session(id, parent string, turns ...agent.Turn) agent.Session {
+	return agent.Session{ID: id, ParentID: parent, Turns: turns}
+}
+
+// turnAt builds a turn with every counting map ready, since a reader always
+// provides them and code under test is entitled to assume it.
+func turnAt(at time.Time, set func(*agent.Turn)) agent.Turn {
+	t := agent.Turn{
+		At:     at,
+		Tools:  map[string]int{},
+		Files:  map[string]int{},
+		Edits:  map[string]int{},
+		Lines:  map[string]int{},
+		Models: map[string]int{},
+	}
+	if set != nil {
+		set(&t)
+	}
+	return t
+}
+
+// deepCopy takes a copy deep enough to notice any write Build makes.
+func deepCopy(in []agent.Session) []agent.Session {
+	out := make([]agent.Session, len(in))
+	for i, s := range in {
+		s.Turns = append([]agent.Turn(nil), s.Turns...)
+		for j := range s.Turns {
+			t := &s.Turns[j]
+			t.Tools = copyCounts(t.Tools)
+			t.Files = copyCounts(t.Files)
+			t.Edits = copyCounts(t.Edits)
+			t.Lines = copyCounts(t.Lines)
+			t.Models = copyCounts(t.Models)
+			t.Committed = append([]agent.Commit(nil), t.Committed...)
+			t.Delegated = append([]agent.Delegation(nil), t.Delegated...)
+		}
+		out[i] = s
+	}
+	return out
+}
+
+func copyCounts(m map[string]int) map[string]int {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]int, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
 }

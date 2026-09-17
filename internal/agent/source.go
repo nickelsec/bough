@@ -350,33 +350,86 @@ func (t Turn) Says() string {
 	return t.TaskName
 }
 
-// NormalisePath puts a file path into a comparable form.
+// NormalisePath tidies a path without deciding what kind of path it is.
 //
-// The same file turns up written several ways across a session, because the
-// drive letter changes case between records and separators differ by platform.
-// Grouping by path only works once those are settled.
+// Separators are settled and the path is cleaned, and that is all. A path that
+// names a Windows drive outright, as "D:/Work", is folded to "d:/work", since
+// Windows does not distinguish those and the drive letter's case changes
+// between records in one session.
+//
+// Nothing else is case folded, and nothing is rewritten. This function used to
+// lower-case every path and rewrite any "/x/..." into "x:/...", on the reading
+// that a single letter first component meant a unix style shell had written a
+// Windows drive. That is true on Windows and false everywhere else, so
+// "/w/app/one.go" was shown to the reader as "w:/app/one.go", and "/home/u/App"
+// and "/home/u/app" were merged into one project on a filesystem that says they
+// are two, taking the commit hashes of one of them with it.
+//
+// Deciding that two differently written paths are the same place is a separate
+// job, and SamePath does it.
 //
 // This deliberately does not use path/filepath. A transcript written on
 // Windows can be read on any machine, so backslashes have to be understood
 // everywhere rather than only where the host happens to use them.
-//
-// A Windows drive is folded to the "d:/" spelling whether it arrived that way
-// or as the "/d/" a unix style shell writes. One project's commits arrived as
-// both in the same session, and they are one directory: comparing them without
-// this said the work happened somewhere else and threw it away. There were two
-// normalisers here doing this differently, and the one that did not understand
-// "/d/" was the one the agents called.
 func NormalisePath(p string) string {
 	if p == "" {
 		return ""
 	}
-	p = strings.ToLower(strings.ReplaceAll(p, `\`, "/"))
-	if m := shellDrive.FindStringSubmatch(p); m != nil {
-		p = m[1] + ":/" + m[2]
+	p = strings.ReplaceAll(p, `\`, "/")
+	if m := winDrive.FindStringSubmatch(p); m != nil {
+		p = strings.ToLower(m[1]) + ":/" + m[2]
 	}
 	return path.Clean(p)
 }
 
+// SamePath reports whether two paths name the same place.
+//
+// One project's commits arrived as "d:/thing", "/d/thing" and with no path at
+// all inside a single session, and they are one directory: comparing them
+// without folding said the work happened somewhere else and threw it away.
+//
+// The "/d/thing" spelling is what a unix style shell writes for a Windows
+// drive, but it is also an ordinary unix directory called "d". Nothing in the
+// string says which, so rather than guess, both readings are tried here and the
+// paths are the same place if any reading agrees. Guessing is what the old
+// normaliser did, and it guessed wrong on every unix path.
+//
+// Case is folded only when a Windows drive is involved, since that is where it
+// is known not to matter.
+func SamePath(a, b string) bool {
+	a, b = NormalisePath(a), NormalisePath(b)
+	if a == b {
+		return true
+	}
+	for _, x := range readings(a) {
+		for _, y := range readings(b) {
+			if x == y {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// readings lists the ways one written path could be meant. A path naming a
+// Windows drive is also folded to lower case, which is why the shell spelling
+// has to be turned into the drive spelling rather than the other way about.
+func readings(p string) []string {
+	out := []string{p}
+	if m := shellDrive.FindStringSubmatch(p); m != nil {
+		out = append(out, strings.ToLower(m[1])+":/"+strings.ToLower(m[2]))
+	}
+	if winDrive.MatchString(p) {
+		out = append(out, strings.ToLower(p))
+	}
+	return out
+}
+
+// winDrive matches a path that opens with a Windows drive written as such, as
+// "D:/work". Unambiguous: no unix path begins this way.
+var winDrive = regexp.MustCompile(`^([a-zA-Z]):/(.*)$`)
+
 // shellDrive matches the "/d/some/path" a unix style shell uses for a Windows
-// drive, so it can be written the way the transcript records it.
-var shellDrive = regexp.MustCompile(`^/([a-z])/(.*)$`)
+// drive. Ambiguous, since it is also an ordinary unix path, so it is only ever
+// used to offer a second reading rather than to rewrite anything.
+var shellDrive = regexp.MustCompile(`^/([a-zA-Z])/(.*)$`)

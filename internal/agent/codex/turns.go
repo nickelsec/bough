@@ -86,7 +86,13 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 				Models:   map[string]int{},
 			})
 			cur = &turns[len(turns)-1]
-			clear(pending)
+			// Commands still waiting for their result are not abandoned here.
+			// A commit's output can arrive after the reader has typed again,
+			// and each pending call already records the turn that issued it,
+			// so it settles against that turn whenever it turns up. Clearing
+			// them dropped the commit entirely. Claude Code keeps its pending
+			// commands across turns, and the two readers have to agree about
+			// the same sequence of events.
 			continue
 		}
 
@@ -254,13 +260,16 @@ func applyPatch(cur *agent.Turn, input string) {
 
 // changed counts the lines a patch hunk adds or removes.
 //
-// The +++ and --- markers name files rather than change them, and the end of
-// the patch is punctuation, so none of those count.
+// Only the "***" markers are punctuation here. A unified diff names files with
+// "+++" and "---" headers, and those were skipped for that reason, but Codex
+// names files with "*** Update File:" and never writes them. So in this format
+// a line opening "+++" or "---" is an ordinary change: adding "++i;" is the
+// patch line "+++i;", and removing a Lua or SQL comment "-- note" is "--- note".
+// Skipping them counted a three line change as one.
 func changed(hunk string) int {
 	n := 0
 	for _, l := range strings.Split(hunk, "\n") {
 		switch {
-		case strings.HasPrefix(l, "+++"), strings.HasPrefix(l, "---"):
 		case strings.HasPrefix(l, "***"):
 		case strings.HasPrefix(l, "+"), strings.HasPrefix(l, "-"):
 			n++

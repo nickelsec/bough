@@ -20,7 +20,12 @@ import "time"
 // being written into one field, and which one it held depended on the agent:
 // Claude put the sort of sub-agent there and Codex the name of the task. A
 // reader that took "kind" as the task name now finds it empty on Codex.
-const SchemaVersion = 2
+//
+// 3: a commit carries "confirmed", saying whether the repository still has it.
+// A hash without it is the transcript's claim and nothing checked it. A reader
+// that treated every hash as verified was right only when the repository had
+// been read.
+const SchemaVersion = 3
 
 // Graph is one project's history.
 type Graph struct {
@@ -119,6 +124,12 @@ type Turn struct {
 
 	// Text is what the user typed, in full. This is their own writing and it
 	// is the reason to click into anything, so it is not trimmed.
+	//
+	// A turn nobody typed carries the name of the work instead. A sub-agent's
+	// rollout has no prompt in it, and when the parent session is absent there
+	// is nothing to fold the turn into, so it stays a turn of its own. Leaving
+	// this empty showed it as a blank prompt that could not be read or searched
+	// for, even though the transcript named the task.
 	Text string `json:"text"`
 
 	Edits  int `json:"edits,omitempty"`
@@ -208,6 +219,14 @@ type Commit struct {
 	SHA    string `json:"sha"`
 	Kind   string `json:"kind,omitempty"`
 	Branch string `json:"branch,omitempty"`
+
+	// Confirmed says the repository was read and still has this commit. A hash
+	// without it is the transcript's own claim, which nothing has checked: the
+	// repository may have been unreadable, or git missing, or the reading
+	// turned off outright. The two used to look identical, so a reader could
+	// not tell a hash they could go and look up from one that might no longer
+	// be there.
+	Confirmed bool `json:"confirmed,omitempty"`
 
 	// Subject and the line counts come from the repository. They are absent
 	// when it could not be read, or when the commit no longer exists in it.

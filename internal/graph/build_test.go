@@ -385,3 +385,57 @@ func TestBuildDoesNotChangeTheSessionsItIsGiven(t *testing.T) {
 		t.Errorf("two builds of one input: %d commits then %d", len(a), len(b))
 	}
 }
+
+// A hash says whether the repository confirmed it.
+//
+// A commit carried the transcript's claim and one the repository had just
+// verified in exactly the same shape, so a reader could not tell a hash worth
+// looking up from one that may have been rebased away. The per project line
+// already says whether the repository was read at all; this says it per commit,
+// which is what a consumer of the JSON needs.
+func TestACommitSaysWhetherItsHashWasConfirmed(t *testing.T) {
+	at := time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)
+	made := agent.Turn{
+		At: at, Text: "ship it",
+		Tools: map[string]int{}, Files: map[string]int{}, Edits: map[string]int{},
+		Lines: map[string]int{}, Models: map[string]int{},
+		Committed: []agent.Commit{{Kind: "committed", SHA: "abc1234", At: at}},
+	}
+	in := []agent.Session{{ID: "s", Turns: []agent.Turn{made}}}
+	p := agent.Project{Name: "app", Path: "/w/app"}
+
+	// Nothing read, so the hash is the transcript's own claim.
+	unread := Build(p, in, Options{})
+	if c := firstCommit(t, unread); c.Confirmed {
+		t.Error("a hash nothing checked is reported as confirmed")
+	}
+
+	// Read, and the repository has it.
+	known := repo.History{
+		Read:    true,
+		Commits: []repo.Commit{{SHA: "abc1234", Subject: "ship it", When: at}},
+	}
+	read := Build(p, in, Options{Repo: known})
+	c := firstCommit(t, read)
+	if !c.Confirmed {
+		t.Error("a hash the repository still has is not reported as confirmed")
+	}
+	if c.SHA != "abc1234" {
+		t.Errorf("SHA = %q, want %q", c.SHA, "abc1234")
+	}
+}
+
+func firstCommit(t *testing.T, g Graph) Commit {
+	t.Helper()
+	for _, goal := range g.Goals {
+		for _, task := range goal.Tasks {
+			for _, turn := range task.Turns {
+				if len(turn.Committed) > 0 {
+					return turn.Committed[0]
+				}
+			}
+		}
+	}
+	t.Fatal("the graph has no commits in it")
+	return Commit{}
+}

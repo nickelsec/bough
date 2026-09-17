@@ -7,6 +7,60 @@ Notable changes, newest first. Format follows
 
 Nothing yet.
 
+## 0.4.5 - 2026-09-17
+
+Twelve more findings from [@brandon-fryslie](https://github.com/brandon-fryslie),
+each filed with the line it lives on and a way to reproduce it. Every one was a
+real bug. Most of these are about a read that failed quietly and came back
+looking like an answer.
+
+### Changed
+
+- **The JSON schema is now 3.** A commit carries `confirmed`, saying whether
+  the repository still has the hash. Without it a hash is the transcript's own
+  claim and nothing checked it, which is what you get when git is missing or
+  `--no-repo` is set. The two used to look identical.
+
+- The terminal says when git is missing or the repository would not answer.
+  Those used to arrive as the same silence as work done outside a repository,
+  and they mean different things for every hash in the output.
+
+- A history that could not be read is said out loud rather than skipped. An
+  unreadable directory looked exactly like one holding nothing, so a project
+  disappeared and there was no way to find out why.
+
+### Fixed
+
+- **File paths are no longer rewritten as Windows paths.** Every path was
+  lower-cased and anything shaped like `/w/app` was rewritten to `w:/app`, on
+  the reading that a single letter first component meant a Windows drive. It
+  does on Windows. Elsewhere `README.md` was shown as `readme.md`, and two
+  directories differing only in case merged into one project, taking the
+  commit hashes of one of them with it.
+
+- Codex patch lines starting with `++` or `--` count. They were read as file
+  headers, which is a unified diff's shape, not the one Codex writes. Adding
+  `++i;` or removing a `-- note` counted as nothing.
+
+- A Codex commit whose result arrived after the next prompt is no longer
+  dropped. Claude Code kept these; the two readers now agree about the same
+  sequence of events.
+
+- A blank `Task name:` reads as no name instead of taking the next line, which
+  used to label a sub-agent's work `Sender: /root`.
+
+- Handed-over work says what it was. A Codex hand-off never picked up the name
+  its own transcript recorded, a sub-agent turn that could not be folded showed
+  as a blank prompt that search could not find, and a hand-off with nothing
+  recorded printed `handed off:` and stopped.
+
+- Building a graph no longer changes the sessions it was given. Folding a
+  sub-agent wrote into the caller's own counts, so building twice gave
+  different numbers the second time.
+
+- `--agent=all` reads every agent under `--root`, and the no-history message
+  names the directory it searched rather than the default location.
+
 ## 0.4.4 - 2026-09-15
 
 The rest of [@brandon-fryslie](https://github.com/brandon-fryslie)'s review.

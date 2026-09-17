@@ -74,13 +74,32 @@ func released() string {
 }
 
 func main() {
-	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
+	env := Env{In: os.Stdin, Out: os.Stdout, Err: os.Stderr, Dir: workingDir()}
+	if err := run(os.Args[1:], env); err != nil {
 		fmt.Fprintln(os.Stderr, "bough:", err)
 		os.Exit(1)
 	}
 }
 
-func run(args []string, stdout, stderr io.Writer) error {
+// Env is everything run reads from the world besides its arguments.
+//
+// These used to be reached for where they were needed: run passed os.Stdin to
+// the chooser and the chooser asked the operating system for the working
+// directory itself. That left choosing and cancelling impossible to drive
+// through run, so the test that claimed to cover cancelling tested a copy of
+// the rule kept in the test file, and passed with the real rule deleted.
+type Env struct {
+	In  io.Reader
+	Out io.Writer
+	Err io.Writer
+
+	// Dir is where bough was run, which decides the project offered first. It
+	// may be empty: the question does not always have an answer.
+	Dir string
+}
+
+func run(args []string, env Env) error {
+	stdout, stderr := env.Out, env.Err
 	fs := flag.NewFlagSet("bough", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
@@ -120,15 +139,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	var wanted []agent.Known
 	switch word := strings.ToLower(*agentFlag); word {
 	case "all", "":
-		if *root != "" {
-			// A custom root without an explicit --agent is a Claude history
-			// path, which is what it has always meant and what the isolated
-			// test runs rely on.
-			k, _ := agent.Lookup("claude-code")
-			wanted = []agent.Known{k}
-		} else {
-			wanted = agent.Agents
-		}
+		wanted = agent.Agents
 	default:
 		k, ok := agent.ByFlag(word)
 		if !ok {
@@ -147,14 +158,32 @@ func run(args []string, stdout, stderr io.Writer) error {
 	for _, s := range sources {
 		sourcesMap[s.Name()] = s
 		found, err := s.Detect()
+		// Some of a history may be unreadable while the rest is fine, so say
+		// what went wrong and carry on with what was found. Silence here used
+		// to make a project simply disappear.
 		if err != nil {
-			return fmt.Errorf("reading %s history: %w", s.Name(), err)
+			fmt.Fprintf(stderr, "bough: some %s history could not be read: %v\n", agent.Display(s.Name()), err)
 		}
 		projects = append(projects, found...)
 	}
 	if len(projects) == 0 {
 		// Named from the registry, so the wording follows whichever agents
 		// were actually looked at rather than naming one of them by hand.
+		// The directory named is the one actually searched. It used to come
+		// from the registry's default location even when --root sent the search
+		// somewhere else, so the message pointed at a directory nothing had
+		// looked in.
+		//
+		// Under a custom root every agent is read from the one place, so it is
+		// said once rather than repeated after each agent's name.
+		var names []string
+		for _, k := range wanted {
+			names = append(names, k.Display)
+		}
+		if *root != "" {
+			return fmt.Errorf("no history found; looked for %s in %s",
+				strings.Join(names, " and "), *root)
+		}
 		var said []string
 		for _, k := range wanted {
 			said = append(said, k.Display+" in "+k.Where)
@@ -166,7 +195,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return writeList(stdout, sourcesMap, projects)
 	}
 
-	target, err := choose(projects, name, os.Stdin, stderr)
+	target, err := choose(projects, name, env)
 	if errors.Is(err, pick.ErrCancelled) {
 		// Backing out is a decision, not a failure. It reaches main as a value
 		// so everything deferred on the way here still runs.
@@ -178,7 +207,11 @@ func run(args []string, stdout, stderr io.Writer) error {
 
 	src := sourcesMap[target.Source]
 	if src == nil {
-		src = sources[0]
+		// Falling back to the first reader meant a project was read by the
+		// wrong agent and the answer looked as valid as any other. There is
+		// nothing sensible to do here: a project whose source is not among the
+		// ones being read cannot be read.
+		return fmt.Errorf("%s came from %q, which is not one of the agents being read", target.Name, target.Source)
 	}
 	sessions, err := src.Sessions(target)
 	if err != nil {
@@ -197,6 +230,12 @@ func run(args []string, stdout, stderr io.Writer) error {
 	// package that does both cannot be tested without a filesystem.
 	if !*noRepo {
 		opt.Repo = repo.Read(target.Path)
+		// Git missing, or a repository that would not answer, used to look
+		// exactly like work done outside a repository. It changes what every
+		// hash in the output means, so it is worth one line.
+		if opt.Repo.Unread != nil {
+			fmt.Fprintf(stderr, "bough: %v, so no commit below is confirmed\n", opt.Repo.Unread)
+		}
 	}
 	g := graph.Build(target, sessions, opt)
 
@@ -282,9 +321,9 @@ var valueFlags = map[string]bool{"root": true, "o": true, "agent": true}
 // always shows what is there rather than jumping straight into one project.
 // The project you are standing in is marked and put first, so the common case
 // is still a single keypress.
-func choose(projects []agent.Project, arg string, in io.Reader, out io.Writer) (agent.Project, error) {
+func choose(projects []agent.Project, arg string, env Env) (agent.Project, error) {
 	if arg == "" {
-		return offer(projects, in, out)
+		return offer(projects, env)
 	}
 
 	if p, ok := byPath(projects, arg); ok {
@@ -319,12 +358,12 @@ func choose(projects []agent.Project, arg string, in io.Reader, out io.Writer) (
 }
 
 // offer asks which project to read, with the one you are standing in first.
-func offer(projects []agent.Project, in io.Reader, out io.Writer) (agent.Project, error) {
+func offer(projects []agent.Project, env Env) (agent.Project, error) {
 	// The mark only appears when there is a question to ask. Naming a project
 	// means you know what you want, and a banner would be in the way.
-	banner.Write(out, "what did you actually build?")
+	banner.Write(env.Out, "what did you actually build?")
 
-	projects, here := currentFirst(projects, workingDir())
+	projects, here := currentFirst(projects, env.Dir)
 
 	items := make([]pick.Item, len(projects))
 	for i, p := range projects {
@@ -335,7 +374,7 @@ func offer(projects []agent.Project, in io.Reader, out io.Writer) (agent.Project
 		items[i] = pick.Item{Label: label, Detail: describe(p)}
 	}
 
-	i, err := pick.From(in, out, "Which project?", items)
+	i, err := pick.From(env.In, env.Out, "Which project?", items)
 	if err != nil {
 		// Cancelling comes back as a value rather than as an exit. Calling
 		// os.Exit here skipped every deferred close on the way out and made

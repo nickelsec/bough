@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -123,5 +124,26 @@ func TestHistorySaysWhetherItWasRead(t *testing.T) {
 	// A real repository, which is the case that has to come back true.
 	if h := Read("."); !h.Read {
 		t.Skip("no git available, so there is nothing to compare against")
+	}
+}
+
+// The three ways a repository goes unread are told apart.
+//
+// Read used to answer an empty History for all of them, so "there is no
+// directory", "git is not installed" and "git ran and refused" were one
+// outcome, and nothing could say which had happened.
+func TestUnreadSaysWhy(t *testing.T) {
+	// No directory to look in. Ordinary, and not a failure.
+	if h := Read(""); h.Read || h.Unread != nil {
+		t.Errorf("no directory should be silent, got Read=%v Unread=%v", h.Read, h.Unread)
+	}
+
+	// A directory that is not a repository. Git runs and refuses.
+	h := Read(t.TempDir())
+	if h.Read {
+		t.Error("a directory that is not a repository was reported as read")
+	}
+	if !errors.Is(h.Unread, ErrGitFailed) {
+		t.Errorf("Unread = %v, want it to say git could not read the repository", h.Unread)
 	}
 }

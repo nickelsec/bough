@@ -901,9 +901,12 @@
       // somebody asked for so it wins, then the task's name, and the sort of
       // sub-agent last since it says only who did the work. Showing the
       // description alone left an empty line.
+      // A spawn that recorded none of the three still happened, and saying so
+      // beats dropping the row: the reader can tell a silence from a bug. The
+      // wording matches what the terminal prints.
       (turn.delegated || []).forEach(function (job) {
-        var said = job.description || job.name || job.kind;
-        if (said) li.appendChild(node("p", "handoff", said));
+        var said = job.description || job.name || job.kind || "an unnamed task";
+        li.appendChild(node("p", "handoff", said));
       });
       // A commit sits under the prompt that produced it, so the record reads
       // as what was asked for and what came of it.

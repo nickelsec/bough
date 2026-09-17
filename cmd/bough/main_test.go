@@ -18,6 +18,12 @@ import (
 func history(t *testing.T, project string) string {
 	t.Helper()
 	root := t.TempDir()
+	addHistory(t, root, project)
+	return root
+}
+
+func addHistory(t *testing.T, root, project string) {
+	t.Helper()
 	dir := filepath.Join(root, "d--"+project)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
@@ -32,14 +38,13 @@ func history(t *testing.T, project string) string {
 	if err := os.WriteFile(filepath.Join(dir, "s1.jsonl"), []byte(strings.Join(lines, "\n")), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	return root
 }
 
 func TestListShowsProjects(t *testing.T) {
 	root := history(t, "example")
 	var out, errs bytes.Buffer
 
-	if err := run([]string{"--list", "--root", root}, &out, &errs); err != nil {
+	if err := run([]string{"--list", "--root", root}, testEnv(&out, &errs)); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "example") {
@@ -51,7 +56,7 @@ func TestAgentFlagClaude(t *testing.T) {
 	root := history(t, "example")
 	var out, errs bytes.Buffer
 
-	if err := run([]string{"--list", "--agent", "claude", "--root", root}, &out, &errs); err != nil {
+	if err := run([]string{"--list", "--agent", "claude", "--root", root}, testEnv(&out, &errs)); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "example") {
@@ -75,7 +80,7 @@ func TestAgentFlagCodex(t *testing.T) {
 	}
 
 	var out, errs bytes.Buffer
-	if err := run([]string{"--list", "--agent", "codex", "--root", root}, &out, &errs); err != nil {
+	if err := run([]string{"--list", "--agent", "codex", "--root", root}, testEnv(&out, &errs)); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "my-codex-project") {
@@ -85,7 +90,7 @@ func TestAgentFlagCodex(t *testing.T) {
 
 func TestAgentFlagUnknown(t *testing.T) {
 	var out, errs bytes.Buffer
-	err := run([]string{"--list", "--agent", "unknown"}, &out, &errs)
+	err := run([]string{"--list", "--agent", "unknown"}, testEnv(&out, &errs))
 	if err == nil || !strings.Contains(err.Error(), "unknown agent") {
 		t.Fatalf("expected unknown agent error, got %v", err)
 	}
@@ -95,7 +100,7 @@ func TestJSONOutputIsValidAndVersioned(t *testing.T) {
 	root := history(t, "example")
 	var out, errs bytes.Buffer
 
-	if err := run([]string{"example", "--json", "--root", root}, &out, &errs); err != nil {
+	if err := run([]string{"example", "--json", "--root", root}, testEnv(&out, &errs)); err != nil {
 		t.Fatal(err)
 	}
 	var parsed map[string]any
@@ -114,10 +119,10 @@ func TestFlagsWorkAfterTheProjectName(t *testing.T) {
 	root := history(t, "example")
 
 	var before, after, errs bytes.Buffer
-	if err := run([]string{"--json", "--root", root, "example"}, &before, &errs); err != nil {
+	if err := run([]string{"--json", "--root", root, "example"}, testEnv(&before, &errs)); err != nil {
 		t.Fatal(err)
 	}
-	if err := run([]string{"example", "--json", "--root", root}, &after, &errs); err != nil {
+	if err := run([]string{"example", "--json", "--root", root}, testEnv(&after, &errs)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -133,7 +138,7 @@ func TestTextOutputIsReadable(t *testing.T) {
 	root := history(t, "example")
 	var out, errs bytes.Buffer
 
-	if err := run([]string{"example", "--root", root}, &out, &errs); err != nil {
+	if err := run([]string{"example", "--root", root}, testEnv(&out, &errs)); err != nil {
 		t.Fatal(err)
 	}
 	body := out.String()
@@ -146,18 +151,80 @@ func TestTextOutputIsReadable(t *testing.T) {
 
 // Someone with no history should get an explanation, not a stack trace or an
 // empty screen.
+//
+// Pointed at an empty directory rather than at whatever this machine happens to
+// have, so the test says the same thing everywhere. It used to skip on any
+// machine with a history of its own, which is every machine bough is developed
+// on, so it never ran where it mattered.
 func TestMissingHistoryExplainsItself(t *testing.T) {
 	var out, errs bytes.Buffer
-	err := run([]string{"--root", filepath.Join(t.TempDir(), "nothing")}, &out, &errs)
+	err := run([]string{"--root", filepath.Join(t.TempDir(), "nothing")}, testEnv(&out, &errs))
 
 	if err == nil {
 		t.Fatal("expected an error when there is no history")
 	}
-	// The agent and the directory, both from the registry rather than written
-	// out here, so adding an agent does not mean editing this wording.
-	for _, want := range []string{"Claude Code", "~/.claude/projects"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("error should name %q, got: %v", want, err)
+	// Every agent is named, from the registry rather than written out here, so
+	// adding an agent does not mean editing this wording.
+	for _, k := range agent.Agents {
+		if !strings.Contains(err.Error(), k.Display) {
+			t.Errorf("error should name %q, got: %v", k.Display, err)
+		}
+	}
+}
+
+// And the message names the directory that was searched, not the one that
+// would have been searched by default.
+//
+// It used to read the location out of the registry whatever --root said, so
+// somebody pointed at an empty directory was told to look in
+// ~/.claude/projects, which nothing had opened.
+func TestMissingHistoryNamesTheDirectoryItSearched(t *testing.T) {
+	empty := filepath.Join(t.TempDir(), "nothing")
+	var out, errs bytes.Buffer
+	err := run([]string{"--root", empty}, testEnv(&out, &errs))
+
+	if err == nil {
+		t.Fatal("expected an error when there is no history")
+	}
+	if !strings.Contains(err.Error(), empty) {
+		t.Errorf("error should name the directory it searched (%s), got: %v", empty, err)
+	}
+	if strings.Contains(err.Error(), "~/.claude/projects") {
+		t.Errorf("error names a directory nothing searched, got: %v", err)
+	}
+}
+
+// Every agent is read under a custom root, because --agent says which agents
+// to read and --root says where to look.
+//
+// A custom root used to pick Claude Code outright, so --agent=all --root DIR
+// ignored "all" and a Codex history under DIR was reported as missing.
+func TestACustomRootStillReadsEveryAgent(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "2026", "09", "09")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lines := []string{
+		`{"timestamp":"2026-09-09T00:00:00Z","type":"session_meta","payload":{"id":"s1","cwd":"/w/rollup"}}`,
+		`{"timestamp":"2026-09-09T00:01:00Z","type":"response_item","payload":{"type":"message","role":"user",` +
+			`"content":[{"type":"input_text","text":"a prompt long enough to count as a request rather than a nudge"}]}}`,
+	}
+	name := filepath.Join(dir, "rollout-2026-09-09T00-00-00-aaaa.jsonl")
+	if err := os.WriteFile(name, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, args := range [][]string{
+		{"--list", "--root", root},
+		{"--list", "--agent", "all", "--root", root},
+	} {
+		var out, errs bytes.Buffer
+		if err := run(args, testEnv(&out, &errs)); err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+		if !strings.Contains(out.String(), "rollup") {
+			t.Errorf("%v did not find the Codex history:\n%s", args, out.String())
 		}
 	}
 }
@@ -166,7 +233,7 @@ func TestUnknownProjectSuggestsList(t *testing.T) {
 	root := history(t, "example")
 	var out, errs bytes.Buffer
 
-	err := run([]string{"nonsense", "--root", root}, &out, &errs)
+	err := run([]string{"nonsense", "--root", root}, testEnv(&out, &errs))
 	if err == nil {
 		t.Fatal("expected an error for an unknown project")
 	}
@@ -180,7 +247,7 @@ func TestWritesToAFile(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), "graph.json")
 	var out, errs bytes.Buffer
 
-	if err := run([]string{"example", "--json", "--root", root, "-o", dest}, &out, &errs); err != nil {
+	if err := run([]string{"example", "--json", "--root", root, "-o", dest}, testEnv(&out, &errs)); err != nil {
 		t.Fatal(err)
 	}
 	body, err := os.ReadFile(dest)
@@ -241,7 +308,7 @@ func TestNamingAProjectSkipsTheList(t *testing.T) {
 	root := history(t, "example")
 	var out, errs bytes.Buffer
 
-	if err := run([]string{"example", "--root", root}, &out, &errs); err != nil {
+	if err := run([]string{"example", "--root", root}, testEnv(&out, &errs)); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(errs.String(), "Which project?") {
@@ -282,7 +349,7 @@ func TestPipedOutputIsStillText(t *testing.T) {
 	root := history(t, "example")
 	var out, errs bytes.Buffer
 
-	if err := run([]string{"example", "--root", root}, &out, &errs); err != nil {
+	if err := run([]string{"example", "--root", root}, testEnv(&out, &errs)); err != nil {
 		t.Fatal(err)
 	}
 	body := out.String()
@@ -331,7 +398,7 @@ func TestVersionFallsBackToBuildInfo(t *testing.T) {
 // machine with no history at all.
 func TestVersionFlagPrints(t *testing.T) {
 	var out, errOut bytes.Buffer
-	if err := run([]string{"--version"}, &out, &errOut); err != nil {
+	if err := run([]string{"--version"}, testEnv(&out, &errOut)); err != nil {
 		t.Fatal(err)
 	}
 	if got := strings.TrimSpace(out.String()); got == "" {
@@ -383,7 +450,7 @@ func TestChoosingWritesToTheGivenStreamsAndCancelsCleanly(t *testing.T) {
 	// Empty input: the numbered list reads a line, gets nothing, and treats
 	// that as backing out.
 	var out bytes.Buffer
-	_, err := choose(projects, "", strings.NewReader(""), &out)
+	_, err := choose(projects, "", Env{In: strings.NewReader(""), Out: &out})
 
 	if !errors.Is(err, pick.ErrCancelled) {
 		t.Fatalf("err = %v, want a cancellation", err)
@@ -398,18 +465,61 @@ func TestChoosingWritesToTheGivenStreamsAndCancelsCleanly(t *testing.T) {
 	}
 }
 
-// And run turns that cancellation into a clean return rather than an error.
+// Cancelling the chooser is a clean return from run, not a failure.
+//
+// This used to call a copy of the rule kept in this file, so it passed with the
+// real check deleted from run. It goes through run now, which it can only do
+// because run takes its input stream rather than reaching for the process's.
+//
+// Nothing to read is how backing out arrives here: the chooser falls back to
+// the numbered list when its input is not a terminal, and a list that cannot
+// read an answer has been cancelled.
 func TestCancellingIsNotAFailure(t *testing.T) {
-	if err := cancelled(pick.ErrCancelled); err != nil {
+	root := twoProjects(t, "example", "other")
+	var out, errs bytes.Buffer
+	env := Env{In: strings.NewReader(""), Out: &out, Err: &errs}
+
+	if err := run([]string{"--root", root, "--text"}, env); err != nil {
 		t.Errorf("cancelling reached the caller as an error: %v", err)
+	}
+	// The list itself was printed, but nothing after it: backing out reads
+	// no project.
+	if strings.Contains(out.String(), "prompt across") {
+		t.Errorf("cancelling still read a project:\n%s", out.String())
 	}
 }
 
-// cancelled mirrors what run does with the error from choose, so the rule is
-// checked without needing a terminal to cancel in.
-func cancelled(err error) error {
-	if errors.Is(err, pick.ErrCancelled) {
-		return nil
+// And choosing a project reaches the graph.
+//
+// The other half of the same gap: nothing drove the chooser through run, so
+// neither branch of it was covered.
+func TestChoosingFromTheListReadsThatProject(t *testing.T) {
+	root := twoProjects(t, "example", "other")
+	var out, errs bytes.Buffer
+	env := Env{In: strings.NewReader("1\n"), Out: &out, Err: &errs}
+
+	if err := run([]string{"--root", root, "--text"}, env); err != nil {
+		t.Fatalf("choosing the first project failed: %v", err)
 	}
-	return err
+	if !strings.Contains(out.String(), "example") {
+		t.Errorf("the chosen project was not read:\n%s", out.String())
+	}
+}
+
+// An answer that is not one of the choices is an error, not a silent nothing.
+func TestAChoiceThatIsNotOnTheListIsAnError(t *testing.T) {
+	root := twoProjects(t, "example", "other")
+	var out, errs bytes.Buffer
+	env := Env{In: strings.NewReader("99\n"), Out: &out, Err: &errs}
+
+	if err := run([]string{"--root", root, "--text"}, env); err == nil {
+		t.Error("an impossible choice was accepted")
+	}
+}
+
+// testEnv is run's world for a test that does not care about input: nothing to
+// read, and no working directory, so no project is offered as the one you are
+// standing in.
+func testEnv(out, errs io.Writer) Env {
+	return Env{In: strings.NewReader(""), Out: out, Err: errs}
 }

@@ -189,3 +189,92 @@ func TestPatchLinesLandOnTheirOwnFile(t *testing.T) {
 		t.Errorf("edits = %v, want one apiece", turn.Edits)
 	}
 }
+
+// Every added or removed line counts, whatever text it starts with.
+//
+// The counter skipped any line opening "+++" or "---", on the reading that
+// those name files. They do in a unified diff, but Codex names files with
+// "*** Update File:" and never writes those headers, so in this format they
+// are ordinary changed lines: adding "++i;" is "+++i;", and removing a Lua or
+// SQL comment "-- note" is "--- note".
+func TestPatchCountsLinesThatStartWithPlusOrMinus(t *testing.T) {
+	patch := "*** Begin Patch\n" +
+		"*** Update File: /src/a.c\n" +
+		"+++i;\n" +
+		"---j;\n" +
+		"+x;\n" +
+		"*** End Patch"
+
+	cur := agent.Turn{
+		Files: map[string]int{}, Edits: map[string]int{},
+		Lines: map[string]int{}, Tools: map[string]int{}, Models: map[string]int{},
+	}
+	applyPatch(&cur, patch)
+
+	if got := cur.Lines["/src/a.c"]; got != 3 {
+		t.Errorf("Lines = %d, want 3; every one of the three lines changed something", got)
+	}
+}
+
+// A commit whose output arrives after the next prompt still counts.
+//
+// Opening a turn used to clear every command still waiting for its result, so
+// a commit made just before the reader typed again vanished. The turn each
+// call belongs to is already recorded when the call is seen, so the output can
+// settle against it whenever it turns up. Claude Code keeps its pending
+// commands across turns, and the two readers have to agree about the same
+// sequence of events or one agent's history is quietly worse than the other's.
+func TestCommitCountsWhenItsOutputArrivesAfterTheNextPrompt(t *testing.T) {
+	recs := records(t,
+		prompt("commit it"),
+		functionCall("c1", "exec_command", `{"cmd":"git commit -m x"}`),
+		prompt("next thing"),
+		functionOutput("c1", "Process exited with code 0\n[main abc1234] x"),
+	)
+
+	turns := ExtractTurns(recs)
+	if len(turns) != 2 {
+		t.Fatalf("expected 2 turns, got %d", len(turns))
+	}
+	if n := len(turns[0].Committed); n != 1 {
+		t.Fatalf("the commit was credited to %d turns, want it on the turn that made it", n)
+	}
+	if sha := turns[0].Committed[0].SHA; sha != "abc1234" {
+		t.Errorf("SHA = %q, want %q", sha, "abc1234")
+	}
+	if n := len(turns[1].Committed); n != 0 {
+		t.Errorf("the later turn got %d commits, want 0", n)
+	}
+}
+
+func records(t *testing.T, payloads ...map[string]any) []*Record {
+	t.Helper()
+	out := make([]*Record, 0, len(payloads))
+	for i, p := range payloads {
+		raw, err := json.Marshal(p)
+		if err != nil {
+			t.Fatalf("marshalling record %d: %v", i, err)
+		}
+		out = append(out, &Record{Type: "response_item", Payload: raw})
+	}
+	return out
+}
+
+func prompt(text string) map[string]any {
+	return map[string]any{
+		"type": "message", "role": "user",
+		"content": []map[string]string{{"type": "input_text", "text": text}},
+	}
+}
+
+func functionCall(callID, name, args string) map[string]any {
+	return map[string]any{
+		"type": "function_call", "call_id": callID, "name": name, "arguments": args,
+	}
+}
+
+func functionOutput(callID, out string) map[string]any {
+	return map[string]any{
+		"type": "function_call_output", "call_id": callID, "output": out,
+	}
+}

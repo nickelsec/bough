@@ -117,15 +117,15 @@ func Build(p agent.Project, sessions []agent.Session, opt Options) Graph {
 			Label:  rollup.Label(turns),
 			Title:  titles[i],
 			Period: rollup.Period(first(turns), last(turns)),
-			Stats:  statsOf(turns),
+			Stats:  statsOf(turns, repoRead),
 		}
 		for j, t := range goal.Tasks {
 			out.Tasks = append(out.Tasks, Task{
 				ID:      fmt.Sprintf("g%d.t%d", i+1, j+1),
 				Label:   rollup.Label(t.Turns),
 				Reasons: reasonsOf(t),
-				Stats:   statsOf(t.Turns),
-				Turns:   turnsOf(t.Turns),
+				Stats:   statsOf(t.Turns, repoRead),
+				Turns:   turnsOf(t.Turns, repoRead),
 			})
 		}
 		g.Goals = append(g.Goals, out)
@@ -140,7 +140,7 @@ func Build(p agent.Project, sessions []agent.Session, opt Options) Graph {
 		})
 	}
 
-	g.Totals = statsOf(everyTurn)
+	g.Totals = statsOf(everyTurn, repoRead)
 	return g
 }
 
@@ -171,7 +171,7 @@ func inTimeOrder(goals []rollup.Goal, titles map[int]string) ([]rollup.Goal, map
 	return out, newTitles
 }
 
-func statsOf(turns []agent.Turn) Stats {
+func statsOf(turns []agent.Turn, repoRead bool) Stats {
 	s := metrics.Summarise(turns)
 	out := Stats{
 		Start:         s.Start,
@@ -207,7 +207,7 @@ func statsOf(turns []agent.Turn) Stats {
 		out.TopFiles = append(out.TopFiles, FileCount{Path: f.Path, Edits: f.Edits})
 	}
 	for _, c := range s.Commits {
-		out.Commits = append(out.Commits, commitOf(c))
+		out.Commits = append(out.Commits, commitOf(c, repoRead))
 	}
 	return out
 }
@@ -216,12 +216,14 @@ func statsOf(turns []agent.Turn) Stats {
 // and the full list would dwarf everything else in the file.
 const topFileLimit = 8
 
-func turnsOf(turns []agent.Turn) []Turn {
+func turnsOf(turns []agent.Turn, repoRead bool) []Turn {
 	out := make([]Turn, 0, len(turns))
 	for _, t := range turns {
 		row := Turn{
-			At:     t.At,
-			Text:   t.Text,
+			At: t.At,
+			// Says rather than Text, so a turn that was handed over rather
+			// than typed shows what it was called instead of nothing.
+			Text:   t.Says(),
 			Files:  len(t.Files),
 			Errors: t.Errors,
 		}
@@ -232,7 +234,7 @@ func turnsOf(turns []agent.Turn) []Turn {
 			row.Delegated = append(row.Delegated, Delegation{Kind: d.Kind, Name: d.Name, Description: d.Description})
 		}
 		for _, c := range t.Committed {
-			row.Committed = append(row.Committed, commitOf(c))
+			row.Committed = append(row.Committed, commitOf(c, repoRead))
 		}
 		out = append(out, row)
 	}
@@ -371,9 +373,9 @@ func here(in, project string) bool {
 		if !strings.Contains(in, "..") {
 			return true
 		}
-		return sameDir(path.Join(agent.NormalisePath(project), in), project)
+		return agent.SamePath(path.Join(agent.NormalisePath(project), in), project)
 	}
-	return sameDir(in, project)
+	return agent.SamePath(in, project)
 }
 
 // rooted reports whether a path says for itself where it starts.
@@ -387,18 +389,6 @@ func rooted(p string) bool {
 
 // driveLetter matches a path that opens with a Windows drive, as "d:/work".
 var driveLetter = regexp.MustCompile(`^[a-zA-Z]:/`)
-
-// sameDir compares two paths for being the same place.
-//
-// The same directory is written several ways in one session. On this corpus a
-// single project's commits arrived as "d:/thing", "/d/thing" and with no
-// path at all, which are one directory and have to compare equal or real work
-// is thrown away. The drive is folded into a leading letter so the two spellings
-// meet, and the result is compared whole rather than by suffix, since a suffix
-// test would make "site" and "my-site" the same place.
-func sameDir(a, b string) bool {
-	return agent.NormalisePath(a) == agent.NormalisePath(b)
-}
 
 // pair matches the commits an agent made to the ones in the repository,
 // closest pair first, and returns the ones nothing matched.
@@ -479,36 +469,64 @@ func pair(made []*agent.Commit, have []repo.Commit, window time.Duration) []*age
 //
 // Written out twice before, once for a task's list and once for a prompt's, so
 // a field added to one arrived in the graph from one place and not the other.
-func commitOf(c agent.Commit) Commit {
+// confirmed is true when the repository was read. A hash that survived
+// fromRepo with the repository read is one the repository still has, since
+// every hash it could not reach was cleared there.
+func commitOf(c agent.Commit, confirmed bool) Commit {
 	return Commit{
-		SHA:     c.SHA,
-		Kind:    c.Kind,
-		Branch:  c.Branch,
-		Subject: c.Subject,
-		Added:   c.Added,
-		Removed: c.Removed,
+		SHA:       c.SHA,
+		Kind:      c.Kind,
+		Branch:    c.Branch,
+		Confirmed: confirmed && c.SHA != "",
+		Subject:   c.Subject,
+		Added:     c.Added,
+		Removed:   c.Removed,
 	}
 }
 
 // clone copies the sessions deeply enough that nothing below can be seen by
 // the caller.
 //
-// Only as deep as it needs to be. The turns are rewritten, so those are
-// copied, and so is each turn's commit list because commits are dropped from
-// it and their hashes overwritten. The maps counting tools, files and lines
-// are read and never written here, so they are shared rather than duplicated:
-// copying them on every build would be the expensive part and would buy
-// nothing.
+// Deep enough that nothing here writes to the caller's data.
+//
+// This used to copy only the turns and their commit lists, on the reasoning
+// that the maps counting tools, files and lines were read and never written.
+// Folding a sub-agent writes them: absorb adds the sub-agent's counts into the
+// parent turn's own maps, and describe names the parent's delegation. So one
+// build left the caller holding different numbers than it passed in, and a
+// second build added the sub-agent's work on top again.
 func clone(sessions []agent.Session) []agent.Session {
 	out := make([]agent.Session, len(sessions))
 	for i, s := range sessions {
 		s.Turns = append([]agent.Turn(nil), s.Turns...)
 		for j := range s.Turns {
-			if s.Turns[j].Committed != nil {
-				s.Turns[j].Committed = append([]agent.Commit(nil), s.Turns[j].Committed...)
+			t := &s.Turns[j]
+			t.Tools = copyCount(t.Tools)
+			t.Files = copyCount(t.Files)
+			t.Edits = copyCount(t.Edits)
+			t.Lines = copyCount(t.Lines)
+			t.Models = copyCount(t.Models)
+			if t.Committed != nil {
+				t.Committed = append([]agent.Commit(nil), t.Committed...)
+			}
+			if t.Delegated != nil {
+				t.Delegated = append([]agent.Delegation(nil), t.Delegated...)
 			}
 		}
 		out[i] = s
+	}
+	return out
+}
+
+// copyCount copies one counting map, keeping nil as nil so a turn that never
+// had one does not gain an empty map and stop comparing equal to itself.
+func copyCount(m map[string]int) map[string]int {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]int, len(m))
+	for k, v := range m {
+		out[k] = v
 	}
 	return out
 }
