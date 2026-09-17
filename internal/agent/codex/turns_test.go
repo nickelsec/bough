@@ -189,3 +189,29 @@ func TestPatchLinesLandOnTheirOwnFile(t *testing.T) {
 		t.Errorf("edits = %v, want one apiece", turn.Edits)
 	}
 }
+
+// Every added or removed line counts, whatever text it starts with.
+//
+// The counter skipped any line opening "+++" or "---", on the reading that
+// those name files. They do in a unified diff, but Codex names files with
+// "*** Update File:" and never writes those headers, so in this format they
+// are ordinary changed lines: adding "++i;" is "+++i;", and removing a Lua or
+// SQL comment "-- note" is "--- note".
+func TestPatchCountsLinesThatStartWithPlusOrMinus(t *testing.T) {
+	patch := "*** Begin Patch\n" +
+		"*** Update File: /src/a.c\n" +
+		"+++i;\n" +
+		"---j;\n" +
+		"+x;\n" +
+		"*** End Patch"
+
+	cur := agent.Turn{
+		Files: map[string]int{}, Edits: map[string]int{},
+		Lines: map[string]int{}, Tools: map[string]int{}, Models: map[string]int{},
+	}
+	applyPatch(&cur, patch)
+
+	if got := cur.Lines["/src/a.c"]; got != 3 {
+		t.Errorf("Lines = %d, want 3; every one of the three lines changed something", got)
+	}
+}

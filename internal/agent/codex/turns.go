@@ -254,13 +254,16 @@ func applyPatch(cur *agent.Turn, input string) {
 
 // changed counts the lines a patch hunk adds or removes.
 //
-// The +++ and --- markers name files rather than change them, and the end of
-// the patch is punctuation, so none of those count.
+// Only the "***" markers are punctuation here. A unified diff names files with
+// "+++" and "---" headers, and those were skipped for that reason, but Codex
+// names files with "*** Update File:" and never writes them. So in this format
+// a line opening "+++" or "---" is an ordinary change: adding "++i;" is the
+// patch line "+++i;", and removing a Lua or SQL comment "-- note" is "--- note".
+// Skipping them counted a three line change as one.
 func changed(hunk string) int {
 	n := 0
 	for _, l := range strings.Split(hunk, "\n") {
 		switch {
-		case strings.HasPrefix(l, "+++"), strings.HasPrefix(l, "---"):
 		case strings.HasPrefix(l, "***"):
 		case strings.HasPrefix(l, "+"), strings.HasPrefix(l, "-"):
 			n++

@@ -217,7 +217,13 @@ func cleanPrompt(text string) string {
 }
 
 // taskName picks the task out of the envelope wrapped round a delegated brief.
-var taskName = regexp.MustCompile(`(?m)^Task name:\s*(.+)$`)
+//
+// The run of spaces after the colon is matched without newlines, because the
+// shorthand for whitespace includes one: with a blank name, the capture skipped
+// the empty rest of the line and took the following header instead, so a
+// sub-agent that named nothing was labelled with whatever came next, usually
+// "Sender: /root".
+var taskName = regexp.MustCompile(`(?m)^Task name:[^\S\n]*(.*)$`)
 
 // IsNewTask reports whether this record is a fresh brief handed to a sub-agent.
 //
