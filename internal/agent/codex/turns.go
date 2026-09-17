@@ -86,7 +86,13 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 				Models:   map[string]int{},
 			})
 			cur = &turns[len(turns)-1]
-			clear(pending)
+			// Commands still waiting for their result are not abandoned here.
+			// A commit's output can arrive after the reader has typed again,
+			// and each pending call already records the turn that issued it,
+			// so it settles against that turn whenever it turns up. Clearing
+			// them dropped the commit entirely. Claude Code keeps its pending
+			// commands across turns, and the two readers have to agree about
+			// the same sequence of events.
 			continue
 		}
 
