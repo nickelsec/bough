@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <video width="100%" src="https://github.com/user-attachments/assets/af70eb60-cff7-42cc-af73-19c9cfb0c1d3" controls></video>
+  <img width="100%" alt="bough reading a project's history and drawing it" src="docs/img/demo.gif">
 </p>
 
 Not how long your streak is. Claude Code's own `/stats` covers that. This
