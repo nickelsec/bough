@@ -192,14 +192,20 @@ rather than flags for now, so changing one means editing Go.
 ## The transcript formats
 
 Reading these files correctly is most of the work, and neither format is
-documented by the people who write it. What was learned is written down in
-[docs/format.md](docs/format.md): where the files live, the append-only replay
-that makes a naive parser overcount by more than three to one, the tool results
-filed as though the user typed them, and the fields that carry less than they
-look like they do. Codex has its own section, including the replay that spans
-files rather than sitting inside one.
+documented by the people who write it. What was learned is written down, one
+page per agent:
 
-That document is probably useful to anyone else reading either format, whatever
+- [The Claude Code JSONL transcript format](https://www.bough.run/docs/format/claude-code)
+  ([in this repo](docs/format-claude-code.md)): where the files live, the
+  append-only replay that makes a naive parser overcount by more than three to
+  one, the tool results filed as though the user typed them, and the fields
+  that carry less than they look like they do.
+- [The Codex CLI rollout file format](https://www.bough.run/docs/format/codex)
+  ([in this repo](docs/format-codex.md)): how items are shaped, how a tool call
+  is paired to its result, the replay that spans files rather than sitting
+  inside one, and why the input token count already contains the cached one.
+
+Those pages are probably useful to anyone else reading either format, whatever
 they are building.
 
 ## Layout

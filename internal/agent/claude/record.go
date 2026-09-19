@@ -9,7 +9,7 @@
 // append-only with replay, so the same record can appear several times and
 // later copies carry more fields than earlier ones. And the schema is loosely
 // typed, with several fields arriving as either a string or a structure. See
-// docs/format.md for the measurements behind both.
+// docs/format-claude-code.md for the measurements behind both.
 package claude
 
 import (
