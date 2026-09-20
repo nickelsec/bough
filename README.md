@@ -43,6 +43,12 @@ A task carrying a small mark is one that ended in a commit, and the note gives
 you the hash and the message. Everything else in the drawing is worked out from
 your history; this is the part you can go and check.
 
+Behind each task is a faint circle, sized by what that piece of work was
+charged. Hover it and the note breaks the figure down; the coins in the rail
+open the whole table, every day and every task, in the five columns the agents
+themselves report. Most of it is the model re-reading the conversation, which
+is why a long discussion can cost more than a hard piece of engineering.
+
 To get those right, bough also reads the git history of the project it is
 describing, at the path your transcripts already name. That is a read and
 nothing else: no writes, no network, no remote. It only ever looks at a
@@ -143,8 +149,10 @@ file you kept going back to, and how much of that file actually changed each
 time. Coming back nine times to fix a typo is not the same as coming back nine
 times to rewrite it.
 
-The figures along the bottom open to show what the work cost. Most of it will
-be the model re-reading the conversation rather than writing anything: on the
+**What it cost** is carried per task as well as per project, which is the part
+no other tool can give you: a session id is the finest grain they have, and
+one of those covers weeks of unrelated work. Most of the figure will be the
+model re-reading the conversation rather than writing anything: on the
 histories this was built against, between 176 and 732 times more context than
 output. A long session is expensive because it is long, not because the model
 said much.
