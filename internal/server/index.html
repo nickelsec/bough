@@ -31,7 +31,11 @@
 </div>
 
 <nav class="rail" aria-label="Filters">
-  <div class="rail-tabs" role="tablist" aria-label="What to filter by">
+  <!-- The strip. It holds the tablist and, under a rule, the one button that
+       is not a filter, so the two groups are one column of controls without
+       the button pretending to be a fifth tab. -->
+  <div class="rail-strip">
+    <div class="rail-tabs" role="tablist" aria-label="What to filter by">
     <button type="button" class="rail-btn" role="tab" data-panel="said"
             aria-selected="false" aria-controls="p-said" title="Search your prompts">
       <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/></svg>
@@ -54,6 +58,24 @@
             aria-selected="false" aria-controls="p-show" title="What to show">
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6h14M5 10h10M8 14h4"/></svg>
       <span class="dot" hidden></span>
+    </button>
+    </div>
+
+    <!-- In the strip with the filters but outside their tablist, because it
+         is not one of them: those four narrow what is drawn and this narrows
+         nothing. It opens a reading of the same work, so it is a button that
+         opens a dialog, divided off by a rule so the grouping is visible and
+         not only in the markup.
+
+         Stacked coins, which is what a count of something spent looks like
+         nearly everywhere. -->
+    <button type="button" class="rail-btn rail-aside" id="rail-spend"
+            aria-haspopup="dialog" title="Token usage" hidden>
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <ellipse cx="10" cy="5.6" rx="5.8" ry="2.3"/>
+        <path d="M4.2 5.6v3c0 1.27 2.6 2.3 5.8 2.3s5.8-1.03 5.8-2.3v-3"/>
+        <path d="M4.2 9.4v3c0 1.27 2.6 2.3 5.8 2.3s5.8-1.03 5.8-2.3v-3"/>
+      </svg>
     </button>
   </div>
 
@@ -168,6 +190,29 @@
     </span>
   </button>
   <div class="foot-row foot-rest" id="foot-rest" hidden></div>
+</div>
+
+<!-- The whole breakdown, for anyone who wants the figures rather than the
+     shape. Kept off the drawing: it is a table, and a table on top of a
+     diagram is two things competing for the same attention. -->
+<div id="spend" class="spend" role="dialog" aria-modal="true"
+     aria-labelledby="spend-title" hidden>
+  <div class="spend-card">
+    <div class="spend-head">
+      <h2 id="spend-title">Token usage</h2>
+      <button type="button" id="spend-close" aria-label="Close">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg>
+      </button>
+    </div>
+    <!-- A row scrolling out passes behind the column names and has to be
+         gone before it reaches them. The names are sticky inside the table,
+         and anything in the table can paint over a shadow they cast, so the
+         cover sits here instead, outside it, where nothing can. -->
+    <div class="spend-scroll">
+      <div class="spend-cover" aria-hidden="true"></div>
+      <div class="spend-body" id="spend-body"></div>
+    </div>
+  </div>
 </div>
 
 <div class="zoom" role="group" aria-label="Zoom">

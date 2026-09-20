@@ -29,6 +29,19 @@
   var TASK = { min: 14, max: 26 };
   var PROMPT_R = 6;
 
+  // The field behind a task, carrying what it cost.
+  //
+  // One scale across the whole drawing, so two tasks charged the same are
+  // drawn the same. Tying it to each task's own prompt spread was tried and
+  // is worse than what it fixed: it made the circle partly a count of
+  // prompts, and identical spend came out six times the size on a task with
+  // thirty prompts as on one with a single prompt.
+  //
+  // The ceiling is a guard rather than the encoding, applied per task below:
+  // a field may reach past its prompts, since it is drawn behind everything
+  // and is barely there, but it may not dwarf the work it sits behind.
+  var HALO = { min: 12, max: 46 };
+
   var MARGIN = 120;
   var SPINE_Y = 0; // filled in once the tallest column is known
 
@@ -97,6 +110,43 @@
     return v < lo ? lo : v > hi ? hi : v;
   }
 
+  // spent is what a piece of work was charged for, all four figures added.
+  //
+  // The four are disjoint, so adding them counts nothing twice. Cache read is
+  // most of it on every history measured, which means this tracks how long the
+  // conversation grew as much as how hard the work was. It is the figure the
+  // agents themselves report and the one other tools show, so it is the one
+  // shown here.
+  function spent(stats) {
+    var t = stats && stats.tokens;
+    if (!t) return 0;
+    return (t.input || 0) + (t.output || 0) + (t.cacheRead || 0) + (t.cacheWrite || 0);
+  }
+
+  // field maps what a task cost onto the radius drawn behind it.
+  //
+  // Not size() above, which square-roots. That is right for a node, where one
+  // busy day would otherwise flatten every other to the minimum, but it is
+  // wrong here. Spend runs over four orders of magnitude on a real project and
+  // the square root pulls the middle of that into a band a few pixels wide: on
+  // this history it put half of them between 20 and 28, which the eye reads as
+  // all the same. An exponent nearer one keeps the quiet work small and lets
+  // the expensive work actually show, which is the only thing this is for.
+  function field(value, most, ring) {
+    if (!most) return 0;
+    var at = Math.pow(clamp(value / most, 0, 1), 0.85);
+    var r = HALO.min + (HALO.max - HALO.min) * at;
+    // Never past this task's own ring of prompts. Without it a project of
+    // three tasks, which opens zoomed well in, drew a circle three times the
+    // width of the task and swallowed every prompt hanging off it. Reaching
+    // the ring is fine and is what it looks like on a dense project; going
+    // beyond it is what stops reading as ground and starts hiding the work.
+    //
+    // The clamp only bites on a small or sparse project, where the spread it
+    // costs is spread there was no room to show anyway.
+    return Math.round(Math.min(r, ring));
+  }
+
   // size maps a count onto a node size. The square root matters: with linear
   // scaling one busy day flattens every other node to the minimum.
   function size(value, most, range) {
@@ -120,10 +170,12 @@
 
     var mostDayEdits = 0;
     var mostTaskEdits = 0;
+    var mostTaskTokens = 0;
     goals.forEach(function (goal) {
       mostDayEdits = Math.max(mostDayEdits, goal.stats.edits || 0);
       goal.tasks.forEach(function (task) {
         mostTaskEdits = Math.max(mostTaskEdits, task.stats.edits || 0);
+        mostTaskTokens = Math.max(mostTaskTokens, spent(task.stats));
       });
     });
 
@@ -165,6 +217,16 @@
         var rank = upward ? up++ : down++;
         var side = upward ? -1 : 1;
         var box = size(task.stats.edits || 0, mostTaskEdits, TASK);
+        var cost = spent(task.stats);
+        // How far this task's own prompts sit from it, which is what the
+        // field behind it is held inside. A task with no prompts still has a
+        // box to sit behind, so the first ring stands in for it.
+        //
+        // Not named reach: the day's own reach is tracked in this function
+        // too, and a second var of that name silently overwrote it on every
+        // task, which sent whole days off the edge of the canvas.
+        var rings = Math.max(1, Math.ceil((task.turns || []).length / form.promptRun));
+        var ring = form.promptGap * rings;
 
         // A busy day spreads sideways once it has stacked a couple of rows.
         // Without this one ten-task day sets the height of the whole canvas
@@ -183,6 +245,11 @@
           x: day.x + column * form.spread,
           y: SPINE_Y + side * (form.stem + row * form.taskGap),
           size: box,
+          // How much this piece of work was charged for, as a radius. Zero
+          // when the history predates the agent recording it, and nothing is
+          // drawn for that rather than a smallest ring, which would say the
+          // work was cheap when the truth is that nobody knows.
+          halo: cost > 0 ? field(cost, mostTaskTokens, ring) : 0,
           prompts: []
         };
 
