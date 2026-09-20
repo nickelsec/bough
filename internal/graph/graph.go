@@ -25,7 +25,12 @@ import "time"
 // A hash without it is the transcript's claim and nothing checked it. A reader
 // that treated every hash as verified was right only when the repository had
 // been read.
-const SchemaVersion = 3
+//
+// 4: a turn carries "tokens". The figure was always worked out, since a task's
+// total is the sum of them, but it was thrown away when the graph was written
+// and only the sum survived. A reader that wanted to know what one prompt cost
+// had to settle for what the whole task cost.
+const SchemaVersion = 4
 
 // Graph is one project's history.
 type Graph struct {
@@ -136,6 +141,14 @@ type Turn struct {
 	Files  int `json:"files,omitempty"`
 	Errors int `json:"errors,omitempty"`
 
+	// Tokens is what answering this prompt was charged for, including any work
+	// it handed to a sub-agent. Absent when the history predates the agent
+	// recording it, which is the same reason Stats leaves it out.
+	//
+	// A task's figure is the sum of these, so the two can be checked against
+	// each other.
+	Tokens *Tokens `json:"tokens,omitempty"`
+
 	// Delegated is work handed to a sub-agent, each with the brief written at
 	// the time.
 	Delegated []Delegation `json:"delegated,omitempty"`
@@ -241,6 +254,18 @@ type Tokens struct {
 	Output     int `json:"output,omitempty"`
 	CacheRead  int `json:"cacheRead,omitempty"`
 	CacheWrite int `json:"cacheWrite,omitempty"`
+}
+
+// Total is the four added up.
+//
+// The four are disjoint by construction: Codex reports an input figure with
+// the cached part already inside it, and that is taken apart where it is read
+// rather than here, so adding them here counts nothing twice.
+func (t *Tokens) Total() int {
+	if t == nil {
+		return 0
+	}
+	return t.Input + t.Output + t.CacheRead + t.CacheWrite
 }
 
 // FileCount is a file and how many times it changed.
