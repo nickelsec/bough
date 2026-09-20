@@ -439,3 +439,49 @@ func firstCommit(t *testing.T, g Graph) Commit {
 	t.Fatal("the graph has no commits in it")
 	return Commit{}
 }
+
+// A task's token figure is the sum of its prompts', so the two can be checked
+// against each other. They are worked out in different places: the turn copies
+// what the agent charged, the task asks metrics to add them up. Nothing made
+// them agree until this test, and a reader shown both would have believed
+// whichever they read first.
+func TestTaskTokensAreTheSumOfTheirPrompts(t *testing.T) {
+	p, s := sample()
+	// Uneven figures, so a sum that dropped one or counted it twice cannot
+	// still come out right by accident.
+	s[0].Turns[0].Tokens = agent.Tokens{Input: 11, Output: 22, CacheRead: 3300, CacheWrite: 440}
+	s[0].Turns[1].Tokens = agent.Tokens{Input: 7, Output: 90, CacheRead: 1200}
+	s[0].Turns[2].Tokens = agent.Tokens{Output: 5, CacheRead: 60}
+	// The fourth is left unpaid, which is how a prompt that got no reply
+	// arrives, and it must not become a zero anyone can see.
+
+	g := Build(p, s, Options{Now: fixedNow})
+
+	var prompts, tasks int
+	for _, goal := range g.Goals {
+		for _, task := range goal.Tasks {
+			tasks++
+			var summed int
+			for _, turn := range task.Turns {
+				if turn.Tokens == nil {
+					continue
+				}
+				prompts++
+				summed += turn.Tokens.Total()
+			}
+			var charged int
+			if task.Stats.Tokens != nil {
+				charged = task.Stats.Tokens.Total()
+			}
+			if summed != charged {
+				t.Errorf("task %q: prompts add to %d, task says %d", task.Label, summed, charged)
+			}
+		}
+	}
+	if tasks == 0 {
+		t.Fatal("no tasks, so nothing was actually compared")
+	}
+	if prompts != 3 {
+		t.Errorf("charged prompts = %d, want 3: the unpaid one should carry no figure", prompts)
+	}
+}

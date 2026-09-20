@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/nickelsec/bough/internal/agent"
 )
 
 // A reading that did not consult the repository says so.
@@ -33,5 +35,21 @@ func TestTextSaysWhenTheRepositoryWasNotRead(t *testing.T) {
 	}
 	if strings.Contains(b.String(), "the repository was not read") {
 		t.Errorf("a confirmed reading claimed it was not read:\n%s", b.String())
+	}
+}
+
+// A task charged for context but credited with no output would divide by
+// zero. It sounds impossible and is not: a prompt cancelled before the reply
+// finished is charged for what it read and produces nothing.
+func TestTextSurvivesCacheWithoutOutput(t *testing.T) {
+	p, s := sample()
+	s[0].Turns[0].Tokens = agent.Tokens{CacheRead: 5000}
+
+	var b bytes.Buffer
+	if err := WriteText(&b, Build(p, s, Options{Now: fixedNow}), false); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(b.String(), "x context") {
+		t.Error("printed a ratio against no output")
 	}
 }

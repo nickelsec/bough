@@ -7,6 +7,49 @@ Notable changes, newest first. Format follows
 
 Nothing yet.
 
+## 0.5.0 - 2026-09-20
+
+bough could draw what you built and not what it cost. The figures were already
+being read correctly and were thrown away everywhere except a project total.
+
+The reason to have this here rather than in one of the tools that already
+count tokens is that they stop at a session id, which is an opaque hash
+covering weeks of unrelated work. bough already knows where one piece of work
+ends and the next begins, so it can say which piece was expensive.
+
+Checked against ccusage on the same history: 1,574,933,652 against
+1,578,503,592, a 0.2% gap that is the work done between the two runs.
+
+### Added
+
+- **What each task and each day was charged**, in the drawing and in the text
+  output. A faint circle behind a task carries the figure; hovering breaks it
+  down into output, input, cache created and cache read.
+
+- **A token usage table**, opened from the rail. Every day and every task, in
+  the five columns the agents report, with days foldable so a month of totals
+  fits on one screen.
+
+- The record panel moves around now. A day lists its tasks and each one opens,
+  rather than naming work you then had to find in the drawing yourself.
+
+### Changed
+
+- **The JSON schema is now 4.** A turn carries `tokens`. The figure was always
+  worked out, since a task's total is the sum of them, but only the sum
+  survived being written out.
+
+- The record panel sits over the drawing instead of pushing it aside. Opening
+  one re-laid out every node in the diagram twice, which on a history of any
+  size is what made it feel slow. Measured over six open-and-close cycles:
+  19 dropped frames before, none after.
+
+### Fixed
+
+- A task charged for context but credited with no output no longer divides by
+  zero in the text output. It takes a cancelled reply to do it, which is rare
+  enough to reach a release and ordinary enough to happen to somebody.
+
 ## 0.4.5 - 2026-09-17
 
 Twelve more findings from [@brandon-fryslie](https://github.com/brandon-fryslie),

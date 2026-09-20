@@ -51,10 +51,26 @@ func TestOneTransformMovesTheDrawing(t *testing.T) {
 		t.Error("nothing sizes the svg to the stage, so its units are not CSS pixels")
 	}
 
-	// The stage changes width when the record drawer slides open, and the
-	// svg's units are measured against that width.
+	// The svg's units are measured against the stage's width, so anything that
+	// changes that width has to be followed.
 	if !strings.Contains(src, "transitionend") {
-		t.Error("nothing follows the drawer, so the drawing stretches while it is open")
+		t.Error("nothing follows a change in the stage's width")
+	}
+}
+
+// The record drawer sits over the drawing rather than pushing it aside.
+//
+// Pushing meant the stage changed width, which meant rewriting the svg's
+// viewBox and re-laying out every node, twice for each record opened. Nothing
+// about the drawing needs to change for a panel to appear over it, and on a
+// history of any size that relayout is what made opening one feel slow.
+func TestTheDrawerDoesNotResizeTheStage(t *testing.T) {
+	css, err := assets.ReadFile("bough.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(css), "body.reading #stage") {
+		t.Error("the drawer moves the stage, so opening a record re-lays out the whole drawing")
 	}
 }
 

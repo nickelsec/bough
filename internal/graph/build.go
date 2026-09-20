@@ -230,6 +230,16 @@ func turnsOf(turns []agent.Turn, repoRead bool) []Turn {
 		for _, n := range t.Edits {
 			row.Edits += n
 		}
+		// Left out when the prompt was charged nothing, the same way a task's
+		// figure is. A zero would read as free rather than as unrecorded.
+		if t.Tokens.Total() > 0 {
+			row.Tokens = &Tokens{
+				Input:      t.Tokens.Input,
+				Output:     t.Tokens.Output,
+				CacheRead:  t.Tokens.CacheRead,
+				CacheWrite: t.Tokens.CacheWrite,
+			}
+		}
 		for _, d := range t.Delegated {
 			row.Delegated = append(row.Delegated, Delegation{Kind: d.Kind, Name: d.Name, Description: d.Description})
 		}

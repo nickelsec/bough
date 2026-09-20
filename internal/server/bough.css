@@ -52,6 +52,12 @@
   --stamp:   #30661d;
 
   --ink:     #241f17;
+  /* Between the two above. The token table reads at three levels, not two: a
+     task, the day holding it, and the total holding every day. Days set in
+     --ink came out the same weight as the final line and the table lost its
+     top level, so this sits a clear step below it. 9.1 to 1 on the ground,
+     against 5.4 for --ink-mid below and 14.5 for --ink above. */
+  --ink-up:  #484034;
   --ink-mid: #6b6151;
   /* Quiet, but still above 4.5 to 1. Figures along the foot and timestamps in
      the panel are set in this, and they are there to be read. */
@@ -88,6 +94,49 @@
 }
 
 * { box-sizing: border-box; }
+
+/* The two surfaces that scroll, in the page's own colours.
+
+   color-scheme above stops the browser painting a dark scrollbar over a light
+   design, but the light one it paints instead is a white trough, and white is
+   the one value this palette never uses. Left alone it is the only part of
+   either panel that looks borrowed from somewhere else.
+
+   Firefox takes the two keywords; everything else takes the pseudo-elements.
+   The thumb is drawn inside a transparent border so it reads as a slim bar
+   with room around it rather than filling the channel. */
+#reader,
+.spend-body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+}
+
+#reader::-webkit-scrollbar,
+.spend-body::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+#reader::-webkit-scrollbar-track,
+.spend-body::-webkit-scrollbar-track,
+#reader::-webkit-scrollbar-corner,
+.spend-body::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+#reader::-webkit-scrollbar-thumb,
+.spend-body::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 6px;
+  background: var(--rule);
+  background-clip: content-box;
+}
+
+#reader::-webkit-scrollbar-thumb:hover,
+.spend-body::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-low);
+  background-clip: content-box;
+}
 
 html, body {
   height: 100%;
@@ -126,11 +175,9 @@ body {
      still does, since copying a prompt out is worth having. */
   user-select: none;
   -webkit-user-select: none;
-  transition: right 320ms var(--ease);
 }
 
 #stage.dragging { cursor: var(--fist); }
-body.reading #stage { right: var(--drawer); }
 
 /* The grid moves with the drawing, so panning feels like crossing a surface
    rather than sliding a picture over a fixed backdrop. */
@@ -526,6 +573,30 @@ body.nothing .empty { display: flex; }
   cursor: pointer;
 }
 
+/* What a task cost, as a field behind it rather than a mark on it.
+
+   No colour of its own. Every hue on this page already means something: olive
+   is a prompt, brown a day, rust work that went badly, green a commit. Drawing
+   spend in any of them makes a big circle ambiguous, and inventing a fifth
+   would put a loud thing behind a quiet one. So it is the sunk neutral the
+   page already uses for recessed surfaces, at an opacity low enough that on
+   its own you would call it a shadow. What it has to carry is relative size,
+   and size survives being faint.
+
+   It overlaps the prompts and that is the point. Painted first and barely
+   there, it reads as ground the work sits on rather than a ring around it. */
+.halo {
+  fill: var(--sunk);
+  opacity: 0.38;
+  pointer-events: none;
+}
+
+/* It lights with the task it belongs to, since it is part of that task rather
+   than a thing beside it. Taking the pointer itself was tried and dropped: it
+   meant one task could answer with two different notes depending on where in
+   it you stopped, which is a rule a reader has to learn for no gain. */
+.halo.lit { opacity: 0.55; }
+
 /* Struggle is colour rather than a figure, since the score behind it has not
    been checked against anyone's memory. */
 .task.hard .task-node { stroke: var(--warm); }
@@ -844,7 +915,7 @@ body.reading .rail { right: calc(var(--drawer) + 1.1rem); }
    is open or closed. */
 .rail { flex-direction: row-reverse; }
 
-.rail-tabs {
+.rail-strip {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
@@ -854,6 +925,12 @@ body.reading .rail { right: calc(var(--drawer) + 1.1rem); }
   border: 1px solid var(--rule);
   backdrop-filter: blur(8px);
   box-shadow: 0 4px 18px rgba(36, 31, 23, 0.08);
+}
+
+.rail-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
 }
 
 .rail-btn {
@@ -1297,6 +1374,53 @@ body.reading #reader { transform: none; }
   border-top: 1px solid var(--rule);
 }
 
+/* A task in the day's reading is a way into that task, not a label for one.
+   Listing them and then making the reader go back to the drawing to find the
+   right small square was the long way round to somewhere the panel was
+   already standing.
+
+   The row is the target, not a link at one end of it. The padding moves onto
+   the button so the whole strip is clickable and the list keeps its spacing. */
+.turn-open { padding: 0; }
+
+/* The tint reaches a little wider than the text on both sides, so its rounded
+   corners have room to be corners, and is pulled back out by the same amount
+   so the words stay on the line every other row sits on.
+
+   Nothing moves on hover. Shifting the text sideways to say "this is a
+   target" makes the eye follow it, and a list of them ripples as the pointer
+   runs down. The tint alone says it. */
+.turn-go {
+  display: block;
+  width: calc(100% + 1.2rem);
+  margin: 0 -0.6rem;
+  padding: 0.9rem 0.6rem;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms var(--ease), color 120ms var(--ease);
+}
+
+.turn-go:hover {
+  background: var(--sunk);
+  color: var(--ink);
+}
+
+.turn-go:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: -2px;
+}
+
+.turn-go .said { display: block; }
+
+.turn-go .when {
+  margin: 0.3rem 0 0;
+}
+
 .when {
   display: block;
   margin-bottom: 0.3rem;
@@ -1403,7 +1527,6 @@ p.commit {
 
 @media (max-width: 60rem) {
   :root { --drawer: 100vw; }
-  body.reading #stage { right: 0; }
   body.reading .rail { right: -6rem; }
 }
 
@@ -1433,4 +1556,391 @@ p.commit {
   border-radius: 6px;
   background: #ece4d1;
   box-shadow: inset 2px 0 0 var(--leaf);
+}
+
+/* The breakdown. A table, off the drawing rather than over it: the diagram is
+   the thing being explained and two of them competing for the same attention
+   helps nobody. */
+.spend {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  background: rgb(36 31 23 / 28%);
+}
+
+.spend-card {
+  display: flex;
+  flex-direction: column;
+  width: min(54rem, 100%);
+  max-height: 100%;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--ground);
+  box-shadow: 0 18px 50px rgb(36 31 23 / 22%);
+}
+
+/* The rule under the title is inset to the same 1.1rem the title and the
+   close button sit at, so it starts under the T and stops under the cross
+   rather than running wall to wall across a card whose contents do not.
+
+   A border would have to span the whole element, so it is drawn as a
+   pseudo-element instead. */
+.spend-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.1rem;
+}
+
+.spend-head::after {
+  content: "";
+  position: absolute;
+  right: 1.1rem;
+  bottom: 0;
+  left: 1.1rem;
+  height: 1px;
+  background: var(--rule);
+}
+
+.spend-head h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+}
+
+#spend-close {
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-mid);
+  cursor: pointer;
+}
+
+#spend-close:hover { background: var(--sunk); }
+
+#spend-close svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+/* Holds the scrolling list and the strip that covers its top edge. */
+.spend-scroll {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
+/* The strip. It sits over the first few pixels under the column names, so a
+   row on its way out is hidden rather than sliced through the middle, which
+   is what a half-height line of figures under the names looked like.
+
+   Outside the table on purpose: a shadow cast by the names themselves is
+   painted over by the rows, since they share the table's stacking context. */
+.spend-cover {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3rem;
+  z-index: 1;
+  background: var(--ground);
+  pointer-events: none;
+}
+
+.spend-body {
+  overflow: auto;
+
+  /* No padding above: the column names stick to the top of this box, and any
+     gap over them is a strip of open ground that rows scroll through on their
+     way out. The table carries that space instead, below the names where it
+     scrolls away with everything else. */
+  padding: 0 1.1rem 1.1rem;
+}
+
+.spend-table {
+  width: 100%;
+  /* Separate, not collapsed, so a scrolling row is clipped by the sticky
+     header's own edge instead of sharing a border with it. Collapsed borders
+     belong to the table rather than to either cell, and a shared edge is
+     drawn once, over whichever of the two paints last. */
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.spend-table th,
+.spend-table td {
+  padding: 0.34rem 0.5rem;
+  text-align: right;
+  white-space: nowrap;
+  /* Against the middle of the row rather than the first line of it. A name
+     long enough to wrap is two lines tall and its figures are one, and on the
+     baseline they sat against the top line with a blank line under them,
+     which read as though the row below had lost its name. */
+  vertical-align: middle;
+}
+
+/* The first column is the name of the work, which is prose and wants to be
+   left aligned and allowed to be long. Everything after it is a figure. */
+.spend-table th:first-child {
+  width: 100%;
+  text-align: left;
+  font-weight: 400;
+  white-space: normal;
+}
+
+.spend-table tbody tr:first-child th,
+.spend-table tbody tr:first-child td { padding-top: 0.7rem; }
+
+.spend-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--ground);
+  /* The opaque band is taller than its letters, above and below, because a
+     row scrolling out passes behind it and has to be gone before it reaches
+     them. Sized to the letters, what showed under the names was the bottom
+     half of a line of figures, sliced through the middle, which reads as a
+     rendering fault rather than as scrolling.
+
+     Three parts make the band: padding-top and the shadow extend it upward
+     to the card's edge, and the shadow below it carries the same colour past
+     the border, which is where the sliced row was appearing. */
+  box-shadow: 0 -0.9rem 0 var(--ground);
+  padding-top: 0.9rem;
+  padding-bottom: 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--ink-low);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* A day and the tasks under it are one block, with the air between blocks
+   rather than a rule under every line. Rules on every row turn a list into a
+   grid and make two levels look like one. */
+.spend-group + .spend-group .spend-day th,
+.spend-group + .spend-group .spend-day td { padding-top: 1.15rem; }
+
+/* Folded: the day's own line stays, everything under it goes. */
+.spend-group.shut .spend-task { display: none; }
+
+/* The whole day line is the control. A button, so it is reachable by keyboard
+   and announces its own state, but shaped like the text it replaced. */
+.spend-fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.spend-fold:hover { color: var(--ink); }
+.spend-fold:focus-visible { outline: 2px solid var(--leaf); outline-offset: 3px; }
+
+/* A triangle rather than a chevron: it is a disclosure, and a filled arrow
+   that turns is the oldest and least ambiguous mark for one.
+
+   Drawn with clip-path on a real box rather than as border tricks. A
+   zero-size element with borders has no box to turn around, so its origin
+   has to be guessed at in pixels and the mark swings through an arc instead
+   of spinning where it sits. Given an 8px square the default origin is its
+   own centre, which is exactly what this wants. */
+.spend-caret {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  align-self: center;
+  background: currentColor;
+  clip-path: polygon(15% 0, 100% 50%, 15% 100%);
+  transform: rotate(90deg);
+  transition: transform 160ms var(--ease);
+}
+
+.spend-fold[aria-expanded="false"] .spend-caret { transform: rotate(0deg); }
+
+/* Somebody who asked not to be moved is not moved. */
+@media (prefers-reduced-motion: reduce) {
+  .spend-caret { transition: none; }
+}
+
+/* A day is the heading its tasks sit under, so it is the darker line and they
+   are indented beneath it. Same hierarchy as the drawing. */
+/* A day is the heading its tasks sit under: darker, heavier, and its figures
+   carry the same weight so the line reads as one summary rather than a title
+   with someone else's numbers beside it. */
+.spend-day th:first-child {
+  font-weight: 600;
+  color: var(--bark);
+}
+
+/* The last line is the darkest thing on the table, since it is the one figure
+   that answers the question the panel was opened for. */
+.spend-total th:first-child,
+.spend-total td { color: var(--ink); }
+
+/* The day line carries weight, since it is the summary a reader scans before
+   deciding which day to open. A step above its tasks and a step below the
+   total at the foot, so the three levels are told apart by how dark they are
+   and not only by where they sit. */
+.spend-day td {
+  color: var(--ink-up);
+  font-weight: 600;
+}
+
+.spend-task th:first-child {
+  padding-left: 1.4rem;
+  color: var(--ink-mid);
+}
+
+.spend-task td { color: var(--ink-mid); }
+
+.spend-none {
+  text-align: right;
+  font-style: italic;
+  color: var(--ink-low);
+}
+
+.spend-total tr {
+  border-top: 1px solid var(--rule);
+}
+
+.spend-total th:first-child,
+.spend-total td {
+  padding-top: 0.7rem;
+  font-weight: 600;
+}
+
+/* What this work cost, and the way through to the whole table.
+
+   A button rather than a sentence. It said a number and offered nothing to
+   do about it, while the table that answers the obvious next question was
+   sitting one click away in the rail. Quiet, because it is a footnote to the
+   figures above it and not the reason the panel is open. */
+.reader-cost {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  width: calc(100% + 1.2rem);
+  /* Its own air above and below. Tucked against the figures it follows, the
+     tint met the block under it on hover and the two read as one shape. */
+  margin: 0.7rem -0.6rem 1.1rem;
+  padding: 0.55rem 0.6rem;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--ink-mid);
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms var(--ease), color 120ms var(--ease);
+}
+
+.reader-cost:hover {
+  background: var(--sunk);
+  color: var(--ink);
+}
+
+.reader-cost:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: -2px;
+}
+
+.cost-more {
+  flex: none;
+  color: var(--ink-low);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.reader-cost:hover .cost-more { color: var(--ink); }
+
+/* The button that opens it, under the filters with a line between.
+
+   Divided off because it is not one of them: those four narrow what is drawn
+   and this narrows nothing. Same size and same shape, so the rail still reads
+   as one column of controls rather than two. Hidden until there is something
+   to show, which is a history old enough to carry token figures. */
+/* Divided off from the filters above it, since it is not one of them.
+
+   The rule is a pseudo-element rather than a border or a shadow. Both of
+   those follow the button's own 999px radius and come out as a curved arc
+   across the strip, and a border would also add to the 2.3rem box and push
+   the icon out of step with the four above it. */
+.rail-aside {
+  margin-top: 0.75rem;
+}
+
+.rail-aside::before {
+  content: "";
+  position: absolute;
+  top: -0.42rem;
+  right: 0.3rem;
+  left: 0.3rem;
+  height: 1px;
+  background: var(--rule);
+}
+
+@media (max-width: 40rem) {
+  .spend-body { padding: 0 0.6rem 0.8rem; }
+  .spend-table { font-size: 0.72rem; }
+  .spend-table th,
+  .spend-table td { padding: 0.3rem 0.28rem; }
+}
+
+/* The five figures, when the pointer is on the field rather than the task.
+   A list rather than a table: the note is 19rem wide and five columns will
+   not fit across it, so they are read down. */
+.pop-ledger {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.12rem 1rem;
+  margin: 0.45rem 0 0;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.67rem;
+  color: var(--ink-low);
+}
+
+.pop-ledger dt { margin: 0; }
+
+.pop-ledger dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-mid);
+}
+
+/* The total is the line being led up to, so it is divided off and darker. */
+.pop-ledger dt.sum,
+.pop-ledger dd.sum {
+  margin-top: 0.22rem;
+  padding-top: 0.22rem;
+  border-top: 1px solid var(--rule);
+  color: var(--ink);
 }

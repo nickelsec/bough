@@ -113,6 +113,37 @@
     var root = el("g", { id: "canvas" });
     svg.appendChild(root);
 
+    // What each piece of work cost, as a field behind it, and behind
+    // everything else on the page.
+    //
+    // Its own layer rather than a circle inside each task group. In the group
+    // it was drawn after the wires, so a field lay over the lines joining the
+    // work to the day it belongs to, which is the one relationship the
+    // drawing exists to show. This is background; the structure sits on top
+    // of it, lines included.
+    //
+    // No floor on the size. A floor keeps a node big enough to click when the
+    // drawing is zoomed out, and this is not a click target: the task inside
+    // it is. Given one it grew against the zoom while the task and its
+    // prompts did not, and on a small project, which opens zoomed well in, it
+    // reached three times the task's own width and swallowed every prompt.
+    var fields = el("g", { class: "fields" });
+    model.days.forEach(function (day) {
+      day.tasks.forEach(function (task) {
+        if (!task.halo) return;
+        var field = el("circle", {
+          cx: task.x, cy: task.y, class: "halo",
+          // Its own attribute rather than data-for, which the wires use and
+          // mark() reads with querySelector: one of the two would light and
+          // the other would not, depending which came first in the document.
+          "data-field": task.id
+        });
+        round(field, task, task.halo * 2, 0);
+        fields.appendChild(field);
+      });
+    });
+    root.appendChild(fields);
+
     // Links sit behind everything, since they are a note about the work
     // rather than part of its structure.
     var links = el("g", { class: "links" });
@@ -614,11 +645,19 @@
       if (!selected) reset();
     });
 
-    // The drawer slides the stage narrower and back again. Its width is what
-    // the svg's coordinates are measured in, so the svg follows it once the
-    // slide has finished rather than partway through.
+    // The drawer used to slide the stage narrower and back, and the svg had to
+    // be re-measured each time it finished. It does not any more: it sits over
+    // the drawing instead. That is what this listener is for now, and it stays
+    // because the stage still has a transition on any future layout change.
+    //
+    // Overlaying rather than pushing was a speed decision. The stage's width
+    // is what the svg's coordinate system is measured in, so shrinking it
+    // meant rewriting the viewBox and re-laying out every node in the drawing
+    // on every open and every close, twice per look at a record. On a history
+    // with a few hundred prompts that is what made opening one feel slow.
+    // Nothing about the drawing needs to change for a panel to appear over it.
     stage.addEventListener("transitionend", function (e) {
-      if (e.propertyName === "right") restage();
+      if (e.propertyName === "right" || e.propertyName === "width") restage();
     });
   }
 
@@ -731,6 +770,10 @@
     if (n) n.classList.add("lit");
     var wire = host.querySelector('[data-for="' + cssEscape(id) + '"]');
     if (wire) wire.classList.add("lit");
+    // The field behind a task lives in its own layer now, so it no longer
+    // lights by being inside the group that did.
+    var field = host.querySelector('[data-field="' + cssEscape(id) + '"]');
+    if (field) field.classList.add("lit");
   }
 
   // ancestry returns a node and everything above it, nearest first.
@@ -771,6 +814,11 @@
     } else if (item.kind === "task") {
       pop.appendChild(node("p", "pop-title", clip(item.task.label || "(unnamed)", 110)));
       pop.appendChild(node("p", "pop-when", figures(item.task.stats)));
+      // The field drawn around this task, in figures. It is the one thing on
+      // the drawing sized by something the note does not otherwise say, so
+      // the note is where it gets said.
+      var cost = ledger(item.task.stats.tokens);
+      if (cost) pop.appendChild(cost);
       if (item.shipped) {
         var hashes = shas(item.task.stats);
         if (hashes) pop.appendChild(node("p", "pop-sha", hashes));
@@ -778,6 +826,8 @@
     } else {
       pop.appendChild(node("p", "pop-title", item.goal.period || ""));
       pop.appendChild(node("p", "pop-when", figures(item.goal.stats)));
+      var dayCost = ledger(item.goal.stats.tokens);
+      if (dayCost) pop.appendChild(dayCost);
     }
 
     pop.hidden = false;
@@ -844,17 +894,52 @@
     head.appendChild(node("p", "reader-figures", figures(day.goal.stats)));
     panel.appendChild(head);
 
+    costLine(panel, day.goal.stats);
+
     commitList(panel, day.goal.stats.commits);
 
+    // The tasks inside the day, each one a way into it. They were a plain
+    // list before, which named the work and then made you go back to the
+    // drawing and find the right small square to read any of it.
     var list = node("ol", "turns");
     day.tasks.forEach(function (task) {
-      var li = node("li", "turn");
-      li.appendChild(node("p", "said", task.task.label || "(unnamed)"));
-      li.appendChild(node("p", "when", figures(task.task.stats)));
+      var li = node("li", "turn turn-open");
+      var go = node("button", "turn-go");
+      go.type = "button";
+      go.appendChild(node("span", "said", task.task.label || "(unnamed)"));
+      go.appendChild(node("span", "when", figures(task.task.stats)));
+      go.addEventListener("click", function () { choose(task); });
+      li.appendChild(go);
       list.appendChild(li);
     });
     panel.appendChild(list);
     document.getElementById("reader").scrollTop = 0;
+  }
+
+  // costLine is what this work was charged, and the way through to the whole
+  // table. Both readings carry it, since a day is as fair a thing to ask the
+  // cost of as a task.
+  //
+  // A share rather than a count, because the absolute figure means nothing
+  // without the whole and the whole is one click away. It was loose text
+  // before, saying a number and offering nothing to do about it.
+  function costLine(panel, stats) {
+    if (!stats.tokens || !graph.totals.tokens) return;
+    var mine = tokensOf(stats.tokens);
+    var whole = tokensOf(graph.totals.tokens);
+    if (whole <= 0 || mine <= 0) return;
+
+    var pct = 100 * mine / whole;
+    var go = node("button", "reader-cost");
+    go.type = "button";
+    go.appendChild(node("span", "cost-share",
+      (pct < 1 ? "under 1" : "~" + Math.round(pct)) + "% of this project's tokens"));
+    go.appendChild(node("span", "cost-more", "More"));
+    go.addEventListener("click", function () {
+      var open = document.getElementById("rail-spend");
+      if (open) open.click();
+    });
+    panel.appendChild(go);
   }
 
   function readTask(panel, task, highlight) {
@@ -873,17 +958,7 @@
         "kept coming back to " + baseName(stats.churnFile) + " (" + much + ")"));
     }
 
-    // What share of the project this work took. A proportion rather than a
-    // count, since the absolute number means nothing without the whole.
-    if (stats.tokens && graph.totals.tokens) {
-      var mine = tokensOf(stats.tokens);
-      var whole = tokensOf(graph.totals.tokens);
-      if (whole > 0 && mine > 0) {
-        var pct = 100 * mine / whole;
-        panel.appendChild(node("p", "reader-cost",
-          (pct < 1 ? "under 1" : "~" + Math.round(pct)) + "% of this project's tokens"));
-      }
-    }
+    costLine(panel, stats);
 
     commitList(panel, stats.commits);
 
@@ -1312,6 +1387,32 @@
     return bits.join("  ·  ");
   }
 
+  // ledger is the five figures, named the way the agents name them.
+  //
+  // The same words and the same order as the breakdown table, so moving
+  // between the two is not a translation exercise. Read down rather than
+  // across: the note is 19rem wide and five columns would not fit in it.
+  function ledger(t) {
+    // Absent when the history predates the agent recording it. Nothing is
+    // shown rather than five zeroes, which would read as free.
+    if (!t) return null;
+    var rows = [
+      ["Output", t.output || 0],
+      ["Input", t.input || 0],
+      ["Cache created", t.cacheWrite || 0],
+      ["Cache read", t.cacheRead || 0],
+      ["Total", tokensOf(t)]
+    ];
+    var list = node("dl", "pop-ledger");
+    rows.forEach(function (r, i) {
+      var name = node("dt", i === rows.length - 1 ? "sum" : null, r[0]);
+      var val = node("dd", i === rows.length - 1 ? "sum" : null, big(r[1]));
+      list.appendChild(name);
+      list.appendChild(val);
+    });
+    return list;
+  }
+
   // The hashes themselves, which are the one thing on the page a reader can
   // check against their own repository.
   //
@@ -1414,6 +1515,7 @@
 
     fill(document.getElementById("foot-main"), main);
     fill(document.getElementById("foot-rest"), rest);
+    if (t.tokens) breakdown();
 
     // The first row is itself the control. With nothing behind it there is
     // nothing to open, so it goes back to being a plain row of figures rather
@@ -1462,6 +1564,133 @@
       into.appendChild(span);
     });
 
+  }
+
+  // breakdown wires up the table and the button in the rail that opens it.
+  //
+  // In the rail rather than folded into the second row of the footer. It was
+  // there first and it was the wrong place: that row ships closed, so the one
+  // reading of the work that answers what it cost was two clicks down inside
+  // a disclosure most people never open. The rail is where this page keeps
+  // the things you go to it for.
+  function breakdown() {
+    var open = document.getElementById("rail-spend");
+    var panel = document.getElementById("spend");
+    var body = document.getElementById("spend-body");
+    if (!open || !panel || !body) return;
+
+    open.hidden = false;
+    open.addEventListener("click", function () {
+      body.textContent = "";
+      body.appendChild(spendTable());
+      panel.hidden = false;
+      document.getElementById("spend-close").focus();
+    });
+
+    function shut() {
+      panel.hidden = true;
+      open.focus();
+    }
+    document.getElementById("spend-close").addEventListener("click", shut);
+    // The backdrop, but not the card: a click that lands on the table itself
+    // is someone selecting a figure to copy, and closing on that loses it.
+    panel.addEventListener("click", function (e) {
+      if (e.target === panel) shut();
+    });
+    // Escape closes this and stops there, so the handler further down does
+    // not also put the record and the filter card away. Opening the table
+    // over a record to check one figure and losing your place on the way out
+    // is the sort of thing that teaches people not to open it.
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape" || panel.hidden) return;
+      e.stopPropagation();
+      shut();
+    });
+  }
+
+  // spendTable is every day and every task with what each was charged.
+  //
+  // The same five columns other tools print, in the same order, so anyone
+  // arriving from one of those reads it without being taught and can check one
+  // against the other. That is worth more here than a shape of our own.
+  function spendTable() {
+    var wrap = node("div");
+
+    var table = node("table", "spend-table");
+    var head = node("tr");
+    // The names the agents themselves report these under, not friendlier ones
+    // of our own. Anyone reading this table has seen the same five in their
+    // billing or in another tool, and a private vocabulary would mean working
+    // out which of ours is which of theirs before the figures can be checked.
+    ["", "Output", "Input", "Cache created", "Cache read", "Total"].forEach(function (h) {
+      head.appendChild(node("th", null, h));
+    });
+    var thead = node("thead");
+    thead.appendChild(head);
+    table.appendChild(thead);
+
+    // One tbody per day, holding the day's own line and the tasks inside it.
+    // Grouping them in the markup is what lets a day be folded away without
+    // hunting for where its tasks stop, and it is also what the markup means:
+    // these rows belong to that day.
+    graph.goals.forEach(function (goal, i) {
+      var group = node("tbody", "spend-group");
+      var head = row(group, "day", goal.period || goal.label || "", goal.stats.tokens);
+
+      var tasks = goal.tasks || [];
+      if (tasks.length) {
+        // The whole day line is the control, not a chevron at one end of it.
+        // A row of figures with a mark on the end reads as one thing, so it
+        // behaves as one, and it is a far easier target than the mark alone.
+        var name = head.querySelector("th");
+        var hit = node("button", "spend-fold");
+        hit.type = "button";
+        hit.setAttribute("aria-expanded", "true");
+        hit.appendChild(node("span", "spend-caret"));
+        hit.appendChild(document.createTextNode(name.textContent));
+        name.textContent = "";
+        name.appendChild(hit);
+
+        tasks.forEach(function (task) {
+          row(group, "task", task.label || "(unnamed)", task.stats.tokens);
+        });
+
+        hit.addEventListener("click", function () {
+          var open = hit.getAttribute("aria-expanded") === "true";
+          hit.setAttribute("aria-expanded", open ? "false" : "true");
+          group.classList.toggle("shut", open);
+        });
+      }
+      table.appendChild(group);
+    });
+
+    var foot = node("tbody", "spend-total");
+    row(foot, "all", "Everything", graph.totals.tokens);
+    table.appendChild(foot);
+
+    wrap.appendChild(table);
+    return wrap;
+  }
+
+  // row is one line of the table. A piece of work charged nothing still gets a
+  // line: leaving it out would make the table disagree with the drawing about
+  // how much work there was.
+  function row(into, kind, label, t) {
+    var tr = node("tr", "spend-" + kind);
+    tr.appendChild(node("th", null, clip(label, 58)));
+    // A dash per column rather than a sentence across them. The table is read
+    // down each column, and a row of prose in the middle of that breaks the
+    // scan for something a reader takes in without being told.
+    if (!t) {
+      for (var i = 0; i < 5; i++) tr.appendChild(node("td", "spend-none", "–"));
+      into.appendChild(tr);
+      return tr;
+    }
+    [t.output, t.input, t.cacheWrite, t.cacheRead, tokensOf(t)].forEach(function (n) {
+      tr.appendChild(node("td", null, big(n || 0)));
+    });
+    into.appendChild(tr);
+    return tr;
   }
 
   // tokensOf sums the four counts into one number.
@@ -1569,6 +1798,10 @@
 
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
+    // The table sits over everything and closes itself, so anything under it
+    // stays as it was. Escape puts away the topmost thing, not all of them.
+    var over = document.getElementById("spend");
+    if (over && !over.hidden) return;
     clear();
     if (openPanel) openPanel(null);
   });
