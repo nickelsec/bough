@@ -90,6 +90,17 @@ func WriteText(w io.Writer, g Graph, verbose bool) error {
 			if task.Stats.Errors > 0 {
 				fmt.Fprintf(w, ", %s", plural(task.Stats.Errors, "failure"))
 			}
+			// What the work cost, written the way the project total above is:
+			// what was produced, then how much context it took to produce it.
+			// The total of the four would be the bigger number and the less
+			// useful one, since cache read is around 99 per cent of it and
+			// says mostly how long the conversation had grown.
+			if tk := task.Stats.Tokens; tk != nil && tk.Output > 0 {
+				fmt.Fprintf(w, ", %s written", big(tk.Output))
+				if tk.CacheRead > 0 {
+					fmt.Fprintf(w, ", %dx context", tk.CacheRead/tk.Output)
+				}
+			}
 			fmt.Fprintln(w)
 
 			// What the work committed, so it can be checked against the
