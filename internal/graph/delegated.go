@@ -118,7 +118,12 @@ func absorb(dst *agent.Turn, src agent.Turn) {
 	addCounts(dst.Files, src.Files)
 	addCounts(dst.Edits, src.Edits)
 	addCounts(dst.Lines, src.Lines)
-	addCounts(dst.Models, src.Models)
+	// Through Merge rather than addCounts, which gives up when the destination
+	// map is nil. A Claude turn only grows one once a reply names a model, so
+	// a turn that delegated everything and wrote nothing itself had none, and
+	// the sub-agent's models were dropped on the floor without a word. Merge
+	// makes the map instead.
+	agent.Merge(&dst.Models, src.Models)
 
 	dst.Errors += src.Errors
 	// Through Add rather than field by field. A hand written sum here means a

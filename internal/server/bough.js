@@ -65,7 +65,12 @@
     from: null,
     to: null,
     substantialOnly: false,
-    hardOnly: false
+    hardOnly: false,
+    // What the work had to cost to stay lit, and which measure that reads.
+    // Zero is off rather than a floor everything clears, so the filter counts
+    // as running only once it has been moved.
+    least: 0,
+    by: "cost"
   };
 
   var stage = document.getElementById("stage");
@@ -817,8 +822,10 @@
       // The field drawn around this task, in figures. It is the one thing on
       // the drawing sized by something the note does not otherwise say, so
       // the note is where it gets said.
-      var cost = ledger(item.task.stats.tokens);
+      var cost = ledger(item.task.stats.tokens, item.task.stats);
       if (cost) pop.appendChild(cost);
+      var used = odd(item.task.stats);
+      if (used) pop.appendChild(node("p", "pop-model", used));
       if (item.shipped) {
         var hashes = shas(item.task.stats);
         if (hashes) pop.appendChild(node("p", "pop-sha", hashes));
@@ -826,8 +833,10 @@
     } else {
       pop.appendChild(node("p", "pop-title", item.goal.period || ""));
       pop.appendChild(node("p", "pop-when", figures(item.goal.stats)));
-      var dayCost = ledger(item.goal.stats.tokens);
+      var dayCost = ledger(item.goal.stats.tokens, item.goal.stats);
       if (dayCost) pop.appendChild(dayCost);
+      var dayUsed = odd(item.goal.stats);
+      if (dayUsed) pop.appendChild(node("p", "pop-model", dayUsed));
     }
 
     pop.hidden = false;
@@ -894,7 +903,7 @@
     head.appendChild(node("p", "reader-figures", figures(day.goal.stats)));
     panel.appendChild(head);
 
-    costLine(panel, day.goal.stats);
+    costLine(panel, day.goal.stats, day.goal.id);
 
     commitList(panel, day.goal.stats.commits);
 
@@ -923,7 +932,7 @@
   // A share rather than a count, because the absolute figure means nothing
   // without the whole and the whole is one click away. It was loose text
   // before, saying a number and offering nothing to do about it.
-  function costLine(panel, stats) {
+  function costLine(panel, stats, id) {
     if (!stats.tokens || !graph.totals.tokens) return;
     var mine = tokensOf(stats.tokens);
     var whole = tokensOf(graph.totals.tokens);
@@ -937,7 +946,11 @@
     go.appendChild(node("span", "cost-more", "More"));
     go.addEventListener("click", function () {
       var open = document.getElementById("rail-spend");
-      if (open) open.click();
+      if (!open) return;
+      // Which line to open in front of. Read and cleared by the handler, so
+      // the coins on their own still open the table at the top.
+      if (id) open.setAttribute("data-reveal", id);
+      open.click();
     });
     panel.appendChild(go);
   }
@@ -958,7 +971,7 @@
         "kept coming back to " + baseName(stats.churnFile) + " (" + much + ")"));
     }
 
-    costLine(panel, stats);
+    costLine(panel, stats, task.task.id);
 
     commitList(panel, stats.commits);
 
@@ -1098,6 +1111,7 @@
         var out = dayOut ||
           (needle && !touches(task.task, needle)) ||
           (filters.hardOnly && !task.hard) ||
+          (filters.least > 0 && !dear(task.task.stats)) ||
           (hits && hits.length === 0);
 
         t.classList.toggle("faded", Boolean(out));
@@ -1115,6 +1129,33 @@
     document.body.classList.toggle("nothing", !anyShown && filtering());
     tally(rung);
     marks();
+  }
+
+  // dear says whether a piece of work reaches the figure being filtered on.
+  //
+  // Work with no figure at all never reaches it. A task whose model has no
+  // published rate has not been shown to cost less than twenty five dollars,
+  // it has not been priced, and lighting it beside work that was priced would
+  // say the wrong thing about both. The same goes for history recorded before
+  // the agent kept token counts.
+  function dear(stats) {
+    var n = figureOf(stats, filters.by);
+    return n !== null && n >= filters.least;
+  }
+
+  // figureOf reads one figure off a piece of work, or null when it has none.
+  //
+  // Not "measure": that name already belongs to the zoom anchors further up.
+  // Two functions of the same name in one closure do not coexist, the later
+  // one replaces the earlier, and what breaks is the older caller rather than
+  // the new code that took the name.
+  function figureOf(stats, by) {
+    if (!stats) return null;
+    if (by === "cost") return typeof stats.cost === "number" ? stats.cost : null;
+    var t = stats.tokens;
+    if (!t) return null;
+    if (by === "total") return tokensOf(t);
+    return t[by] || 0;
   }
 
   function touches(task, needle) {
@@ -1209,7 +1250,7 @@
 
   function filtering() {
     return Boolean(filters.said || filters.file || filters.from || filters.to ||
-      filters.substantialOnly || filters.hardOnly);
+      filters.substantialOnly || filters.hardOnly || filters.least > 0);
   }
 
   // openPanel is set by bindRail so clicking the canvas can put the card away.
@@ -1315,6 +1356,8 @@
       refilter();
     });
 
+    costFilter();
+
     document.getElementById("f-show-clear").addEventListener("click", function () {
       ["f-size", "f-hard"].forEach(function (id) {
         document.getElementById(id).setAttribute("aria-checked", "false");
@@ -1324,6 +1367,111 @@
       refilter();
     });
 
+  }
+
+  // costFilter wires the slider and the row of measures under it.
+  //
+  // The slider is not linear. On the history this was fitted to, the dearest
+  // task cost $85 and two thirds of them cost under $10, so half a linear
+  // slider's travel picked out four tasks and the first tenth of it did all
+  // the work that matters. The position is raised to a power instead, which
+  // spends most of the track where most of the work is.
+  function costFilter() {
+    var tab = document.querySelector('.rail-btn[data-panel="cost"]');
+    var slider = document.getElementById("f-spend");
+    var now = document.getElementById("f-spend-now");
+    if (!tab || !slider) return;
+
+    // Nothing to filter on, so the tab never appears. A project read before
+    // the agent recorded token counts is the case.
+    if (most("total") <= 0) return;
+    tab.hidden = false;
+
+    // Cost is the opening measure, but only if there is one. A project whose
+    // model has no published rate starts on tokens instead of on a slider
+    // that can never do anything.
+    if (most("cost") <= 0) {
+      filters.by = "total";
+      var money = document.querySelector('.pick-btn[data-by="cost"]');
+      if (money) money.hidden = true;
+      press();
+    }
+
+    function press() {
+      document.querySelectorAll("#f-measure .pick-btn").forEach(function (b) {
+        b.setAttribute("aria-pressed", b.getAttribute("data-by") === filters.by ? "true" : "false");
+      });
+    }
+
+    // Where the slider sits, as the figure it means. Squared, so the lower
+    // half of the track covers the lower quarter of the range.
+    function atPosition() {
+      var at = Number(slider.value) / 1000;
+      return Math.pow(at, 2) * most(filters.by);
+    }
+
+    function say() {
+      var n = filters.least;
+      // Zero rather than a word for it. The figure beside it is a number at
+      // every other position on the track, and a word at one end makes the
+      // readout change shape as the handle passes it.
+      now.textContent = filters.by === "cost" ? money2(n) : big(Math.round(n));
+    }
+
+    function read() {
+      filters.least = atPosition();
+      say();
+      refilter();
+    }
+
+    slider.addEventListener("input", read);
+
+    document.querySelectorAll("#f-measure .pick-btn").forEach(function (b) {
+      b.addEventListener("click", function () {
+        filters.by = b.getAttribute("data-by");
+        press();
+        // The slider keeps its position and means something new, which is
+        // what a reader who has just switched measure expects: the same
+        // proportion of a different scale.
+        read();
+      });
+    });
+
+    document.getElementById("f-cost-clear").addEventListener("click", function () {
+      slider.value = 0;
+      filters.least = 0;
+      say();
+      refilter();
+    });
+
+    press();
+    say();
+  }
+
+  // most is the largest figure any one piece of work reached, which is what
+  // the slider's far end means. Worked out from tasks rather than from the
+  // project total, since a task is what the filter acts on.
+  var peaks = {};
+  function most(by) {
+    if (peaks[by] !== undefined) return peaks[by];
+    var top = 0;
+    graph.goals.forEach(function (goal) {
+      (goal.tasks || []).forEach(function (task) {
+        var n = figureOf(task.stats, by);
+        if (n !== null && n > top) top = n;
+      });
+    });
+    peaks[by] = top;
+    return top;
+  }
+
+  // money2 is money to the cent, for the slider readout. The figure moves as
+  // the handle does, and rounding it to the dollar the way a project total is
+  // rounded would make the first third of the track read "$0".
+  function money2(d) {
+    if (d <= 0) return "$0";
+    if (d >= 100) return "$" + Math.round(d).toLocaleString("en-US");
+    return "$" + d.toFixed(2);
   }
 
   // switchFor wires one of the on-off controls. They are buttons rather than
@@ -1346,6 +1494,7 @@
       said: Boolean(filters.said),
       file: Boolean(filters.file),
       when: Boolean(filters.from || filters.to),
+      cost: filters.least > 0,
       show: filters.substantialOnly || filters.hardOnly
     };
 
@@ -1389,28 +1538,56 @@
 
   // ledger is the five figures, named the way the agents name them.
   //
-  // The same words and the same order as the breakdown table, so moving
-  // between the two is not a translation exercise. Read down rather than
-  // across: the note is 19rem wide and five columns would not fit in it.
-  function ledger(t) {
+  // The same order as the breakdown table, so moving between the two is not a
+  // translation exercise. The names are written out here where the table cuts
+  // them to a letter: this reads down a column 19rem wide and has the room,
+  // where the table reads across seven columns and does not.
+  function ledger(t, stats) {
     // Absent when the history predates the agent recording it. Nothing is
     // shown rather than five zeroes, which would read as free.
     if (!t) return null;
     var rows = [
-      ["Output", t.output || 0],
-      ["Input", t.input || 0],
-      ["Cache created", t.cacheWrite || 0],
-      ["Cache read", t.cacheRead || 0],
-      ["Total", tokensOf(t)]
+      ["Output", big(t.output || 0)],
+      ["Input", big(t.input || 0)],
+      ["Cache created", big(t.cacheWrite || 0)],
+      ["Cache read", big(t.cacheRead || 0)],
+      ["Total", big(tokensOf(t))]
     ];
+    var last = rows.length - 1;
+
+    // What the work would have cost, under the counts it was worked out from.
+    // In cents rather than rounded to the dollar the way the project total is:
+    // at this size the difference between two pieces of work is the cents.
+    var priced = stats && typeof stats.cost === "number";
+    if (priced) rows.push(["Cost", money(stats.cost)]);
+
     var list = node("dl", "pop-ledger");
     rows.forEach(function (r, i) {
-      var name = node("dt", i === rows.length - 1 ? "sum" : null, r[0]);
-      var val = node("dd", i === rows.length - 1 ? "sum" : null, big(r[1]));
-      list.appendChild(name);
-      list.appendChild(val);
+      var mark = i === last ? "sum" : (priced && i === rows.length - 1 ? "spent" : null);
+      list.appendChild(node("dt", mark, r[0]));
+      list.appendChild(node("dd", mark, r[1]));
     });
     return list;
+  }
+
+  // odd names the models a piece of work used that the project as a whole did
+  // not, and nothing at all when they are the same.
+  //
+  // Naming the model on every task would print one constant sixty times: all
+  // but a handful of turns in the history this was built against used a single
+  // model. The case worth showing is the piece of work that used a different
+  // one, and that is the only case this says anything about.
+  function odd(stats) {
+    if (!stats || !stats.models) return "";
+    var mine = Object.keys(stats.models);
+    if (!mine.length) return "";
+    var whole = Object.keys((graph.totals && graph.totals.models) || {});
+    // A project that only ever used one model has nothing to distinguish, so
+    // no piece of work in it names one.
+    if (whole.length < 2) return "";
+    // Otherwise say what this piece used, since that is now a real choice and
+    // it is what makes one task cost more per token than another.
+    return mine.sort().join(", ");
   }
 
   // The hashes themselves, which are the one thing on the page a reader can
@@ -1495,6 +1672,12 @@
       [t.files || 0, "files"],
       [duration(t.activeMinutes), "at the keyboard"]
     ];
+    // What the whole project would have cost, in the row that is always
+    // showing. It was in the second row with the token counts it is worked
+    // out from, which is where it belongs by derivation and the wrong place
+    // by importance: that row ships closed, so the figure most people came
+    // for was behind a disclosure. The counts stay there; this comes out.
+    if (typeof t.cost === "number") main.push([money(t.cost), "", rateNote]);
 
     var rest = [];
     var made = (t.commits || []).length;
@@ -1560,7 +1743,9 @@
       // The gap between a number and its word is set in the stylesheet, so
       // the word is added without one of its own.
       if (pair[1]) span.appendChild(document.createTextNode(pair[1]));
-      if (pair[2]) span.appendChild(countNote());
+      // A note when the figure needs one. Either the maker of the note, or
+      // true for the commit note this started out only ever carrying.
+      if (pair[2]) span.appendChild((pair[2] === true ? countNote : pair[2])());
       into.appendChild(span);
     });
 
@@ -1581,11 +1766,29 @@
 
     open.hidden = false;
     open.addEventListener("click", function () {
+      showSpend(open.getAttribute("data-reveal"));
+      open.removeAttribute("data-reveal");
+    });
+
+    // showSpend builds the table and opens it, optionally in front of one
+    // particular piece of work.
+    //
+    // The id is carried on the button rather than passed as an argument
+    // because the rail button is the one way in: a reader coming from a task
+    // and a reader clicking the coins both arrive through the same click, and
+    // one of them knows which line they want.
+    function showSpend(id) {
       body.textContent = "";
       body.appendChild(spendTable());
       panel.hidden = false;
+      // From the top unless a line was asked for. The box keeps whatever it
+      // was scrolled to last time, so opening the coins after arriving from a
+      // task landed halfway down the table with nothing marked and no reason
+      // given.
+      body.scrollTop = 0;
+      reveal(body, id);
       document.getElementById("spend-close").focus();
-    });
+    }
 
     function shut() {
       panel.hidden = true;
@@ -1608,6 +1811,45 @@
     });
   }
 
+  // reveal scrolls the table to one piece of work and marks its line.
+  //
+  // Scrolled rather than only highlighted, because a table of eighty five
+  // lines is a scroll bar and nothing else to a reader who has just clicked a
+  // single task: the line they asked for is as likely to be off the bottom as
+  // on the screen.
+  //
+  // The header sits over the top of the box, so scrolling the row to the very
+  // top puts it underneath. It is placed a little way down instead, which
+  // clears the names and shows the rows above it, and those are the day it
+  // belongs to and the work either side of it.
+  function reveal(body, id) {
+    if (!id) return;
+    var line = body.querySelector('tr[data-id="' + cssEscape(id) + '"]');
+    if (!line) return;
+
+    // The day holding it may be folded away, in which case the row is there
+    // but has no height and nothing would be scrolled to.
+    var group = line.parentNode;
+    if (group && group.classList.contains("shut")) {
+      var fold = group.querySelector(".spend-fold");
+      if (fold) fold.click();
+    }
+
+    var box = body.getBoundingClientRect();
+    var at = line.getBoundingClientRect();
+    // A third of the way down the visible area, so what led to this line is
+    // on screen with it.
+    var want = body.scrollTop + (at.top - box.top) - box.height / 3;
+    body.scrollTop = Math.max(0, want);
+
+    line.classList.add("spend-found");
+    // Held just long enough to be found, then let go: the stylesheet takes
+    // most of a second to fade it out from here, so the mark is on screen for
+    // longer than this says. A row that stays lit while someone reads the
+    // rest of the table looks like a filter nobody asked for.
+    window.setTimeout(function () { line.classList.remove("spend-found"); }, 1400);
+  }
+
   // spendTable is every day and every task with what each was charged.
   //
   // The same five columns other tools print, in the same order, so anyone
@@ -1622,7 +1864,22 @@
     // of our own. Anyone reading this table has seen the same five in their
     // billing or in another tool, and a private vocabulary would mean working
     // out which of ours is which of theirs before the figures can be checked.
-    ["", "Output", "Input", "Cache created", "Cache read", "Total"].forEach(function (h) {
+    // One row of names, each short enough that the column is sized by its
+    // figures rather than by its title.
+    //
+    // "Cache created" and "Cache read" were thirteen and ten characters
+    // against values of four, so those two columns were as wide as their
+    // headings with the numbers in a ribbon at the right. A spanning "Cache"
+    // label above a shortened pair fixed the width and brought its own
+    // trouble: a second header row is a second thing to keep stuck to the top
+    // of a scrolling box, and the strip that covers the seam is one row tall,
+    // so the label was sliced in half on the way past.
+    //
+    // The fix is to need only one row. These are the terms the agents and the
+    // billing use, cut to the word that distinguishes each: a reader who has
+    // seen "cache_creation_input_tokens" on an invoice reads "Cache w" and
+    // "Cache r" without being taught, and neither is wider than its figures.
+    ["", "Output", "Input", "Cache w", "Cache r", "Total", "Cost"].forEach(function (h) {
       head.appendChild(node("th", null, h));
     });
     var thead = node("thead");
@@ -1635,7 +1892,7 @@
     // these rows belong to that day.
     graph.goals.forEach(function (goal, i) {
       var group = node("tbody", "spend-group");
-      var head = row(group, "day", goal.period || goal.label || "", goal.stats.tokens);
+      var head = row(group, "day", goal.period || goal.label || "", goal.stats.tokens, goal.stats, goal.id);
 
       var tasks = goal.tasks || [];
       if (tasks.length) {
@@ -1652,7 +1909,7 @@
         name.appendChild(hit);
 
         tasks.forEach(function (task) {
-          row(group, "task", task.label || "(unnamed)", task.stats.tokens);
+          row(group, "task", task.label || "(unnamed)", task.stats.tokens, task.stats, task.id);
         });
 
         hit.addEventListener("click", function () {
@@ -1665,7 +1922,15 @@
     });
 
     var foot = node("tbody", "spend-total");
-    row(foot, "all", "Everything", graph.totals.tokens);
+    // An empty row to hold the space above the rule. A table cell's padding
+    // sits inside its border, so the total's own cells can only open a gap
+    // below the line, and cells take no margin.
+    var gap = node("tr", "spend-gap");
+    var spacer = node("td");
+    spacer.colSpan = 7;
+    gap.appendChild(spacer);
+    foot.appendChild(gap);
+    row(foot, "all", "Everything", graph.totals.tokens, graph.totals);
     table.appendChild(foot);
 
     wrap.appendChild(table);
@@ -1675,22 +1940,55 @@
   // row is one line of the table. A piece of work charged nothing still gets a
   // line: leaving it out would make the table disagree with the drawing about
   // how much work there was.
-  function row(into, kind, label, t) {
+  function row(into, kind, label, t, stats, id) {
     var tr = node("tr", "spend-" + kind);
-    tr.appendChild(node("th", null, clip(label, 58)));
+    // Named after the work it describes, so a reader arriving from that piece
+    // of work can be put in front of its own line rather than at the top of
+    // a table of eighty five.
+    if (id) tr.setAttribute("data-id", id);
+    var name = node("th", null, clip(label, 58));
+    // Which model, when the project used more than one. Silent otherwise,
+    // rather than printing the same name on every line of the table.
+    var used = odd(stats);
+    if (used) name.appendChild(node("span", "spend-model", used));
+    tr.appendChild(name);
+
     // A dash per column rather than a sentence across them. The table is read
     // down each column, and a row of prose in the middle of that breaks the
     // scan for something a reader takes in without being told.
     if (!t) {
-      for (var i = 0; i < 5; i++) tr.appendChild(node("td", "spend-none", "–"));
+      for (var i = 0; i < 6; i++) tr.appendChild(node("td", "spend-none", "–"));
       into.appendChild(tr);
       return tr;
     }
     [t.output, t.input, t.cacheWrite, t.cacheRead, tokensOf(t)].forEach(function (n) {
       tr.appendChild(node("td", null, big(n || 0)));
     });
+    // A dash, not a zero, when nothing here has a published rate. Work that
+    // cost nothing to price is not work that cost nothing.
+    if (stats && typeof stats.cost === "number") {
+      tr.appendChild(node("td", "spend-cost", money(stats.cost)));
+    } else {
+      tr.appendChild(node("td", "spend-none", "–"));
+    }
     into.appendChild(tr);
     return tr;
+  }
+
+  // money writes a cost the way money is written.
+  //
+  // Not abbreviated the way token counts are. "$1.1k" reads as a mistake, and
+  // the figures here are small enough to write out: four digits at the most on
+  // a project, two on a piece of work.
+  //
+  // Whole dollars once past ten, because the cents on a three figure sum are
+  // noise. Under that they are the difference between two tasks, and under a
+  // cent the places are what stop a real figure reading as free.
+  function money(d) {
+    if (d >= 10) return "$" + Math.round(d).toLocaleString("en-US");
+    if (d >= 0.01) return "$" + d.toFixed(2);
+    if (d > 0) return "$" + d.toFixed(4);
+    return "$0";
   }
 
   // tokensOf sums the four counts into one number.
@@ -1712,18 +2010,26 @@
   // Almost every project uses one, and naming it is enough. A project that
   // changed model partway through is the interesting case, and then the split
   // is worth seeing.
+  // The share is of what each model wrote. A model's entry holds all four
+  // counts, since they are priced differently, but cache reads are around 99%
+  // of every one of them and say how long the conversation had grown rather
+  // than how much of the work a model did.
   function modelShare(models) {
     var names = Object.keys(models);
     if (!names.length) return "";
-    names.sort(function (a, b) { return models[b] - models[a]; });
+    function wrote(n) { return (models[n] && models[n].output) || 0; }
+    names.sort(function (a, b) { return wrote(b) - wrote(a); });
     if (names.length === 1) return names[0];
     var all = 0;
-    names.forEach(function (n) { all += models[n]; });
+    names.forEach(function (n) { all += wrote(n); });
+    // Every model wrote nothing, which leaves no shares to work out and a
+    // division by zero if one is attempted anyway.
+    if (!all) return names.sort().join("  ·  ");
     // The largest share takes what the rounding left over, so the parts add
     // up to a hundred rather than to ninety nine.
     var parts = [], rest = 100;
     for (var i = names.length - 1; i > 0; i--) {
-      var pct = Math.round(100 * models[names[i]] / all);
+      var pct = Math.round(100 * wrote(names[i]) / all);
       parts[i] = names[i] + " " + pct + "%";
       rest -= pct;
     }
@@ -1782,6 +2088,27 @@
   // same number, not always, and a reader who spots the gap should find the
   // reason here rather than conclude the tool is wrong. Three lines is the
   // whole of it: anything longer stops being read.
+  // rateNote says what the dollar figure is and is not.
+  //
+  // It is what the work would have cost billed per token at published rates.
+  // A Max or Pro subscription is flat rate and pays none of it, and nothing in
+  // a transcript says which was in use, so the figure cannot be called what
+  // anyone spent. Read the other way it is the more interesting number: on a
+  // subscription it is what the subscription saved.
+  function rateNote() {
+    var mark = node("button", "note");
+    mark.type = "button";
+    mark.appendChild(queryMark());
+    mark.setAttribute("aria-label", "what this figure means");
+    mark.title = [
+      "What this work would have cost at published API rates.",
+      "",
+      "A Max or Pro subscription is flat rate, so nobody on one",
+      "paid this. Read the other way, it is what the subscription saved.",
+    ].join("\n");
+    return mark;
+  }
+
   function countNote() {
     var mark = node("button", "note");
     mark.type = "button";

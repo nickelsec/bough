@@ -85,8 +85,17 @@ func TestExtractTurnsFromFixture(t *testing.T) {
 	if turn.Tokens.Output != 80 {
 		t.Errorf("expected 80 output tokens, got %d", turn.Tokens.Output)
 	}
-	if turn.Models["gpt-5.5"] != 80 {
-		t.Errorf("expected 80 tokens for gpt-5.5, got %d", turn.Models["gpt-5.5"])
+	// The whole four-way split is attributed to the model, not just what it
+	// wrote. Pricing needs all four, since they are charged at rates that
+	// differ by a factor of fifty.
+	got := turn.Models["gpt-5.5"]
+	want := agent.Tokens{Input: 200, Output: 80, CacheRead: 1500}
+	if got != want {
+		t.Errorf("gpt-5.5 charged %+v, want %+v", got, want)
+	}
+	// And what the models were charged sums to what the turn was charged.
+	if got.Total() != turn.Tokens.Total() {
+		t.Errorf("models total %d, turn total %d", got.Total(), turn.Tokens.Total())
 	}
 }
 
@@ -207,7 +216,7 @@ func TestPatchCountsLinesThatStartWithPlusOrMinus(t *testing.T) {
 
 	cur := agent.Turn{
 		Files: map[string]int{}, Edits: map[string]int{},
-		Lines: map[string]int{}, Tools: map[string]int{}, Models: map[string]int{},
+		Lines: map[string]int{}, Tools: map[string]int{},
 	}
 	applyPatch(&cur, patch)
 

@@ -76,6 +76,13 @@ type tokenUsage struct {
 	InputTokens       int `json:"input_tokens"`
 	CachedInputTokens int `json:"cached_input_tokens"`
 	OutputTokens      int `json:"output_tokens"`
+
+	// CacheWriteTokens is storing context rather than re-reading it. Codex
+	// writes the field and every record in the corpus this was read against
+	// held zero, so nothing here changes today. It is read anyway because it
+	// is the dearest of the four per token, and a bill that quietly leaves out
+	// its most expensive line is the kind of wrong that looks right.
+	CacheWriteTokens int `json:"cache_write_input_tokens"`
 }
 
 // TokenCountInfo holds token usage metrics from an event_msg.

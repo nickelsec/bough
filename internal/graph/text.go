@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/nickelsec/bough/internal/price"
 )
 
 // WriteText prints a graph as something a person can read in a terminal.
@@ -59,6 +61,14 @@ func WriteText(w io.Writer, g Graph, verbose bool) error {
 		if names := models(t.Models); names != "" {
 			fmt.Fprintf(w, "%s\n", names)
 		}
+		// What it would have cost at published rates, which is not what anyone
+		// paid: a subscription is flat rate and the transcript says nothing
+		// about which was in use. Saying so once, here, is what keeps the
+		// figure from reading as a receipt.
+		if t.Cost != nil {
+			fmt.Fprintf(w, "%s at API rates, priced %s\n",
+				dollars(*t.Cost), price.Taken().Format("Jan 2006"))
+		}
 	}
 
 	for _, goal := range g.Goals {
@@ -99,6 +109,11 @@ func WriteText(w io.Writer, g Graph, verbose bool) error {
 				fmt.Fprintf(w, ", %s written", big(tk.Output))
 				if tk.CacheRead > 0 {
 					fmt.Fprintf(w, ", %dx context", tk.CacheRead/tk.Output)
+				}
+				// Without the "at API rates" note the project line carries.
+				// Repeating it on every task would say it sixty times.
+				if task.Stats.Cost != nil {
+					fmt.Fprintf(w, ", %s", dollars(*task.Stats.Cost))
 				}
 			}
 			fmt.Fprintln(w)
@@ -216,6 +231,21 @@ func baseName(p string) string {
 }
 
 // big shortens a token count. Nobody needs the last six digits of a billion.
+// dollars writes a cost the way money is written, keeping a small one legible.
+//
+// A cheap task is worth a fraction of a cent, and "$0.00" reads as free rather
+// than as nearly nothing, so anything under a cent keeps enough places to show
+// it was not nought. Above that, two places, because that is what money has.
+func dollars(d float64) string {
+	switch {
+	case d >= 0.01:
+		return fmt.Sprintf("$%.2f", d)
+	case d > 0:
+		return fmt.Sprintf("$%.4f", d)
+	}
+	return "$0"
+}
+
 func big(n int) string {
 	switch {
 	case n >= 1e9:
@@ -230,9 +260,16 @@ func big(n int) string {
 
 // models names what did the work, most first. One model needs no share; more
 // than one is the case worth breaking down.
-func models(m map[string]int) string {
-	if len(m) == 0 {
+// The share is of output tokens rather than of everything. Cache reads are
+// around 99% of every figure and they say how long the conversation was, not
+// how much of the work a model did.
+func models(spend map[string]Tokens) string {
+	if len(spend) == 0 {
 		return ""
+	}
+	m := make(map[string]int, len(spend))
+	for k, v := range spend {
+		m[k] = v.Output
 	}
 	names := make([]string, 0, len(m))
 	all := 0
@@ -248,6 +285,13 @@ func models(m map[string]int) string {
 	})
 	if len(names) == 1 {
 		return names[0]
+	}
+	// Every model wrote nothing, so there are no shares to work out. Reachable
+	// on a history where only cache reads were recorded, and dividing by the
+	// total would panic rather than saying so.
+	if all == 0 {
+		sort.Strings(names)
+		return strings.Join(names, ", ")
 	}
 	// Rounded rather than truncated, and the largest share takes whatever the
 	// rounding left over, so the parts add up to a hundred rather than to

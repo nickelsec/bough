@@ -268,19 +268,23 @@ func creditUsage(cur *agent.Turn, m *Message, counted map[string]bool) {
 		}
 		counted[m.ID] = true
 	}
-	cur.Tokens.Add(agent.Tokens{
+	spent := agent.Tokens{
 		Input:      m.Usage.Input,
 		Output:     m.Usage.Output,
 		CacheRead:  m.Usage.CacheRead,
 		CacheWrite: m.Usage.CacheWrite,
-	})
+	}
+	// The hourly part of the same tokens, not tokens beside them. Kept within
+	// the flat figure in case a record's halves disagree with their own total,
+	// so the dearer rate can never be charged on more than was written.
+	if m.Usage.Cache != nil {
+		spent.CacheWriteHour = min(m.Usage.Cache.Hour, spent.CacheWrite)
+	}
+	cur.Tokens.Add(spent)
 	if m.Model == "" || m.Model == "<synthetic>" {
 		return
 	}
-	if cur.Models == nil {
-		cur.Models = map[string]int{}
-	}
-	cur.Models[m.Model] += m.Usage.Output
+	agent.Charge(&cur.Models, m.Model, spent)
 }
 
 // recordLines credits an edit's size to the turn that made it.
