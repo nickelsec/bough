@@ -184,7 +184,7 @@ func statsOf(turns []agent.Turn, repoRead bool) Stats {
 		Errors:        s.Errors,
 		Churn:         s.Churn,
 		LineChurn:     s.LineChurn,
-		Models:        s.Models,
+		Models:        spendOf(s.Models),
 		ChurnFile:     s.ChurnFile,
 		// Two places is plenty for a hint, and it keeps the same history from
 		// producing byte-different output across platforms.
@@ -194,11 +194,19 @@ func statsOf(turns []agent.Turn, repoRead bool) Stats {
 	// before this was recorded arrives.
 	if s.Tokens.Total() > 0 {
 		out.Tokens = &Tokens{
-			Input:      s.Tokens.Input,
-			Output:     s.Tokens.Output,
-			CacheRead:  s.Tokens.CacheRead,
-			CacheWrite: s.Tokens.CacheWrite,
+			Input:          s.Tokens.Input,
+			Output:         s.Tokens.Output,
+			CacheRead:      s.Tokens.CacheRead,
+			CacheWrite:     s.Tokens.CacheWrite,
+			CacheWriteHour: s.Tokens.CacheWriteHour,
 		}
+	}
+	// Priced here so the figure travels with the work it describes. Only when
+	// every model in it is known: a partial sum presented as a total is the
+	// one failure a bill cannot survive.
+	if c := out.Spend(); c.Priced && c.Dollars > 0 {
+		d := c.Dollars
+		out.Cost = &d
 	}
 	for i, f := range s.TopFiles {
 		if i >= topFileLimit {
@@ -234,10 +242,11 @@ func turnsOf(turns []agent.Turn, repoRead bool) []Turn {
 		// figure is. A zero would read as free rather than as unrecorded.
 		if t.Tokens.Total() > 0 {
 			row.Tokens = &Tokens{
-				Input:      t.Tokens.Input,
-				Output:     t.Tokens.Output,
-				CacheRead:  t.Tokens.CacheRead,
-				CacheWrite: t.Tokens.CacheWrite,
+				Input:          t.Tokens.Input,
+				Output:         t.Tokens.Output,
+				CacheRead:      t.Tokens.CacheRead,
+				CacheWrite:     t.Tokens.CacheWrite,
+				CacheWriteHour: t.Tokens.CacheWriteHour,
 			}
 		}
 		for _, d := range t.Delegated {
@@ -515,7 +524,7 @@ func clone(sessions []agent.Session) []agent.Session {
 			t.Files = copyCount(t.Files)
 			t.Edits = copyCount(t.Edits)
 			t.Lines = copyCount(t.Lines)
-			t.Models = copyCount(t.Models)
+			t.Models = copySpend(t.Models)
 			if t.Committed != nil {
 				t.Committed = append([]agent.Commit(nil), t.Committed...)
 			}
@@ -535,6 +544,38 @@ func copyCount(m map[string]int) map[string]int {
 		return nil
 	}
 	out := make(map[string]int, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+// spendOf restates what each model was charged for in the graph's own token
+// type, so the package above the core never has to import the one below it.
+func spendOf(m map[string]agent.Tokens) map[string]Tokens {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make(map[string]Tokens, len(m))
+	for model, t := range m {
+		out[model] = Tokens{
+			Input:          t.Input,
+			Output:         t.Output,
+			CacheRead:      t.CacheRead,
+			CacheWrite:     t.CacheWrite,
+			CacheWriteHour: t.CacheWriteHour,
+		}
+	}
+	return out
+}
+
+// copySpend is copyCount for what each model was charged, and keeps nil as nil
+// for the same reason.
+func copySpend(m map[string]agent.Tokens) map[string]agent.Tokens {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]agent.Tokens, len(m))
 	for k, v := range m {
 		out[k] = v
 	}

@@ -264,6 +264,17 @@ type Tokens struct {
 
 	// CacheWrite is storing context so it can be re-read cheaply. Paid once.
 	CacheWrite int
+
+	// CacheWriteHour is the part of CacheWrite held for an hour rather than
+	// five minutes, and is never larger than it.
+	//
+	// It is not a fifth count. It is a slice of the fourth, carried because
+	// the two are charged differently: an hour costs about 60% more to store.
+	// On the history this was checked against, 96% of cache writes were
+	// hourly, so treating them all as the cheaper kind put the bill 4.7%
+	// under the published rates. Total deliberately leaves it out, since
+	// adding it would count those tokens twice.
+	CacheWriteHour int
 }
 
 // Add sums another set of counts into this one.
@@ -272,11 +283,37 @@ func (t *Tokens) Add(o Tokens) {
 	t.Output += o.Output
 	t.CacheRead += o.CacheRead
 	t.CacheWrite += o.CacheWrite
+	t.CacheWriteHour += o.CacheWriteHour
 }
 
 // Total is every token the work was charged for.
 func (t *Tokens) Total() int {
 	return t.Input + t.Output + t.CacheRead + t.CacheWrite
+}
+
+// Charge credits a model with what it was charged for, making the map if it is
+// not there yet.
+//
+// The making is the point. Every caller holds a map that is allocated lazily,
+// so every caller had the same "if nil" preamble, and one place that skipped
+// it dropped a sub-agent's models on the floor without saying so.
+func Charge(m *map[string]Tokens, model string, t Tokens) {
+	if model == "" {
+		return
+	}
+	if *m == nil {
+		*m = map[string]Tokens{}
+	}
+	was := (*m)[model]
+	was.Add(t)
+	(*m)[model] = was
+}
+
+// Merge sums one per-model set into another.
+func Merge(dst *map[string]Tokens, src map[string]Tokens) {
+	for model, t := range src {
+		Charge(dst, model, t)
+	}
 }
 
 // Turn is one human prompt and everything the agent did in response.
@@ -320,9 +357,20 @@ type Turn struct {
 	// Tokens is what answering this turn was charged for.
 	Tokens Tokens
 
-	// Models counts output tokens by model name. A project usually has one,
-	// but a model changed partway through is worth being able to say.
-	Models map[string]int
+	// Models is what each model was charged for, keyed by model name. A
+	// project usually has one, but a model changed partway through is worth
+	// being able to say.
+	//
+	// The four counts are kept per model rather than a single output figure
+	// because the four are priced at wildly different rates: re-reading the
+	// cache costs about a tenth of fresh input and writing it about a quarter
+	// more, so a blended rate cannot produce a bill. The split was always
+	// there to be kept, sitting beside the model name on the same record, and
+	// throwing it away was what made the cost of a piece of work unanswerable.
+	//
+	// These sum to Tokens. A model bough has no price for still appears here,
+	// because what it was charged for is a fact about the work either way.
+	Models map[string]Tokens
 
 	// Delegated is the sub-agent work this turn started. These are the one place
 	// the record holds real branching, and each carries a description written at

@@ -30,7 +30,13 @@ import "time"
 // total is the sum of them, but it was thrown away when the graph was written
 // and only the sum survived. A reader that wanted to know what one prompt cost
 // had to settle for what the whole task cost.
-const SchemaVersion = 4
+//
+// 5: "models" holds the four token counts per model instead of one number.
+// It used to count output tokens alone, which could not be priced: the four
+// counts are charged at rates that differ by a factor of fifty, so the split
+// per model is the whole of what a bill is made from. A reader that took the
+// old number now finds an object where an integer was.
+const SchemaVersion = 5
 
 // Graph is one project's history.
 type Graph struct {
@@ -207,9 +213,13 @@ type Stats struct {
 	// history this was built against came to most of the cost.
 	Tokens *Tokens `json:"tokens,omitempty"`
 
-	// Models counts output tokens by model, so a project that changed model
-	// partway through can say so.
-	Models map[string]int `json:"models,omitempty"`
+	// Models is what each model was charged for, so a project that changed
+	// model partway through can say so. These sum to Tokens.
+	//
+	// Kept as the four counts per model rather than one output figure because
+	// the four are priced at very different rates, and a total that cannot be
+	// split by model cannot be priced at all.
+	Models map[string]Tokens `json:"models,omitempty"`
 
 	// TopFiles are the most edited files, most first.
 	TopFiles []FileCount `json:"topFiles,omitempty"`
@@ -225,6 +235,16 @@ type Stats struct {
 	// built from churn and prompt density, and it has not been checked against
 	// anyone's memory of their own work, so treat it as a hint.
 	Struggle float64 `json:"struggle"`
+
+	// Cost is what this work would have cost at published API rates, in
+	// dollars. Absent when any model in it has no rate to price with, which is
+	// not the same as costing nothing: a reader has to be able to tell "no
+	// figure" from "free".
+	//
+	// Worked out when the graph is built rather than by whoever draws it, so
+	// the rates live in one place. A page that priced tokens itself would be a
+	// second copy of the table, free to disagree with the first.
+	Cost *float64 `json:"cost,omitempty"`
 }
 
 // Commit is a commit the agent made.
@@ -254,6 +274,11 @@ type Tokens struct {
 	Output     int `json:"output,omitempty"`
 	CacheRead  int `json:"cacheRead,omitempty"`
 	CacheWrite int `json:"cacheWrite,omitempty"`
+
+	// CacheWriteHour is the part of CacheWrite held for an hour rather than
+	// five minutes, which costs more to store. A slice of the field above
+	// rather than a fifth count, so Total leaves it out.
+	CacheWriteHour int `json:"cacheWriteHour,omitempty"`
 }
 
 // Total is the four added up.

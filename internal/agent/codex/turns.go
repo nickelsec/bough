@@ -83,7 +83,6 @@ func ExtractTurns(recs []*Record) []agent.Turn {
 				Files:    map[string]int{},
 				Edits:    map[string]int{},
 				Lines:    map[string]int{},
-				Models:   map[string]int{},
 			})
 			cur = &turns[len(turns)-1]
 			// Commands still waiting for their result are not abandoned here.
@@ -199,12 +198,19 @@ func handleTokenCount(cur *agent.Turn, r *Record, currentModel string, seen map[
 		// smaller number keeps the total honest rather than negative.
 		fresh = 0
 	}
-	cur.Tokens.Input += fresh
-	cur.Tokens.CacheRead += usage.CachedInputTokens
-	cur.Tokens.Output += usage.OutputTokens
-	if currentModel != "" && usage.OutputTokens > 0 {
-		cur.Models[currentModel] += usage.OutputTokens
+	spent := agent.Tokens{
+		Input:      fresh,
+		Output:     usage.OutputTokens,
+		CacheRead:  usage.CachedInputTokens,
+		CacheWrite: usage.CacheWriteTokens,
 	}
+	cur.Tokens.Add(spent)
+
+	// Codex names the model in a turn_context record rather than on the reply,
+	// so this is the model configured when the reply arrived rather than the
+	// one the bill was cut against. The two agree unless the model was changed
+	// mid-turn, which the record gives no way to detect.
+	agent.Charge(&cur.Models, currentModel, spent)
 }
 
 func handleToolCall(cur *agent.Turn, item *ResponseItem, turnIdx int, pending map[string]shell.PendingCommit) {

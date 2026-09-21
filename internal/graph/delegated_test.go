@@ -15,13 +15,13 @@ func minute(min int) time.Time {
 
 func spent(when int, text string, in, out int) agent.Turn {
 	return agent.Turn{
-		At:     minute(when),
-		Text:   text,
-		Tools:  map[string]int{},
-		Files:  map[string]int{},
-		Edits:  map[string]int{},
-		Lines:  map[string]int{},
-		Models: map[string]int{},
+		At:    minute(when),
+		Text:  text,
+		Tools: map[string]int{},
+		Files: map[string]int{},
+		Edits: map[string]int{},
+		Lines: map[string]int{},
+
 		Tokens: agent.Tokens{Input: in, Output: out},
 	}
 }
@@ -307,12 +307,11 @@ func session(id, parent string, turns ...agent.Turn) agent.Session {
 // provides them and code under test is entitled to assume it.
 func turnAt(at time.Time, set func(*agent.Turn)) agent.Turn {
 	t := agent.Turn{
-		At:     at,
-		Tools:  map[string]int{},
-		Files:  map[string]int{},
-		Edits:  map[string]int{},
-		Lines:  map[string]int{},
-		Models: map[string]int{},
+		At:    at,
+		Tools: map[string]int{},
+		Files: map[string]int{},
+		Edits: map[string]int{},
+		Lines: map[string]int{},
 	}
 	if set != nil {
 		set(&t)
@@ -331,7 +330,7 @@ func deepCopy(in []agent.Session) []agent.Session {
 			t.Files = copyCounts(t.Files)
 			t.Edits = copyCounts(t.Edits)
 			t.Lines = copyCounts(t.Lines)
-			t.Models = copyCounts(t.Models)
+			t.Models = copySpend(t.Models)
 			t.Committed = append([]agent.Commit(nil), t.Committed...)
 			t.Delegated = append([]agent.Delegation(nil), t.Delegated...)
 		}

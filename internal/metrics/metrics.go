@@ -69,9 +69,9 @@ type Summary struct {
 	// Tokens is what this stretch of work was charged for.
 	Tokens agent.Tokens
 
-	// Models counts output tokens by model, so a project that changed model
-	// partway through can say so.
-	Models map[string]int
+	// Models is what each model was charged for, so a project that changed model
+	// partway through can say so. These sum to Tokens.
+	Models map[string]agent.Tokens
 
 	// Commits are what the agent committed during these turns, in order. Work
 	// that ended in a commit is work that landed, which is the one thing here
@@ -110,12 +110,7 @@ func Summarise(turns []agent.Turn) Summary {
 		s.Errors += t.Errors
 		s.Delegated = append(s.Delegated, t.Delegated...)
 		s.Tokens.Add(t.Tokens)
-		for m, n := range t.Models {
-			if s.Models == nil {
-				s.Models = map[string]int{}
-			}
-			s.Models[m] += n
-		}
+		agent.Merge(&s.Models, t.Models)
 		s.Commits = append(s.Commits, t.Committed...)
 
 		for name, n := range t.Tools {

@@ -356,7 +356,7 @@ func TestBuildDoesNotChangeTheSessionsItIsGiven(t *testing.T) {
 			Turns: []agent.Turn{{
 				At: when, Text: "do it",
 				Tools: map[string]int{}, Files: map[string]int{},
-				Edits: map[string]int{}, Lines: map[string]int{}, Models: map[string]int{},
+				Edits: map[string]int{}, Lines: map[string]int{},
 				Committed: []agent.Commit{
 					// One made somewhere else, which onlyHere drops.
 					{SHA: "aaaa111", At: when, Dir: "/elsewhere"},
@@ -398,7 +398,7 @@ func TestACommitSaysWhetherItsHashWasConfirmed(t *testing.T) {
 	made := agent.Turn{
 		At: at, Text: "ship it",
 		Tools: map[string]int{}, Files: map[string]int{}, Edits: map[string]int{},
-		Lines: map[string]int{}, Models: map[string]int{},
+		Lines:     map[string]int{},
 		Committed: []agent.Commit{{Kind: "committed", SHA: "abc1234", At: at}},
 	}
 	in := []agent.Session{{ID: "s", Turns: []agent.Turn{made}}}

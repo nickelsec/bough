@@ -168,14 +168,28 @@ type Message struct {
 
 // Usage is the token count for one reply.
 //
-// The nested cache_creation breakdown is deliberately not read. It reconciles
-// exactly with the flat field, so taking both would risk counting the same
-// tokens twice for nothing gained.
+// The nested cache_creation breakdown reconciles exactly with the flat field,
+// so for counting tokens it adds nothing and CacheWrite alone is read. It is
+// read as well as the flat field, never instead of it, because the two halves
+// are charged differently: storing context for an hour costs more than storing
+// it for five minutes. Counting them together and pricing the lot at the
+// cheaper rate put this project's bill 4.7% under the published rates, and
+// the whole of that error sat on the 96% of cache writes that were hourly.
 type Usage struct {
 	Input      int `json:"input_tokens"`
 	Output     int `json:"output_tokens"`
 	CacheRead  int `json:"cache_read_input_tokens"`
 	CacheWrite int `json:"cache_creation_input_tokens"`
+
+	// Cache splits CacheWrite by how long the context was kept. Absent on
+	// older records, where everything falls to the shorter rate.
+	Cache *CacheCreation `json:"cache_creation"`
+}
+
+// CacheCreation is the cache write split by how long it is held for.
+type CacheCreation struct {
+	FiveMinute int `json:"ephemeral_5m_input_tokens"`
+	Hour       int `json:"ephemeral_1h_input_tokens"`
 }
 
 // Content is either a plain string or a list of typed blocks. Both shapes occur
