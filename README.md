@@ -44,10 +44,17 @@ you the hash and the message. Everything else in the drawing is worked out from
 your history; this is the part you can go and check.
 
 Behind each task is a faint circle, sized by what that piece of work was
-charged. Hover it and the note breaks the figure down; the coins in the rail
-open the whole table, every day and every task, in the five columns the agents
-themselves report. Most of it is the model re-reading the conversation, which
-is why a long discussion can cost more than a hard piece of engineering.
+charged. Hover it and the note breaks the figure down, in tokens and in
+dollars; the coins in the rail open the whole table, every day and every task,
+in the columns the agents themselves report. Most of it is the model re-reading
+the conversation, which is why a long discussion can cost more than a hard
+piece of engineering.
+
+Following the figure on a record opens that table at that piece of work rather
+than at the top, and the rail will narrow the drawing to whatever passed a
+threshold you set, in dollars or in any of the token counts. The rates are
+published ones, built into the binary rather than fetched, so this works with
+the network unplugged like everything else here.
 
 To get those right, bough also reads the git history of the project it is
 describing, at the path your transcripts already name. That is a read and
@@ -178,8 +185,14 @@ sub-agent, which bough draws inside the prompt that asked for it.
 
 ## What it does not do
 
-No cost in pounds or dollars, and no streaks. It says how many tokens the work
-took and what most of them went on, which is not the same as pricing it.
+No streaks, and no claim to know what you were billed. It prices work at the
+published rates for the model that did it, which is what the same work would
+have cost had it been charged per token. A flat rate subscription pays none of
+that, and nothing in a transcript says which you were on.
+
+Nothing is priced on a guess. A model with no published rate, or one charged by
+how large each request was, shows its token counts and no figure at all, since
+a wrong number here is worse than no number.
 
 No writes of any kind, to your history or your repository. No network. Agent
 directories are opened read only and never written to.

@@ -7,6 +7,70 @@ Notable changes, newest first. Format follows
 
 Nothing yet.
 
+## 0.6.0 - 2026-09-21
+
+0.5.0 said how many tokens a piece of work took. The question people actually
+ask is what it cost, and that turned out to be one short step away: the counts
+were already right and already per task, they just had no price against them.
+
+On the history this was built from, that reads as $1,132.77 for the project and
+$0.58 to $85.24 across its 63 tasks. The tasks sum to the total exactly.
+
+Rates are the published ones per model, 125 of them built into the binary. They
+are a snapshot rather than a feed, and nothing is fetched at any point: reading
+your own history still works with the network unplugged.
+
+Nothing is priced on a guess. A model with no published rate, or one charged by
+how large each request was, shows its token counts and no figure at all.
+
+### Added
+
+- **What each piece of work would have cost**, in the drawing, in the record
+  panel, in the usage table and in the text output. At published API rates,
+  which a flat rate subscription pays none of, so the figure is what the same
+  work would have cost billed per token. Read the other way it is what the
+  subscription saved.
+
+- **A threshold filter.** One slider over whichever figure you choose: cost, or
+  any of the token counts. Work under the threshold fades, so "show me
+  everything over $25" is one drag.
+
+- **Following a cost opens the table at that work**, rather than at the top of
+  eighty five lines, with the line marked for a moment so it can be found.
+
+### Changed
+
+- **The JSON schema is now 5.** `models` holds the four token counts per model
+  instead of a single output figure. The old shape could not be priced: the
+  four counts are charged at rates that differ by a factor of fifty, so the
+  split per model is the whole of what a bill is made from. A reader that took
+  the old number now finds an object where an integer was.
+
+- `stats` carries `cost` wherever a figure could be worked out, so the page and
+  the terminal cannot disagree about what something cost.
+
+- The usage table gained a cost column and lost two long headings, which were
+  sized by their titles rather than their figures.
+
+### Fixed
+
+- **Cache writes were priced about 60% low.** Context stored for an hour costs
+  more than context stored for five minutes, and the flat
+  `cache_creation_input_tokens` field says nothing about which it was. Claude
+  Code uses the hourly cache for effectively everything it writes, 96% on one
+  project and 100% on another, so reading only that field understated the line
+  by most of its value. It came to 4.7% of a thousand dollar total, which is
+  small enough to look like rounding.
+
+- **A sub-agent's models were dropped** when its work was folded into the turn
+  that asked for it, if that turn had named no model of its own. The tokens
+  arrived intact and the record of which model spent them did not, so the two
+  disagreed. Claude Code only; Codex was unaffected.
+
+- Codex never read `cache_write_input_tokens`. Every record in the corpus holds
+  zero there, so no figure changes today, but a bill that silently omits its
+  dearest line is worth closing before it matters.
+
 ## 0.5.0 - 2026-09-20
 
 bough could draw what you built and not what it cost. The figures were already

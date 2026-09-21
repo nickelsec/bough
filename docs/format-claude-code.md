@@ -141,9 +141,18 @@ Records are one thing and replies are another. Use `uuid` for records and
 
 Usage appears only on `assistant` records, and carries four integer fields:
 `input_tokens`, `output_tokens`, `cache_read_input_tokens` and
-`cache_creation_input_tokens`. The nested `cache_creation` object reconciles
-exactly with the flat field, so reading both would double count. Across one
-project's replies, cache reads came to around 596 times the output.
+`cache_creation_input_tokens`. Across one project's replies, cache reads came
+to around 596 times the output.
+
+The nested `cache_creation` object splits that last field into
+`ephemeral_5m_input_tokens` and `ephemeral_1h_input_tokens`, by how long the
+context is held for. It reconciles exactly with the flat figure, so for
+counting tokens it adds nothing and reading both would double count. It is not
+optional for pricing: the two halves are charged at rates that differ by about
+60%, and the flat field cannot say which applies. Claude Code writes the hourly
+cache for effectively all of it, measured at 96% on one project and 100% on
+another, so treating the lot as the cheaper kind understated that line by most
+of its value.
 
 ## Tool results are filed as user records
 
