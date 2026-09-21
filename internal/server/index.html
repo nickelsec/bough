@@ -54,6 +54,16 @@
       <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12.5" rx="1.5"/><path d="M3 8.5h14M7 2.5v4M13 2.5v4"/></svg>
       <span class="dot" hidden></span>
     </button>
+    <!-- Narrowing by what the work cost. A tag, the shape a price hangs off
+         nearly everywhere, rather than a currency symbol: the filter covers
+         tokens as well as dollars, and a project with no published rate for
+         its model can still use the token half. Hidden until the history has
+         figures to filter on, the way the usage button is. -->
+    <button type="button" class="rail-btn" role="tab" data-panel="cost"
+            aria-selected="false" aria-controls="p-cost" title="Spend threshold" hidden>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10.6 2.6H16a1.4 1.4 0 011.4 1.4v5.4a1.4 1.4 0 01-.41.99l-6.6 6.6a1.4 1.4 0 01-1.98 0l-5.4-5.4a1.4 1.4 0 010-1.98l6.6-6.6a1.4 1.4 0 01.99-.41z"/><circle cx="13.4" cy="6.6" r="1.15"/></svg>
+      <span class="dot" hidden></span>
+    </button>
     <button type="button" class="rail-btn" role="tab" data-panel="show"
             aria-selected="false" aria-controls="p-show" title="What to show">
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6h14M5 10h10M8 14h4"/></svg>
@@ -134,6 +144,56 @@
       <div class="rail-actions">
         <button type="button" id="f-when-go" class="solid">Apply</button>
       </div>
+    </div>
+
+    <!-- One slider over whichever measure is chosen, rather than a slider per
+         figure. Six tracks stacked up would mostly move together, since cache
+         reads are around 99% of every token count, and the reader is after
+         one figure at a time in any case. So the measure is a row of buttons
+         and the slider under it always means the same thing: show me the work
+         at or above this.
+
+         A minimum rather than a range. "What did I spend more than $25 on" is
+         the question people arrive with. An upper bound answers nothing
+         anybody asked and doubles the controls. -->
+    <div class="rail-body" id="p-cost" role="tabpanel" hidden>
+      <div class="rail-head">
+        <button type="button" class="rail-back" aria-label="Close">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 4l-6 6 6 6"/></svg>
+        </button>
+        <h2>Spend threshold</h2>
+        <button type="button" class="rail-reset" id="f-cost-clear" hidden>Clear</button>
+      </div>
+
+      <div class="field">
+        <label for="f-spend">At least</label>
+        <output class="slide-now" id="f-spend-now">nothing</output>
+        <input type="range" id="f-spend" min="0" max="1000" value="0" step="1"
+               aria-describedby="f-spend-note">
+      </div>
+
+      <!-- Which measure the slider reads. Money first, since it is the one
+           people came for; the token counts follow in the order the usage
+           table prints them, and under the same names, so the column someone
+           has just read is the button they reach for.
+
+           All five counts rather than a chosen two. They move almost together
+           on most work, which was the argument for picking a couple, but that
+           is a fact about the histories measured so far and not a rule, and
+           the reader of this page is the one who knows which figure they are
+           chasing. The token half also carries a project whose model has no
+           published rate, where the cost button is the one that cannot
+           work. -->
+      <div class="pick" id="f-measure" role="group" aria-label="Measure by">
+        <button type="button" class="pick-btn" data-by="cost" aria-pressed="true">Cost</button>
+        <button type="button" class="pick-btn" data-by="output" aria-pressed="false">Output</button>
+        <button type="button" class="pick-btn" data-by="input" aria-pressed="false">Input</button>
+        <button type="button" class="pick-btn" data-by="cacheWrite" aria-pressed="false">Cache write</button>
+        <button type="button" class="pick-btn" data-by="cacheRead" aria-pressed="false">Cache read</button>
+        <button type="button" class="pick-btn" data-by="total" aria-pressed="false">Total</button>
+      </div>
+
+      <p class="rail-note" id="f-spend-note">Fades work below the threshold.</p>
     </div>
 
     <div class="rail-body" id="p-show" role="tabpanel" hidden>

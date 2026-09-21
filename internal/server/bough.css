@@ -1089,11 +1089,116 @@ body.reading .rail { right: calc(var(--drawer) + 1.1rem); }
   outline-offset: 1px;
 }
 
+/* The figure the slider is sitting on, beside its own label rather than under
+   the track. It changes as the handle moves, and under the track it would be
+   the thing nearest the thumb and hardest to read while dragging. */
+.field .slide-now {
+  float: right;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.rail-card input[type="range"] {
+  width: 100%;
+  /* Room under the track for the thumb, which overhangs it by five pixels at
+     each end and would otherwise sit against whatever follows. */
+  margin: 0.35rem 0 0;
+  /* The browser's own track and thumb, restyled below. Left native, it paints
+     a blue that belongs to no other part of this page. */
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.rail-card input[type="range"]::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--rule);
+}
+
+.rail-card input[type="range"]::-moz-range-track {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--rule);
+}
+
+.rail-card input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  margin-top: -5px;
+  border: none;
+  border-radius: 50%;
+  background: var(--leaf);
+}
+
+.rail-card input[type="range"]::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: none;
+  border-radius: 50%;
+  background: var(--leaf);
+}
+
+.rail-card input[type="range"]:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 4px;
+}
+
+/* Which figure the slider reads. One of them is always on, so these are
+   pressed states rather than a set of things to switch on and off. */
+/* Set apart from the slider above it rather than tucked under it. These
+   change what the slider means, so reading them as part of the same control
+   is right, but at three quarters of a rem they read as its caption. */
+.pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 1.35rem;
+}
+
+.pick-btn {
+  padding: 0.24rem 0.5rem;
+  font: inherit;
+  font-size: 0.68rem;
+  color: var(--ink-mid);
+  background: var(--ground);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.pick-btn:hover { color: var(--ink); }
+
+.pick-btn[aria-pressed="true"] {
+  color: var(--ground);
+  background: var(--ink-up);
+  border-color: var(--ink-up);
+}
+
+.pick-btn:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 2px;
+}
+
 .rail-note {
   margin: 0.6rem 0 0;
   font-size: 0.7rem;
   line-height: 1.5;
   color: var(--ink-low);
+}
+
+/* This panel's note sits under three stacked controls rather than under one
+   input, so it is divided off and given room. At the shared spacing it read
+   as a label belonging to the row of buttons directly above it. */
+#p-cost .rail-note {
+  margin-top: 1.3rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--rule);
 }
 
 /* The struggle score is a guess and the interface says so, rather than
@@ -1657,8 +1762,20 @@ p.commit {
   top: 0;
   right: 0;
   left: 0;
-  height: 3rem;
-  z-index: 1;
+  /* Exactly as tall as the column names, which is the one measurement that
+     has to hold: short of it a scrolling row shows a sliced line under the
+     headings, past it the band eats into the first row and the earliest
+     dates sit behind it at rest.
+
+     Tied to the names rather than guessed at, so it stays right when their
+     padding or size changes. The parts are the header's own padding, 0.9rem
+     above and 0.6rem below, and the line of small capitals between them. */
+  height: calc(0.9rem + 0.6rem + 0.95rem);
+  /* Above the rows, not merely above the table. The rows take part in the
+     card's stacking order without a layer of their own, so a cover sitting
+     at 1 was painted over by whichever row happened to be passing and the
+     sliced line it exists to hide showed through it. */
+  z-index: 3;
   background: var(--ground);
   pointer-events: none;
 }
@@ -1712,7 +1829,10 @@ p.commit {
 .spend-table thead th {
   position: sticky;
   top: 0;
-  z-index: 2;
+  /* Above the strip that hides the scrolling rows, which is itself above the
+     rows. The three have to stay in this order: rows, then the strip, then
+     the names. */
+  z-index: 4;
   background: var(--ground);
   /* The opaque band is taller than its letters, above and below, because a
      row scrolling out passes behind it and has to be gone before it reaches
@@ -1824,15 +1944,116 @@ p.commit {
   color: var(--ink-low);
 }
 
-.spend-total tr {
+/* The line a reader arrived at, coming here from one piece of work.
+
+   Scrolling alone puts it on the screen but not under the eye: it lands a
+   third of the way down among eighty four others that look exactly like it.
+   So it is washed for a moment and then let go, which is enough to find it
+   without leaving the table looking permanently filtered.
+
+   The same sunk ground a found prompt takes on the drawing, for the same
+   reason given there: no new colour, because every hue on this page already
+   means something and being asked for is not a kind of work. */
+/* The fade belongs on the row, not on the found state. Declared inside
+   .spend-found it goes away with the class, so the wash arrived gently and
+   then vanished between one frame and the next. Here it governs the way out
+   as well as the way in. */
+.spend-table tbody th,
+.spend-table tbody td {
+  transition: background 0.9s var(--ease);
+}
+
+.spend-table .spend-found th,
+.spend-table .spend-found td {
+  background: var(--sunk);
+  /* Quick on the way in, so the line is marked while the panel is still
+     settling, and slow on the way out. */
+  transition-duration: 0.12s;
+}
+
+/* Rounded at the ends of the row rather than on every cell, so it reads as
+   one band across the table. */
+.spend-table .spend-found th:first-child {
+  border-radius: 5px 0 0 5px;
+}
+
+.spend-table .spend-found td:last-child {
+  border-radius: 0 5px 5px 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spend-table tbody th,
+  .spend-table tbody td,
+  .spend-table .spend-found th,
+  .spend-table .spend-found td { transition: none; }
+}
+
+/* The cost column gets a little more room on its left than the gap between
+   two figure columns, to set it apart from the counts it was worked out from.
+
+   Spacing is the whole of it. No colour and no weight of its own: the table
+   already reads at three levels, a task under a day under the total, and each
+   level is set as a whole. Picking one column out of every row cut across
+   that, and the column does not need it, being the last one and the only one
+   carrying a currency mark. */
+.spend-table .spend-cost {
+  padding-left: 0.9rem;
+}
+
+.spend-table thead th:last-child { padding-left: 0.9rem; }
+
+/* Which model, when a project used more than one. A second line under the
+   name rather than a column of its own: it is empty on almost every project,
+   and a column that is usually blank costs width on all of them. */
+.spend-model {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.66rem;
+  color: var(--ink-low);
+}
+
+/* A rule over the last line, dividing every day from the sum of them.
+ *
+ * On the cells rather than on the row. The table sets border-collapse to
+ * separate, so that borders belong to cells and a scrolling row is clipped by
+ * the header's own edge; a border asked for on a tr under that rule is not
+ * drawn at all, which is why this line went without one.
+ */
+.spend-total th,
+.spend-total td {
   border-top: 1px solid var(--rule);
+  /* Air on both sides of the rule, so the last line reads as the sum of the
+     table rather than one more row of it.
+
+     The space above has to be asked for here. The comment that stood in this
+     place said the block before carried it in its own bottom padding, and
+     measuring said otherwise: the rule sat flush against the final task, with
+     eleven pixels under it and none over. A cell's top padding is inside its
+     border, so the gap above comes from the spacer row that precedes this
+     one, below. */
+  padding-top: 0.95rem;
+  padding-bottom: 0.95rem;
+}
+
+/* An empty row holding the space above the rule.
+ *
+ * Padding on the total's own cells falls inside their border and so only ever
+ * opens a gap below it. A margin would do the job anywhere but here: table
+ * cells do not take one. So the gap is a row of its own, with nothing in it.
+ *
+ * It sits inside the same tbody as the total, so the rule and the weight set
+ * on that block are taken off it again here. Put in a tbody of its own it
+ * would be a third block, and the spacing between blocks would then apply to
+ * an empty one.
+ */
+.spend-total .spend-gap td {
+  border-top: 0;
+  padding: 0;
+  height: 0.9rem;
 }
 
 .spend-total th:first-child,
-.spend-total td {
-  padding-top: 0.7rem;
-  font-weight: 600;
-}
+.spend-total td { font-weight: 600; }
 
 /* What this work cost, and the way through to the whole table.
 
@@ -1943,4 +2164,24 @@ p.commit {
   padding-top: 0.22rem;
   border-top: 1px solid var(--rule);
   color: var(--ink);
+}
+
+/* The cost sits below the total, divided from it the same way the total is
+   divided from the counts: it is worked out from all of them rather than
+   being another one of them. */
+.pop-ledger dt.spent,
+.pop-ledger dd.spent {
+  margin-top: 0.22rem;
+  padding-top: 0.22rem;
+  border-top: 1px solid var(--rule);
+  color: var(--ink);
+}
+
+.pop-ledger dd.spent { font-weight: 600; }
+
+/* Which model did the work, when the project used more than one. */
+.pop-model {
+  margin: 0.3rem 0 0;
+  font-size: 0.64rem;
+  color: var(--ink-low);
 }
