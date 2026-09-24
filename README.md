@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  Reads your Claude Code and OpenAI Codex CLI session history and draws what you actually built.
+  Reads your Claude Code and OpenAI Codex CLI session history, draws what you actually built, and prices it.
 </p>
 
 <p align="center">
@@ -15,11 +15,17 @@
 </p>
 
 <p align="center">
-  <img width="100%" alt="bough reading a project's history and drawing it" src="docs/img/demo.gif">
+  <img width="100%" alt="bough reading a project's history, drawing it, and showing what each piece cost" src="docs/img/demo.gif">
 </p>
 
 Not how long your streak is. Claude Code's own `/stats` covers that. This
-answers a different question: what did you actually build?
+answers a different question: what did you build, and what did each piece of
+it cost?
+
+Usage tools stop at a session, and a session is a hash that can cover weeks of
+unrelated work. bough works out where one piece of work ends and the next
+begins, so the money lands on things you recognise: that feature, that
+afternoon lost to one bug.
 
 ## Run it
 
@@ -93,26 +99,33 @@ One dependency, `golang.org/x/term`, for reading arrow keys.
 Add `--text` and the same work comes back as an indented list:
 
 ```
-$ bough project-one --text
+$ bough bough --text
 
-project-one
-===========
-~/code/project-one
+bough
+=====
+~/code/bough
 
-141 prompts across 7 sittings
-274 changes to 138 files, 9 hours at the keyboard
+486 prompts across 27 sittings
+469 changes to 236 files, 32 hours at the keyboard
+84 commits
+2.8M written, 2.0B re-read: 730x more context than output
+claude-opus-5
+$1232.80 at API rates, priced Sep 2026
 
 ------------------------------------------------------------------------
-Sat 22 Aug     Explore text selection paths
-               9 tasks, 51 prompts, 4 hours
-               kept coming back to architecture.rs (8 times)
+31 Aug to 1 Sep Before we move further a small change the product will be...
+               4 tasks, 40 prompts, 4 hours
+               kept coming back to hovercheck.js (5 times, 52 lines)
 
-  hey i ran it locally and it just ahs my website in an exe file...
-    10 prompts, 46 changes, 14 failures
-
-  Okay, so after running the npm command and the cargo build, it...
-    4 prompts, 1 failure
+  Before we move further a small change the product will be...
+    14 prompts, 5 failures, 131k written, 420x context, $34.77
+    28d4930  Rename the project to bough
+    c541dd9  Implement the Claude Code source, and make it cheap to read
 ```
+
+That figure is what the work would have cost at published API rates. It is not
+a receipt: a subscription is flat rate, and the transcript does not say which
+you were on.
 
 Anything piped or redirected is written as text automatically, so
 `bough > notes.txt` and `bough | less` behave as you would expect rather than
@@ -125,6 +138,9 @@ bough --list           show every project with history
 bough -v               include every prompt in the text view
 bough --json           write the graph as JSON
 bough --no-repo        leave the project's git history unread
+bough --agent=codex    read one agent only: claude, codex, or all
+bough -o notes.txt     write to a file instead of standard output
+bough --root DIR       read history from here instead of the usual place
 ```
 
 `--json` gives you the whole structure to do something else with. It carries no
