@@ -97,7 +97,10 @@ try {
     Write-Host "Installed to $dir\bough.exe"
 
     # Saying the binary is installed while the shell cannot find it is the most
-    # common way one of these scripts wastes somebody's afternoon.
+    # common way one of these scripts wastes somebody's afternoon. The second
+    # way is an older copy sitting earlier in PATH: everybody installing this
+    # today has one from go install in ~\go\bin, and without this they would
+    # run that copy for weeks while believing they had upgraded.
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
     if ($userPath -notlike "*$dir*") {
         [Environment]::SetEnvironmentVariable('Path', "$userPath;$dir", 'User')
@@ -106,6 +109,19 @@ try {
         Write-Host "Open a new terminal, then run: bough"
     } else {
         Write-Host "Run: bough"
+    }
+
+    # Checked whichever branch ran above. A first install is exactly when the
+    # older copy is most likely to be there, so this cannot sit inside the
+    # branch that only runs on a reinstall.
+    $found = (Get-Command bough -ErrorAction SilentlyContinue).Source
+    if ($found -and $found -ne (Join-Path $dir 'bough.exe')) {
+        Write-Host ""
+        Write-Host "Note: another bough is earlier on your PATH and will be"
+        Write-Host "used instead:"
+        Write-Host "  $found"
+        Write-Host ""
+        Write-Host "Remove it, or run this one directly: $dir\bough.exe"
     }
 } finally {
     Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue

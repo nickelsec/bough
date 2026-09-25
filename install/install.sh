@@ -109,7 +109,10 @@ mv "$binary" "$dir/bough" || die "could not write to $dir"
 say "Installed to $dir/bough"
 
 # Saying the binary is installed while the shell cannot find it is the most
-# common way one of these scripts wastes somebody's afternoon.
+# common way one of these scripts wastes somebody's afternoon. The second way
+# is an older copy sitting earlier in PATH: everybody installing this today has
+# one from go install in ~/go/bin, and without this they would run that copy
+# for weeks while believing they had upgraded.
 case ":$PATH:" in
 	*":$dir:"*) say "Run: bough" ;;
 	*)
@@ -120,3 +123,16 @@ case ":$PATH:" in
 		say "Or run it directly: $dir/bough"
 		;;
 esac
+
+# Checked whichever branch ran above. A first install is exactly when the older
+# copy is most likely to be there, so this cannot sit inside the branch that
+# only runs on a reinstall.
+found=$(command -v bough 2>/dev/null || true)
+if [ -n "$found" ] && [ "$found" != "$dir/bough" ]; then
+	say ""
+	say "Note: another bough is earlier on your PATH and will be used"
+	say "instead:"
+	say "  $found"
+	say ""
+	say "Remove it, or run this one directly: $dir/bough"
+fi
