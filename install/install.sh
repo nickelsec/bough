@@ -109,10 +109,7 @@ mv "$binary" "$dir/bough" || die "could not write to $dir"
 say "Installed to $dir/bough"
 
 # Saying the binary is installed while the shell cannot find it is the most
-# common way one of these scripts wastes somebody's afternoon. The second way
-# is an older copy sitting earlier in PATH: everybody installing this today has
-# one from go install in ~/go/bin, and without this they would run that copy
-# for weeks while believing they had upgraded.
+# common way one of these scripts wastes somebody's afternoon.
 case ":$PATH:" in
 	*":$dir:"*) say "Run: bough" ;;
 	*)
@@ -120,19 +117,48 @@ case ":$PATH:" in
 		say "$dir is not on your PATH. Add it:"
 		say "  export PATH=\"\$PATH:$dir\""
 		say ""
-		say "Or run it directly: $dir/bough"
+		# Quoted, because a path with a space in it is a line that looks
+		# runnable and is not. Common enough on macOS to be worth it.
+		say "Or run it directly:"
+		say "  \"$dir/bough\""
 		;;
 esac
 
-# Checked whichever branch ran above. A first install is exactly when the older
-# copy is most likely to be there, so this cannot sit inside the branch that
-# only runs on a reinstall.
-found=$(command -v bough 2>/dev/null || true)
-if [ -n "$found" ] && [ "$found" != "$dir/bough" ]; then
+# Any other copy on PATH, whether or not it comes first.
+#
+# Everybody installing this today has one from go install in ~/go/bin, and it
+# causes trouble two different ways. It shadows this one when it sits earlier
+# in PATH. And even when it does not, the shell that will run `bough` next
+# probably resolved the name before today and cached the answer, so it keeps
+# running the old binary from a path that is no longer the right one. That
+# second case is invisible from in here: this script runs in its own shell,
+# with no cache, so the lookup it does honestly returns the new binary while
+# the person's own shell disagrees.
+#
+# Hence telling them rather than testing for it. hash -r costs nothing when the
+# cache was already clean.
+# Walked by hand rather than with `command -v -a`, which is bash only, or
+# `which -a`, which is not always installed.
+others=
+saved_ifs=$IFS
+IFS=:
+for p in $PATH; do
+	[ -n "$p" ] || p=.
+	if [ "$p" != "$dir" ] && [ -x "$p/bough" ]; then
+		others="$others$p/bough
+"
+	fi
+done
+IFS=$saved_ifs
+
+if [ -n "$others" ]; then
 	say ""
-	say "Note: another bough is earlier on your PATH and will be used"
-	say "instead:"
-	say "  $found"
+	say "There is another bough on your PATH:"
+	printf '%s' "$others" | sort -u | sed 's/^/  /'
 	say ""
-	say "Remove it, or run this one directly: $dir/bough"
+	say "Your shell may keep running that one. Clear its memory of where"
+	say "bough lives, in each terminal you have open:"
+	say "  hash -r"
+	say ""
+	say "Then: bough --version"
 fi

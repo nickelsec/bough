@@ -1,6 +1,11 @@
 # Installs bough on Windows.
 #
-#   powershell -c "irm https://www.bough.run/install.ps1 | iex"
+#   irm https://www.bough.run/install.ps1 | iex
+#
+# Run from a PowerShell prompt. Wrapping it as powershell -c "..." is the cmd
+# form, and PowerShell eats the quotes: -c then gets only the irm, and the
+# | iex becomes a separate pipeline that tries to run the script one line at
+# a time.
 #
 # This is piped into a shell, which means nobody reads it before it runs. So it
 # verifies the checksum of what it downloaded before extracting anything, and
@@ -97,10 +102,7 @@ try {
     Write-Host "Installed to $dir\bough.exe"
 
     # Saying the binary is installed while the shell cannot find it is the most
-    # common way one of these scripts wastes somebody's afternoon. The second
-    # way is an older copy sitting earlier in PATH: everybody installing this
-    # today has one from go install in ~\go\bin, and without this they would
-    # run that copy for weeks while believing they had upgraded.
+    # common way one of these scripts wastes somebody's afternoon.
     $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
     if ($userPath -notlike "*$dir*") {
         [Environment]::SetEnvironmentVariable('Path', "$userPath;$dir", 'User')
@@ -111,18 +113,30 @@ try {
         Write-Host "Run: bough"
     }
 
-    # Checked whichever branch ran above. A first install is exactly when the
-    # older copy is most likely to be there, so this cannot sit inside the
-    # branch that only runs on a reinstall.
-    $found = (Get-Command bough -ErrorAction SilentlyContinue).Source
-    if ($found -and $found -ne (Join-Path $dir 'bough.exe')) {
+    # Any other copy on PATH, whether or not it comes first. Everybody
+    # installing this today has one from go install in ~\go\bin, either
+    # shadowing the new one or waiting to be run by a shell that resolved the
+    # name before today and remembers the answer.
+    $mine = Join-Path $dir 'bough.exe'
+    $others = @(Get-Command bough -All -ErrorAction SilentlyContinue |
+        ForEach-Object { $_.Source } |
+        Where-Object { $_ -and $_ -ne $mine } |
+        Select-Object -Unique)
+    if ($others.Count -gt 0) {
         Write-Host ""
-        Write-Host "Note: another bough is earlier on your PATH and will be"
-        Write-Host "used instead:"
-        Write-Host "  $found"
+        Write-Host "There is another bough on your PATH:"
+        $others | ForEach-Object { Write-Host "  $_" }
         Write-Host ""
-        Write-Host "Remove it, or run this one directly: $dir\bough.exe"
+        Write-Host "Your shell may keep running that one. Open a new terminal,"
+        Write-Host "or remove the old copy."
     }
+
+    # Quoted, and with the call operator. A default install sits under the
+    # user's profile, and plenty of those have a space in them: printing the
+    # bare path gives somebody a line that looks runnable and is not.
+    Write-Host ""
+    Write-Host "To run it right now, without waiting for a new terminal:"
+    Write-Host "  & `"$mine`""
 } finally {
     Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 }
