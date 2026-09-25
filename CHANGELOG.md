@@ -7,6 +7,24 @@ Notable changes, newest first. Format follows
 
 Nothing yet.
 
+## 0.6.1 - 2026-09-25
+
+Installing needed a Go toolchain, which is a strange thing to ask of a tool
+that ships as one binary and has no runtime. The builds were already there and
+nobody was told about them.
+
+### Added
+
+- **Homebrew**: `brew install nickelsec/tap/bough`.
+
+- **A script for everything else.** `curl -fsSL https://www.bough.run/install.sh | sh`
+  on Linux and macOS, `irm https://www.bough.run/install.ps1 | iex` on Windows.
+  Each works out the newest release, checks the download against the published
+  checksums, and puts one binary on your path.
+
+Every build is still on the releases page with its checksums, for anyone who
+would rather not run a script they have not read.
+
 ## 0.6.0 - 2026-09-21
 
 0.5.0 said how many tokens a piece of work took. The question people actually
