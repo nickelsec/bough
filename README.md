@@ -80,6 +80,32 @@ needs is inside the binary, so it keeps working with the network unplugged.
 
 ## Install
 
+macOS:
+
+```
+brew install nickelsec/tap/bough
+```
+
+Linux, or macOS without Homebrew:
+
+```
+curl -fsSL https://www.bough.run/install.sh | sh
+```
+
+Windows:
+
+```
+powershell -c "irm https://www.bough.run/install.ps1 | iex"
+```
+
+Those scripts work out the newest release, check what they downloaded against
+the published checksums, and put one binary on your path. If you would rather
+not pipe a script into a shell, every build is on the
+[releases page](https://github.com/nickelsec/bough/releases) with a
+`checksums.txt` beside it: unpack it and put `bough` anywhere on your path.
+
+With Go, if you have it:
+
 ```
 go install github.com/nickelsec/bough/cmd/bough@latest
 ```
