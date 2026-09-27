@@ -20,6 +20,7 @@ import (
 	"github.com/nickelsec/bough/internal/agent"
 	"github.com/nickelsec/bough/internal/agent/claude"
 	"github.com/nickelsec/bough/internal/agent/codex"
+	"github.com/nickelsec/bough/internal/agent/pi"
 	"github.com/nickelsec/bough/internal/banner"
 	"github.com/nickelsec/bough/internal/graph"
 	"github.com/nickelsec/bough/internal/pick"
@@ -112,7 +113,7 @@ func run(args []string, env Env) error {
 		out       = fs.String("o", "", "write to this file instead of standard output")
 		showVer   = fs.Bool("version", false, "print the version and stop")
 		noRepo    = fs.Bool("no-repo", false, "do not read the project's git history")
-		agentFlag = fs.String("agent", "all", "which agent history to read: claude, codex, or all")
+		agentFlag = fs.String("agent", "all", "which agent history to read: claude, codex, pi, or all")
 	)
 	fs.Usage = func() {
 		fmt.Fprint(stderr, usage)
@@ -563,7 +564,7 @@ const usage = `bough shows the shape of the work in a project's AI coding histor
   bough --json       write the graph as JSON
   bough --version    print the version
   bough --no-repo    leave the project's git history unread
-  bough --agent=codex read only a specific agent (claude, codex, all)
+  bough --agent=codex read only a specific agent (claude, codex, pi, all)
 
 Anything piped or redirected is written as text, so bough > notes.txt and
 bough | less behave as you would expect.
@@ -604,6 +605,7 @@ func buildable() map[string]func(root string) agent.Source {
 	return map[string]func(root string) agent.Source{
 		"claude-code": func(root string) agent.Source { return claude.Source{Root: root} },
 		"codex":       func(root string) agent.Source { return codex.Source{Root: root} },
+		"pi":          func(root string) agent.Source { return pi.Source{Root: root} },
 	}
 }
 

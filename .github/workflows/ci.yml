@@ -101,6 +101,8 @@ jobs:
       # ignore.
       - name: Fuzz
         run: go test -run=xxx -fuzz=FuzzReadRecords -fuzztime=45s ./internal/agent/claude
+      - name: Fuzz Pi
+        run: go test -run=xxx -fuzz=FuzzReadEntries -fuzztime=45s ./internal/agent/pi
 
   gosec:
     name: gosec

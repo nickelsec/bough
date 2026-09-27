@@ -165,10 +165,41 @@ func transcriptFiles(dir string) ([]string, error) {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".jsonl") {
 			continue
 		}
-		out = append(out, filepath.Join(dir, e.Name()))
+		fp := filepath.Join(dir, e.Name())
+		if foreign(fp) {
+			continue
+		}
+		out = append(out, fp)
 	}
 	sort.Strings(out)
 	return out, nil
+}
+
+// foreign reports whether a file is another agent's that happens to sit where
+// Claude Code's would.
+//
+// Pi keeps its sessions in the same shape of folder, one per project full of
+// .jsonl files, and its first line is a header of type "session", which Claude
+// Code never writes. When one --root holds both agents' history, claiming
+// those files counted the same work twice and listed an empty project besides.
+func foreign(fp string) bool {
+	f, err := os.Open(fp) //#nosec G304 -- a transcript this package found for itself.
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 64<<10), maxLine)
+	for sc.Scan() {
+		if len(strings.TrimSpace(sc.Text())) == 0 {
+			continue
+		}
+		var probe struct {
+			Type string `json:"type"`
+		}
+		return json.Unmarshal(sc.Bytes(), &probe) == nil && probe.Type == "session"
+	}
+	return false
 }
 
 // workingDirectory recovers the real project path from the records.

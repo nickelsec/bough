@@ -16,7 +16,8 @@ import (
 // true while there was only one agent to read. It stopped being true at the
 // second.
 func TestThePageNamesTheAgent(t *testing.T) {
-	for _, source := range []string{"claude-code", "codex"} {
+	for _, a := range agent.Agents {
+		source := a.Source
 		g := graph.Graph{
 			Schema:  graph.SchemaVersion,
 			Project: graph.Project{Name: "a project", Path: "/p", Agent: source},

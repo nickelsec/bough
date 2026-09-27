@@ -132,6 +132,28 @@ func CommitDir(cmd string) string {
 	return ""
 }
 
+// commitLine is the "[main abc1234] subject" line git prints after a commit.
+//
+// The branch is not always a single word. The first commit in a repository
+// prints "[main (root-commit) abc1234]" and a commit on no branch prints
+// "[detached HEAD abc1234]". Codex's reader matched a bare word only, so the
+// first commit of every new repository came back with no hash, and that is
+// the commit a fresh project is most likely to be checked against.
+var commitLine = regexp.MustCompile(`\[(detached HEAD|[\w/.-]+)(?:\s+\(root-commit\))?\s+([0-9a-f]{7,40})\]`)
+
+// CommitRef reads the branch and abbreviated hash back out of what git printed
+// for a commit, or empty strings when the output does not say.
+func CommitRef(output string) (branch, sha string) {
+	m := commitLine.FindStringSubmatch(output)
+	if m == nil {
+		return "", ""
+	}
+	if m[1] != "detached HEAD" {
+		branch = m[1]
+	}
+	return branch, m[2]
+}
+
 // PendingCommit is a commit command waiting to hear whether it worked.
 //
 // Both sources hold these while a call is outstanding and settle them when the

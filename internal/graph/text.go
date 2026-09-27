@@ -68,6 +68,11 @@ func WriteText(w io.Writer, g Graph, verbose bool) error {
 		if t.Cost != nil {
 			fmt.Fprintf(w, "%s at API rates, priced %s\n",
 				dollars(*t.Cost), price.Taken().Format("Jan 2006"))
+		} else if c := t.Spend(); len(c.Unpriced) > 0 {
+			// Saying nothing read as though there were nothing to say. The
+			// work was done and nothing says it was free; the rate is what is
+			// missing, so the line says which.
+			fmt.Fprintf(w, "NA at API rates: no published rate for %s\n", strings.Join(c.Unpriced, ", "))
 		}
 	}
 
@@ -112,9 +117,7 @@ func WriteText(w io.Writer, g Graph, verbose bool) error {
 				}
 				// Without the "at API rates" note the project line carries.
 				// Repeating it on every task would say it sixty times.
-				if task.Stats.Cost != nil {
-					fmt.Fprintf(w, ", %s", dollars(*task.Stats.Cost))
-				}
+				fmt.Fprint(w, costNote(task.Stats))
 			}
 			fmt.Fprintln(w)
 
@@ -214,9 +217,11 @@ func hours(minutes int) string {
 	case minutes < 1:
 		return "a moment"
 	case minutes < 60:
-		return fmt.Sprintf("%d minutes", minutes)
+		return plural(minutes, "minute")
+	case minutes == 60:
+		return "an hour"
 	case minutes < 120:
-		return fmt.Sprintf("an hour and %d minutes", minutes-60)
+		return "an hour and " + plural(minutes-60, "minute")
 	default:
 		return fmt.Sprintf("%d hours", minutes/60)
 	}
@@ -236,6 +241,19 @@ func baseName(p string) string {
 // A cheap task is worth a fraction of a cent, and "$0.00" reads as free rather
 // than as nearly nothing, so anything under a cent keeps enough places to show
 // it was not nought. Above that, two places, because that is what money has.
+// costNote is a task's cost as it trails the rest of its line: the figure,
+// NA when a model in it has no published rate, or nothing when no model
+// was named at all.
+func costNote(s Stats) string {
+	if s.Cost != nil {
+		return ", " + dollars(*s.Cost)
+	}
+	if len(s.Spend().Unpriced) > 0 {
+		return ", NA"
+	}
+	return ""
+}
+
 func dollars(d float64) string {
 	switch {
 	case d >= 0.01:

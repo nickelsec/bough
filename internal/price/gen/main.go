@@ -4,13 +4,14 @@
 // project that reaches the network, and it runs when someone decides to update
 // the rates rather than when anyone reads their history.
 //
-// The table is trimmed hard on the way in. LiteLLM's file is about 2.8MB
-// covering four thousand models on every provider; what bough can ever see is
-// the chat models of the two agents it reads, which is a couple of hundred
-// entries and around 20KB of Go.
+// The table is trimmed on the way in. LiteLLM's file is about 2.8MB covering
+// four thousand models on every provider; what bough can ever see is the chat
+// models of the providers the agents it reads can reach. Claude Code and Codex
+// reach one each. Pi reaches dozens, which is most of what is kept.
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -52,8 +54,32 @@ type entry struct {
 }
 
 // wanted keeps the providers whose models bough can actually meet. Claude Code
-// reports Anthropic models and Codex reports OpenAI ones.
-var wanted = map[string]bool{"anthropic": true, "openai": true}
+// reports Anthropic models and Codex reports OpenAI ones. The rest are the
+// LiteLLM providers that Pi's own providers map onto, in
+// internal/agent/pi/models.go; the two lists move together.
+var wanted = map[string]bool{
+	"anthropic":                 true,
+	"openai":                    true,
+	"gemini":                    true,
+	"vertex_ai-language-models": true,
+	"bedrock_converse":          true,
+	"azure":                     true,
+	"openrouter":                true,
+	"vercel_ai_gateway":         true,
+	"xai":                       true,
+	"groq":                      true,
+	"cerebras":                  true,
+	"mistral":                   true,
+	"deepseek":                  true,
+	"zai":                       true,
+	"moonshot":                  true,
+	"minimax":                   true,
+	"fireworks_ai":              true,
+	"together_ai":               true,
+	"baseten":                   true,
+	"cloudflare":                true,
+	"meta":                      true,
+}
 
 func main() {
 	if err := run(); err != nil {
@@ -85,8 +111,15 @@ func run() error {
 			continue
 		}
 		// A model that charges nothing for input and output is not a model
-		// bough can price; it is an entry with the prices left out.
-		if e.Input == 0 && e.Output == 0 {
+		// bough can price; it is an entry with the prices left out. The
+		// exception is OpenRouter's ":free" models, which really do cost
+		// nothing, so they are kept and priced at zero instead of being shown
+		// as unpriced.
+		free := strings.HasSuffix(name, ":free") && e.Input == 0 && e.Output == 0
+		if !free && (e.Input <= 0 || e.Output <= 0) {
+			// One price without the other is not a chat model either. The
+			// wider set of providers brought in embedding models filed as
+			// chat, which charge for input and write nothing.
 			continue
 		}
 		kept[name] = e
@@ -94,6 +127,20 @@ func run() error {
 	}
 	if len(names) == 0 {
 		return errors.New("no models matched, the table's shape has probably changed")
+	}
+
+	// A model LiteLLM has stopped listing keeps the rate it had. Retired
+	// models drop out of that file as newer ones arrive, and their published
+	// price does not change on the way out, but the history people ran on
+	// them is still there to be read. Refreshing the table dropped eighteen
+	// at once, older Claude and GPT models among them, which would have left
+	// every project that used one unpriced for no reason but the refresh.
+	retired, err := carried(kept)
+	if err != nil {
+		return err
+	}
+	for name := range retired {
+		names = append(names, name)
 	}
 	sort.Strings(names)
 
@@ -104,6 +151,10 @@ func run() error {
 		time.Now().UTC().Year(), int(time.Now().UTC().Month()), time.Now().UTC().Day())
 	fmt.Fprintf(&b, "// rates is what each model charges per token.\nvar rates = map[string]Rate{\n")
 	for _, name := range names {
+		if literal, ok := retired[name]; ok {
+			fmt.Fprintf(&b, "\t%q: %s,\n", name, literal)
+			continue
+		}
 		e := kept[name]
 		tiered := e.InputAbove != nil || e.OutputAbove != nil ||
 			e.CacheReadAbove != nil || e.CacheWriteAbove != nil
@@ -128,8 +179,38 @@ func run() error {
 	if err := os.WriteFile("rates.go", src, 0o600); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "gen: wrote %d models\n", len(names))
+	fmt.Fprintf(os.Stderr, "gen: wrote %d models, %d of them kept from before\n", len(names), len(retired))
 	return nil
+}
+
+// rateLine is one entry of the table this program writes, as gofmt lays it
+// out: the model's name, then its Rate literal.
+var rateLine = regexp.MustCompile(`^\t"([^"]+)":\s+(\{[^}]*\}),$`)
+
+// carried reads the table as it stands and returns the entries of models no
+// longer in the fresh list, each as its Rate literal, so they can be written
+// back unchanged. A missing table carries nothing over.
+func carried(fresh map[string]entry) (map[string]string, error) {
+	f, err := os.Open("rates.go")
+	if errors.Is(err, os.ErrNotExist) {
+		return map[string]string{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	out := map[string]string{}
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		m := rateLine.FindStringSubmatch(sc.Text())
+		if m == nil {
+			continue
+		}
+		if _, still := fresh[m[1]]; !still {
+			out[m[1]] = m[2]
+		}
+	}
+	return out, sc.Err()
 }
 
 func fetch() ([]byte, error) {

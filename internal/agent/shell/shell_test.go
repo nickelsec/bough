@@ -107,3 +107,26 @@ func TestHeredocGuardIsLoadBearing(t *testing.T) {
 		t.Error("a commit inside written text was counted")
 	}
 }
+
+// The hash and branch come back out of what git printed, including the first
+// commit of a repository, which puts "(root-commit)" between the two, and a
+// commit on no branch. The outputs below were captured from real git.
+func TestCommitRefReadsWhatGitPrinted(t *testing.T) {
+	cases := []struct {
+		out, branch, sha string
+	}{
+		{"[main cdf9a10] add readme\n 1 file changed, 1 insertion(+)", "main", "cdf9a10"},
+		{"[main (root-commit) 85fd4d9] start\n 1 file changed", "main", "85fd4d9"},
+		{"[feature/x-1.2 0123abcd] y", "feature/x-1.2", "0123abcd"},
+		{"[detached HEAD 5d6e7f8] z", "", "5d6e7f8"},
+		{"warning: LF will be replaced\n[main cd7d300] start, amended\n Date: Sat Sep 26", "main", "cd7d300"},
+		{"On branch main\nnothing to commit, working tree clean", "", ""},
+		{"[not a commit] at all", "", ""},
+	}
+	for _, c := range cases {
+		branch, sha := CommitRef(c.out)
+		if branch != c.branch || sha != c.sha {
+			t.Errorf("CommitRef(%q) = %q, %q; want %q, %q", c.out, branch, sha, c.branch, c.sha)
+		}
+	}
+}

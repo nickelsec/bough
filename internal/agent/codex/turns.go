@@ -12,7 +12,6 @@ import (
 )
 
 var exitCodeRegex = regexp.MustCompile(`(?:Process exited with code|Command failed with exit code|Exit code:?)\s*(\d+)`)
-var commitShaRegex = regexp.MustCompile(`\[[\w/-]+\s+([0-9a-f]{7,40})\]`)
 var patchFileRegex = regexp.MustCompile(`(?m)^\*\*\*\s*(?:Add|Update|Delete)\s*File:\s*([^\r\n]+)`)
 var execCmdRegex = regexp.MustCompile(`cmd:\s*"((?:\\.|[^"\\])*)"`)
 var execWorkdirRegex = regexp.MustCompile(`workdir:\s*"((?:\\.|[^"\\])*)"`)
@@ -428,8 +427,6 @@ func handleToolOutput(cur *agent.Turn, item *ResponseItem, at time.Time, turns [
 	if p.Amend {
 		c.Kind = "amended"
 	}
-	if sm := commitShaRegex.FindStringSubmatch(outputStr); len(sm) > 1 {
-		c.SHA = sm[1]
-	}
+	_, c.SHA = shell.CommitRef(outputStr)
 	turns[p.Turn].Committed = append(turns[p.Turn].Committed, c)
 }

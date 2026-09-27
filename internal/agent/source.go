@@ -121,6 +121,12 @@ var Agents = []Known{
 		Flag:    []string{"codex"},
 		Where:   "~/.codex/sessions",
 	},
+	{
+		Source:  "pi",
+		Display: "Pi",
+		Flag:    []string{"pi"},
+		Where:   "~/.pi/agent/sessions",
+	},
 }
 
 // Lookup finds an agent by its source name.

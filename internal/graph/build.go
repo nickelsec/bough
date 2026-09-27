@@ -204,7 +204,11 @@ func statsOf(turns []agent.Turn, repoRead bool) Stats {
 	// Priced here so the figure travels with the work it describes. Only when
 	// every model in it is known: a partial sum presented as a total is the
 	// one failure a bill cannot survive.
-	if c := out.Spend(); c.Priced && c.Dollars > 0 {
+	//
+	// That includes a figure of zero. Work done entirely on a free model is
+	// priced at nothing, and leaving the figure off made it read as work that
+	// could not be priced at all.
+	if c := out.Spend(); c.Priced {
 		d := c.Dollars
 		out.Cost = &d
 	}

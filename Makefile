@@ -30,11 +30,13 @@ cover:
 	go test -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out | tail -1
 
-# A minute is enough to catch a regression in the parser, which is the one
-# place a malformed record could take the whole thing down.
+# A minute per reader is enough to catch a regression in a parser, which is the
+# one place a malformed record could take the whole thing down. Go fuzzes one
+# package at a time, hence one line each.
 .PHONY: fuzz
 fuzz:
 	go test -run=xxx -fuzz=FuzzReadRecords -fuzztime=60s ./internal/agent/claude
+	go test -run=xxx -fuzz=FuzzReadEntries -fuzztime=60s ./internal/agent/pi
 
 # Regenerates the embedded artwork and the subset fonts. Needs Python and
 # fontTools, which building does not.

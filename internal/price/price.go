@@ -22,6 +22,12 @@ import (
 	"github.com/nickelsec/bough/internal/agent"
 )
 
+// Local ends the name of a model that ran on the person's own machine, or
+// their own network: llama.cpp, Ollama, LM Studio and the like. Such a model
+// is priced at zero. It is part of the name rather than a flag beside it so
+// that everywhere the name is shown, the reason for the zero is shown too.
+const Local = " (local)"
+
 // Rate is what one model charges, per token.
 //
 // Fractions of a cent per token, so the figures are tiny: 5e-06 is five dollars
@@ -59,6 +65,12 @@ type Rate struct {
 func Of(model string) (Rate, bool) {
 	if model == "" {
 		return Rate{}, false
+	}
+	// A model run on the person's own machine has no rate to publish and
+	// costs nothing per token. The reader that knows it was local says so in
+	// the name, and it is priced at zero rather than refused.
+	if strings.HasSuffix(model, Local) {
+		return Rate{}, true
 	}
 	if r, ok := rates[model]; ok {
 		return r, true

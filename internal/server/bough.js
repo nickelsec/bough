@@ -1560,6 +1560,9 @@
     // at this size the difference between two pieces of work is the cents.
     var priced = stats && typeof stats.cost === "number";
     if (priced) rows.push(["Cost", money(stats.cost)]);
+    // Work that used tokens and has no figure had a model with no published
+    // rate. Leaving the line off read as though cost did not apply.
+    else if (stats && stats.tokens && tokensOf(stats.tokens) > 0) rows.push(["Cost", "NA"]);
 
     var list = node("dl", "pop-ledger");
     rows.forEach(function (r, i) {
@@ -1678,6 +1681,7 @@
     // by importance: that row ships closed, so the figure most people came
     // for was behind a disclosure. The counts stay there; this comes out.
     if (typeof t.cost === "number") main.push([money(t.cost), "", rateNote]);
+    else if (t.tokens && tokensOf(t.tokens) > 0) main.push(["NA", "", rateNote]);
 
     var rest = [];
     var made = (t.commits || []).length;
@@ -1742,7 +1746,11 @@
       if (pair[0] !== "") span.appendChild(node("b", null, String(pair[0])));
       // The gap between a number and its word is set in the stylesheet, so
       // the word is added without one of its own.
-      if (pair[1]) span.appendChild(document.createTextNode(pair[1]));
+      // One of anything is singular. The words here are all plain plurals,
+      // and only a bare count can be one: "1k written" is a string.
+      var word = pair[1];
+      if (pair[0] === 1 && /s$/.test(word)) word = word.slice(0, -1);
+      if (word) span.appendChild(document.createTextNode(word));
       // A note when the figure needs one. Either the maker of the note, or
       // true for the commit note this started out only ever carrying.
       if (pair[2]) span.appendChild((pair[2] === true ? countNote : pair[2])());
@@ -1899,14 +1907,22 @@
         // The whole day line is the control, not a chevron at one end of it.
         // A row of figures with a mark on the end reads as one thing, so it
         // behaves as one, and it is a far easier target than the mark alone.
+        //
+        // The button takes the day's label and nothing else. The cell also
+        // holds the line naming the models, and copying the whole cell's text
+        // ran the two together, "Fri 25 Sepgpt-5.6-luna", and lost the line.
+        // Any day that used more than one model did it, which Pi makes common.
         var name = head.querySelector("th");
+        var models = name.querySelector(".spend-model");
         var hit = node("button", "spend-fold");
         hit.type = "button";
         hit.setAttribute("aria-expanded", "true");
         hit.appendChild(node("span", "spend-caret"));
-        hit.appendChild(document.createTextNode(name.textContent));
+        var first = name.firstChild;
+        hit.appendChild(document.createTextNode(first && first.nodeType === 3 ? first.textContent : ""));
         name.textContent = "";
         name.appendChild(hit);
+        if (models) name.appendChild(models);
 
         tasks.forEach(function (task) {
           row(group, "task", task.label || "(unnamed)", task.stats.tokens, task.stats, task.id);
@@ -1964,12 +1980,13 @@
     [t.output, t.input, t.cacheWrite, t.cacheRead, tokensOf(t)].forEach(function (n) {
       tr.appendChild(node("td", null, big(n || 0)));
     });
-    // A dash, not a zero, when nothing here has a published rate. Work that
-    // cost nothing to price is not work that cost nothing.
+    // NA, not a zero, when a model here has no published rate. Work that could
+    // not be priced is not work that cost nothing. A row with no tokens at all
+    // never reaches this far; it has dashes, since there is nothing to price.
     if (stats && typeof stats.cost === "number") {
       tr.appendChild(node("td", "spend-cost", money(stats.cost)));
     } else {
-      tr.appendChild(node("td", "spend-none", "–"));
+      tr.appendChild(node("td", "spend-none", "NA"));
     }
     into.appendChild(tr);
     return tr;
@@ -2091,9 +2108,9 @@
   // rateNote says what the dollar figure is and is not.
   //
   // It is what the work would have cost billed per token at published rates.
-  // A Max or Pro subscription is flat rate and pays none of it, and nothing in
-  // a transcript says which was in use, so the figure cannot be called what
-  // anyone spent. Read the other way it is the more interesting number: on a
+  // A subscription, Claude's Max or Pro or a ChatGPT plan through Codex or Pi,
+  // is flat rate and pays none of it, and nothing in a transcript says which
+  // was in use, so the figure cannot be called what anyone spent. Read the other way it is the more interesting number: on a
   // subscription it is what the subscription saved.
   function rateNote() {
     var mark = node("button", "note");
@@ -2103,8 +2120,11 @@
     mark.title = [
       "What this work would have cost at published API rates.",
       "",
-      "A Max or Pro subscription is flat rate, so nobody on one",
-      "paid this. Read the other way, it is what the subscription saved.",
+      "A subscription is flat rate, so nobody on one paid this.",
+      "Read the other way, it is what the subscription saved.",
+      "",
+      "Models run locally cost nothing. NA means a model had no",
+      "published rate, so no honest figure could be given.",
     ].join("\n");
     return mark;
   }

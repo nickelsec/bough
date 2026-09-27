@@ -59,5 +59,6 @@ var ambientDirs = []string{
 	"/.claude/",
 	"/.cursor/",
 	"/.codex/",
+	"/.pi/",
 	"/memory/",
 }

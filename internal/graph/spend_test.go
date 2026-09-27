@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -181,5 +182,68 @@ func TestSpendWithoutAModelIsStillCounted(t *testing.T) {
 	}
 	if len(g.Totals.Models) != 0 {
 		t.Errorf("models = %v, want none: nothing named a model", g.Totals.Models)
+	}
+}
+
+// Work done entirely on a free model is priced, at nothing, and the figure is
+// there to say so. Leaving it off, as happened while every rate in the table
+// was above zero, made free work read as work that could not be priced.
+func TestFreeWorkIsPricedAtNothing(t *testing.T) {
+	tk := agent.Tokens{Input: 700, Output: 60, CacheRead: 100}
+	turn := charged(0, "it should keep changing", "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free", tk)
+
+	opt := DefaultOptions()
+	opt.Now = func() time.Time { return time.Date(2026, 9, 9, 23, 0, 0, 0, time.UTC) }
+	g := Build(agent.Project{Name: "p", Path: "/p"},
+		[]agent.Session{{ID: "s", Turns: []agent.Turn{turn}}}, opt)
+
+	if g.Totals.Cost == nil || *g.Totals.Cost != 0 {
+		t.Errorf("project cost = %v, want a figure of zero", g.Totals.Cost)
+	}
+	if c := g.Totals.Spend(); !c.Priced || len(c.Unpriced) != 0 {
+		t.Errorf("spend = %+v, want priced with nothing left out", c)
+	}
+	task := g.Goals[0].Tasks[0].Stats
+	if task.Cost == nil || *task.Cost != 0 {
+		t.Errorf("task cost = %v, want a figure of zero", task.Cost)
+	}
+}
+
+// Work on a model with no published rate says NA where the figure would go,
+// and names the model, rather than leaving the cost out without a word.
+func TestUnpricedWorkSaysNA(t *testing.T) {
+	tk := agent.Tokens{Input: 100, Output: 10}
+	turn := charged(0, "ask the unknown model", "acme/acme-large", tk)
+
+	opt := DefaultOptions()
+	opt.Now = func() time.Time { return time.Date(2026, 9, 9, 23, 0, 0, 0, time.UTC) }
+	g := Build(agent.Project{Name: "p", Path: "/p"},
+		[]agent.Session{{ID: "s", Turns: []agent.Turn{turn}}}, opt)
+	if g.Totals.Cost != nil {
+		t.Fatalf("an unknown model was priced at %v", *g.Totals.Cost)
+	}
+
+	var b strings.Builder
+	if err := WriteText(&b, g, false); err != nil {
+		t.Fatal(err)
+	}
+	out := b.String()
+	if !strings.Contains(out, "NA at API rates: no published rate for acme/acme-large") {
+		t.Errorf("project line does not say NA:\n%s", out)
+	}
+	if !strings.Contains(out, "10 written, NA") {
+		t.Errorf("task line does not say NA:\n%s", out)
+	}
+}
+
+// Durations read the way a person would say them, singular included.
+func TestHoursSaysOneMinute(t *testing.T) {
+	for m, want := range map[int]string{
+		0: "a moment", 1: "1 minute", 2: "2 minutes", 59: "59 minutes",
+		60: "an hour", 61: "an hour and 1 minute", 90: "an hour and 30 minutes", 150: "2 hours",
+	} {
+		if got := hours(m); got != want {
+			t.Errorf("hours(%d) = %q, want %q", m, got, want)
+		}
 	}
 }

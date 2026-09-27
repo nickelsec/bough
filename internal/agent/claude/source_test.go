@@ -138,3 +138,25 @@ func write(t *testing.T, path, body string) {
 		t.Fatal(err)
 	}
 }
+
+// Pi keeps its sessions in the same shape of folder, and its header carries a
+// cwd. Under a shared root those files are Pi's, not a Claude Code project with
+// nothing in it.
+func TestDetectLeavesPiSessionsAlone(t *testing.T) {
+	root := t.TempDir()
+	pi := filepath.Join(root, "--C--work-app--")
+	if err := os.MkdirAll(pi, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(pi, "2026-09-20T10-00-00-000Z_x.jsonl"),
+		`{"type":"session","version":3,"id":"x","timestamp":"2026-09-20T10:00:00Z","cwd":"C:\\work\\app"}`+"\n"+
+			`{"type":"message","id":"a","parentId":null,"timestamp":"2026-09-20T10:00:01Z","message":{"role":"user","content":"hi","timestamp":1}}`)
+
+	projects, err := Source{Root: root}.Detect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(projects) != 0 {
+		t.Errorf("claimed Pi's folder as %+v", projects)
+	}
+}

@@ -2,6 +2,7 @@ package price
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/nickelsec/bough/internal/agent"
@@ -206,7 +207,13 @@ func TestNoModelsIsNotAFailure(t *testing.T) {
 // The table has to hold the models bough actually meets, or every figure it
 // produces is a refusal.
 func TestTheTableHoldsTheModelsWeSee(t *testing.T) {
-	for _, name := range []string{"claude-opus-5", "gpt-6-astra"} {
+	for _, name := range []string{
+		"claude-opus-5", "gpt-6-astra",
+		// What the Pi session this was checked against ran on: a ChatGPT
+		// plan's models under OpenAI's own names, and a free OpenRouter one.
+		"gpt-5.6-luna", "gpt-5.6-sol", "claude-opus-4-8",
+		"openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+	} {
 		if _, ok := Of(name); !ok {
 			t.Errorf("no rate for %s, which real history carries", name)
 		}
@@ -220,6 +227,10 @@ func TestNoRateIsAbsurd(t *testing.T) {
 		t.Fatalf("only %d models in the table, the generator probably filtered wrong", len(rates))
 	}
 	for name, r := range rates {
+		// OpenRouter's free models are the one place a zero is the real price.
+		if strings.HasSuffix(name, ":free") && r == (Rate{}) {
+			continue
+		}
 		if r.Input <= 0 || r.Output <= 0 {
 			t.Errorf("%s: input %v output %v, want both above zero", name, r.Input, r.Output)
 		}
@@ -230,5 +241,30 @@ func TestNoRateIsAbsurd(t *testing.T) {
 		if r.CacheRead < 0 || r.CacheWrite < 0 {
 			t.Errorf("%s: negative cache rate: %+v", name, r)
 		}
+	}
+}
+
+// A local model is priced at nothing, whatever it is called, and says why in
+// its name. It never needs a row in the table.
+func TestALocalModelCostsNothing(t *testing.T) {
+	name := "ollama/qwen2.5-coder:7b" + Local
+	r, ok := Of(name)
+	if !ok || r != (Rate{}) {
+		t.Fatalf("Of(%q) = %+v, %v; want a zero rate that counts as known", name, r, ok)
+	}
+	got := Spend(map[string]agent.Tokens{
+		name:              {Input: 5000, Output: 800},
+		"claude-opus-4-8": {Output: 1000},
+	})
+	if !got.Priced || len(got.Unpriced) != 0 {
+		t.Fatalf("spend = %+v, a local model must not spoil the total", got)
+	}
+	want, _ := Of("claude-opus-4-8")
+	if math.Abs(got.Dollars-1000*want.Output) > 1e-12 {
+		t.Errorf("got %v, want only the hosted model's %v", got.Dollars, 1000*want.Output)
+	}
+	// The same model without the mark is an unknown, not a free one.
+	if _, ok := Of("ollama/qwen2.5-coder:7b"); ok {
+		t.Error("an unmarked self-hosted model was priced")
 	}
 }
