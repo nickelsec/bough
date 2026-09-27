@@ -244,6 +244,22 @@
     date.textContent = day.goal.period || "";
     g.appendChild(date);
 
+    // When the sitting began and how long it ran at the keyboard, quieter
+    // than the date. Two sittings on the same day had identical labels, which
+    // read as a mistake; the time is what tells them apart.
+    var at = clock(day.goal.stats.start);
+    if (at) {
+      var mins = day.goal.stats.activeMinutes;
+      var time = el("text", {
+        x: day.x,
+        y: day.y + day.size / 2 + 36,
+        class: "day-time",
+        "text-anchor": "middle"
+      });
+      time.textContent = mins ? at + " · " + duration(mins) : at;
+      g.appendChild(time);
+    }
+
     bind(g, day);
     return g;
   }
@@ -835,6 +851,8 @@
       }
     } else {
       pop.appendChild(node("p", "pop-title", item.goal.period || ""));
+      var ran = span(item.goal.stats);
+      if (ran) pop.appendChild(node("p", "pop-time", ran));
       pop.appendChild(node("p", "pop-when", figures(item.goal.stats)));
       var dayCost = ledger(item.goal.stats.tokens, item.goal.stats);
       if (dayCost) pop.appendChild(dayCost);
@@ -903,6 +921,8 @@
   function readDay(panel, day) {
     var head = node("header", "reader-head");
     head.appendChild(node("h2", null, day.goal.period || "a day's work"));
+    var ran = span(day.goal.stats);
+    if (ran) head.appendChild(node("p", "reader-time", ran));
     head.appendChild(node("p", "reader-figures", figures(day.goal.stats)));
     panel.appendChild(head);
 
@@ -1553,6 +1573,9 @@
     if (stats.errors) bits.push(count(stats.errors, "failure"));
     var commits = stats.commits || [];
     if (commits.length) bits.push(count(commits.length, "commit"));
+    // Left out at zero rather than saying "a moment at the keyboard" for
+    // every one-prompt task.
+    if (stats.activeMinutes) bits.push(duration(stats.activeMinutes) + " at the keyboard");
     return bits.join("  ·  ");
   }
 
@@ -1647,6 +1670,30 @@
     });
   }
 
+  // clock is the time of day something happened, in the viewer's own format,
+  // or "" when the record does not say.
+  function clock(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    if (isNaN(d)) return "";
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+
+  // span is when a stretch of work ran, start to end. The start alone when it
+  // all happened in the same minute, and the end's weekday when it ran past
+  // midnight, since "11:40 PM to 1:10 AM" reads as going backwards.
+  function span(stats) {
+    var from = clock(stats && stats.start);
+    if (!from) return "";
+    var to = clock(stats.end);
+    if (!to || to === from) return from;
+    var a = new Date(stats.start), b = new Date(stats.end);
+    if (a.toDateString() !== b.toDateString()) {
+      to = b.toLocaleDateString([], { weekday: "short" }) + " " + to;
+    }
+    return from + " to " + to;
+  }
+
   function dayOf(iso) { return iso ? iso.slice(0, 10) : ""; }
 
   function baseName(path) {
@@ -1690,7 +1737,9 @@
     // wrap on a laptop.
     var main = [
       [t.turns || 0, "prompts"],
-      [graph.goals.length, "days"],
+      // Sittings, not days: two sittings on one date are two, and calling
+      // them days miscounted the calendar.
+      [graph.goals.length, "sittings"],
       [t.edits || 0, "changes"],
       [t.files || 0, "files"],
       [duration(t.activeMinutes), "at the keyboard"]
@@ -1920,7 +1969,12 @@
     // these rows belong to that day.
     graph.goals.forEach(function (goal, i) {
       var group = node("tbody", "spend-group");
-      var head = row(group, "day", goal.period || goal.label || "", goal.stats.tokens, goal.stats, goal.id);
+      // The day's line carries when the sitting began, so two on the same date
+      // can be told apart here as they can on the drawing.
+      var began = clock(goal.stats.start);
+      var dayName = goal.period || goal.label || "";
+      if (began) dayName = dayName ? dayName + ", " + began : began;
+      var head = row(group, "day", dayName, goal.stats.tokens, goal.stats, goal.id);
 
       var tasks = goal.tasks || [];
       if (tasks.length) {

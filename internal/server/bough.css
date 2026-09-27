@@ -650,6 +650,22 @@ body.nothing .empty { display: flex; }
   stroke-linejoin: round;
 }
 
+/* When the sitting began and how long it ran, under its date. The same face
+   and weight as the task labels, and quieter than the date, which is still
+   the thing read first. Stroked in the ground colour like the date so it stays
+   legible where it crosses a line. */
+.day-time {
+  font: 400 11px var(--mono);
+  fill: var(--ink-low);
+  paint-order: stroke;
+  stroke: var(--ground);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  font-variant-numeric: tabular-nums;
+}
+
+.day.lit > .day-time { fill: var(--ink-mid); }
+
 .task-label {
   font: 400 11px var(--mono);
   fill: var(--ink-mid);
@@ -861,6 +877,13 @@ body.growing .day {
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--ink-low);
+}
+
+.pop-time {
+  margin: 0 0 0.15rem;
+  font-size: 0.67rem;
+  color: var(--ink-mid);
+  font-variant-numeric: tabular-nums;
 }
 
 .pop-when {
@@ -1464,6 +1487,13 @@ body.reading #reader { transform: none; }
   font: 600 1.1rem/1.35 var(--display);
   color: var(--ink);
   text-wrap: balance;
+}
+
+.reader-time {
+  margin: 0 0 0.2rem;
+  font-size: 0.74rem;
+  color: var(--ink-mid);
+  font-variant-numeric: tabular-nums;
 }
 
 .reader-figures,

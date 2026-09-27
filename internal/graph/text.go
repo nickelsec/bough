@@ -80,8 +80,11 @@ func WriteText(w io.Writer, g Graph, verbose bool) error {
 		fmt.Fprintf(w, "\n%s\n", strings.Repeat("-", 72))
 		fmt.Fprintf(w, "%-14s %s\n", goal.Period, goal.Label)
 
+		// The time the sitting began goes under its date. Two sittings on one
+		// day otherwise read the same, which looks like a mistake, and the
+		// column has room for it.
 		s := goal.Stats
-		fmt.Fprintf(w, "%-14s %s, %s, %s\n", "",
+		fmt.Fprintf(w, "%-14s %s, %s, %s\n", startedAt(s),
 			plural(len(goal.Tasks), "task"), plural(s.Turns, "prompt"), hours(s.ActiveMinutes))
 
 		if s.Churn > 1 {
@@ -98,13 +101,7 @@ func WriteText(w io.Writer, g Graph, verbose bool) error {
 
 		for _, task := range goal.Tasks {
 			fmt.Fprintf(w, "\n  %s\n", task.Label)
-			fmt.Fprintf(w, "    %s", plural(task.Stats.Turns, "prompt"))
-			if task.Stats.Edits > 0 {
-				fmt.Fprintf(w, ", %s", plural(task.Stats.Edits, "change"))
-			}
-			if task.Stats.Errors > 0 {
-				fmt.Fprintf(w, ", %s", plural(task.Stats.Errors, "failure"))
-			}
+			fmt.Fprintf(w, "    %s", taskFigures(task.Stats))
 			// What the work cost, written the way the project total above is:
 			// what was produced, then how much context it took to produce it.
 			// The total of the four would be the bigger number and the less
@@ -241,6 +238,32 @@ func baseName(p string) string {
 // A cheap task is worth a fraction of a cent, and "$0.00" reads as free rather
 // than as nearly nothing, so anything under a cent keeps enough places to show
 // it was not nought. Above that, two places, because that is what money has.
+// startedAt is when a stretch of work began, as a clock time, or blank when
+// the record does not say. 24-hour, like the prompt times below it.
+func startedAt(s Stats) string {
+	if s.Start.IsZero() {
+		return ""
+	}
+	return s.Start.Format("15:04")
+}
+
+// taskFigures opens a task's line: how many prompts, what changed and failed,
+// and how long it took at the keyboard. The time is left out when there is
+// none to speak of, rather than saying "a moment" on every one-prompt task.
+func taskFigures(s Stats) string {
+	parts := []string{plural(s.Turns, "prompt")}
+	if s.Edits > 0 {
+		parts = append(parts, plural(s.Edits, "change"))
+	}
+	if s.Errors > 0 {
+		parts = append(parts, plural(s.Errors, "failure"))
+	}
+	if s.ActiveMinutes > 0 {
+		parts = append(parts, hours(s.ActiveMinutes))
+	}
+	return strings.Join(parts, ", ")
+}
+
 // costNote is a task's cost as it trails the rest of its line: the figure,
 // NA when a model in it has no published rate, or nothing when no model
 // was named at all.
