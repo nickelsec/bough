@@ -75,7 +75,7 @@ by hand holds every project's files side by side, with no per-project folders.
 The first line of every file:
 
 ```json
-{"type":"session","version":3,"id":"<uuid>","timestamp":"2026-09-24T18:34:41.984Z","cwd":"C:\\Users\\you"}
+{"type":"session","version":3,"id":"<uuid>","timestamp":"2026-09-24T18:34:41.984Z","cwd":"D:\\work\\app"}
 ```
 
 Version 1 files have no `version` and no `id` or `parentId` on their entries,
