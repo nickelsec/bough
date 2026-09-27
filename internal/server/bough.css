@@ -747,6 +747,10 @@ body.nothing .empty { display: flex; }
   transition: opacity 120ms var(--ease), stroke-width 120ms var(--ease);
 }
 
+/* Turned off from "What to show". Hidden, not removed, so turning them back
+   on costs nothing. */
+#tree.no-links .links { display: none; }
+
 /* A link lights with the days it joins, so a thread picked up weeks later is
    visible as one thing. */
 .link.lit {

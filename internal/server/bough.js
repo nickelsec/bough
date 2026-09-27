@@ -66,6 +66,9 @@
     to: null,
     substantialOnly: false,
     hardOnly: false,
+    // The dotted lines between sittings. On unless somebody turns them off,
+    // so unlike the rest of these, the default is the one that does nothing.
+    links: true,
     // What the work had to cost to stay lit, and which measure that reads.
     // Zero is off rather than a floor everything clears, so the filter counts
     // as running only once it has been moved.
@@ -1332,6 +1335,11 @@
     switchFor("f-size", function (on) { filters.substantialOnly = on; });
     switchFor("f-hard", function (on) { filters.hardOnly = on; });
 
+    // Only offered when there is a line to hide. A project that never went
+    // back to its own files has none, and a switch for nothing is noise.
+    if ((graph.links || []).length) document.getElementById("f-links").hidden = false;
+    switchFor("f-links", function (on) { showLinks(on); });
+
     // A panel's own Clear undoes only that panel, which is what you expect of
     // a button sitting inside it.
     document.getElementById("f-said-clear").addEventListener("click", function () {
@@ -1364,6 +1372,9 @@
       });
       filters.substantialOnly = false;
       filters.hardOnly = false;
+      // Clearing puts the lines back, since showing them is the default.
+      document.getElementById("f-links").setAttribute("aria-checked", "true");
+      showLinks(true);
       refilter();
     });
 
@@ -1487,6 +1498,15 @@
     });
   }
 
+  // showLinks puts the dotted lines between sittings in the drawing or takes
+  // them out. They are hidden rather than removed, so turning them back on is
+  // instant and a redraw at another zoom keeps whichever was chosen: the class
+  // sits on the container, which outlives every redraw.
+  function showLinks(on) {
+    filters.links = on;
+    host.classList.toggle("no-links", !on);
+  }
+
   // marks puts a dot on any tab whose filter is doing something, so a filter
   // left on in a closed panel is never invisible.
   function marks() {
@@ -1495,7 +1515,7 @@
       file: Boolean(filters.file),
       when: Boolean(filters.from || filters.to),
       cost: filters.least > 0,
-      show: filters.substantialOnly || filters.hardOnly
+      show: filters.substantialOnly || filters.hardOnly || !filters.links
     };
 
     document.querySelectorAll(".rail-btn[data-panel]").forEach(function (tab) {

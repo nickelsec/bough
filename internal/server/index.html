@@ -213,6 +213,20 @@
         <span class="track"><span class="knob"></span></span>
       </button>
 
+      <!-- On by default, unlike the two above: the lines are part of the
+           drawing until somebody asks for them gone. On a long project they
+           cross everything, and this is how to clear them without losing
+           them. Hidden when there are none to show. -->
+      <button type="button" class="switch" id="f-links" role="switch" aria-checked="true" hidden>
+        <span class="switch-text">
+          Show links between sittings
+          <small>The dotted lines join sittings that went back to the same
+          files, so work picked up again later can be followed from one to
+          the other.</small>
+        </span>
+        <span class="track"><span class="knob"></span></span>
+      </button>
+
       <button type="button" class="switch" id="f-hard" role="switch" aria-checked="false">
         <span class="switch-text">
           Show where it was hard

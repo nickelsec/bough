@@ -74,3 +74,22 @@ func TestThePageSpellsAgentsLikeTheTerminal(t *testing.T) {
 		}
 	}
 }
+
+// The dotted lines between sittings can be turned off from "What to show",
+// and they start on: the drawing is complete until somebody asks otherwise.
+func TestTheLinksSwitchStartsOn(t *testing.T) {
+	page, err := assets.ReadFile("index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(page), `id="f-links" role="switch" aria-checked="true"`) {
+		t.Error("the links switch is missing or does not start on")
+	}
+	css, err := assets.ReadFile("bough.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(css), "#tree.no-links .links { display: none; }") {
+		t.Error("nothing hides the links when the switch is off")
+	}
+}
