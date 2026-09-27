@@ -7,6 +7,80 @@ Notable changes, newest first. Format follows
 
 Nothing yet.
 
+## 0.7.0 - 2026-09-27
+
+bough reads Pi now, the open source coding agent people kept asking about in
+#12. Everything Claude Code and Codex get, Pi gets: prompts, tasks, sittings,
+files, commits, tokens and cost, in the drawing, the terminal and the JSON.
+
+Pi being open source changed how this was built. Every rule the reader follows
+was written against the code that writes the files rather than guessed from a
+sample, and the test fixtures are written by Pi's own session code, so they
+hold what Pi really writes. On a real session bough's cost lands on the figure
+Pi recorded, to the cent, from a different price table.
+
+Pi also reaches far more providers than the other two, so the rate table grew
+from 125 models to 1,731, and it learned two new answers besides a price: zero
+for a model running on your own machine, and NA for one nobody publishes a rate
+for.
+
+### Added
+
+- **Pi**, found automatically under `~/.pi/agent/sessions`, or wherever
+  `PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR` point. `--agent=pi`
+  reads it alone. See [the Pi session file format](docs/format-pi.md) for what
+  it took to read it properly.
+
+- **Local models are priced at nothing.** Work on llama.cpp, or on a provider
+  that Pi's `models.json` points at your own machine or network, shows as
+  `ollama/qwen2.5-coder:7b (local)` and costs $0. A local proxy in front of a
+  hosted model is not mistaken for one.
+
+- **When each sitting started.** The drawing gives each sitting its start time
+  and how long you were at the keyboard, under its date. The hover card and
+  the record give the whole span. Two sittings on the same day used to have
+  identical labels, which read as a mistake.
+
+- **Time at the keyboard for every task**, in the hover card, the record and
+  the text output, left out where there was none to speak of.
+
+- **A switch for the dotted lines** that join sittings which went back to the
+  same files. On a long project they cross everything, and "What to show" now
+  turns them off. They start on.
+
+### Changed
+
+- **A cost that cannot be worked out says NA** in the drawing, the usage table
+  and the terminal, naming the model that had no rate, instead of leaving the
+  figure out without a word.
+
+- The rate table covers every provider Pi can reach that LiteLLM publishes
+  rates for, and a refresh keeps the rate of a model LiteLLM has since dropped.
+  The last refresh would have dropped eighteen, older Claude and GPT models
+  among them.
+
+- The strip under the drawing counts sittings rather than calling them days.
+
+- The JSON schema is still 5. Model names can now carry their provider, as
+  `openrouter/...` or `gemini/...`, or end in ` (local)`.
+
+### Fixed
+
+- **The first commit in a new repository lost its hash.** Git prints
+  `(root-commit)` in the middle of the line the hash is read from. Codex was
+  affected too.
+
+- With one `--root` holding more than one agent's history, Claude Code claimed
+  Pi's folders as an empty project of its own.
+
+- Work done entirely on a free model showed a dash, which reads as unpriced,
+  rather than $0.
+
+- In the usage table, a day that used more than one model ran its date into
+  the list of models and lost the list.
+
+- "1 minutes", "1 days" and the like.
+
 ## 0.6.1 - 2026-09-25
 
 Installing needed a Go toolchain, which is a strange thing to ask of a tool

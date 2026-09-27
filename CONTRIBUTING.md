@@ -20,20 +20,19 @@ on Linux, macOS and Windows.
 
 ## What is in scope right now
 
-Claude Code and OpenAI Codex CLI, and only those two.
+Claude Code, OpenAI Codex CLI and Pi, and only those three.
 
-That is a deliberate limit rather than a queue. Adding the second agent found
-real defects in the first, and it turned up a class of problem a single agent
-could never have shown: work handed to a sub-agent, replay that spans files
-rather than sitting inside one, and two token streams reporting the same
-figures. Those were worth finding, and none of them would have been found by
-adding a third agent instead.
+That is a deliberate limit rather than a queue. Each agent added so far found
+real defects in the ones before it, and turned up problems a single agent could
+never have shown: work handed to a sub-agent, replay that spans files rather
+than sitting inside one, two token streams reporting the same figures, and
+forks that copy a whole conversation into a new file.
 
-More agents will come once these two are solid. Until then a pull request
-adding a new agent is likely to be turned down, however good the code is,
-because every agent has to be maintained against a format that moves and
-checked against a real corpus somebody here can see. Plumbing that makes the
-seam better, or fixes to the two agents that exist, are very welcome.
+A pull request adding another agent is likely to be turned down for now,
+however good the code is, because every agent has to be maintained against a
+format that moves and checked against a real corpus somebody here can see.
+Plumbing that makes the seam better, or fixes to the three agents that exist,
+are very welcome.
 
 If you want a particular agent supported, open an issue saying so. Knowing what
 people actually use is more useful than a parser nobody can verify.
@@ -52,17 +51,22 @@ Break any of these and the project stops being what it is.
    A page that phones home would contradict the one promise this makes.
    Enforced by `TestPageFetchesNothingExternal`.
 4. **Agent data directories are read only.** bough opens files under
-   `~/.claude` and `~/.codex` and never writes there. No test enforces this
+   `~/.claude`, `~/.codex` and `~/.pi` and never writes there. No test enforces this
    yet, so it is on reviewers to notice.
 
 ## Never commit real history
 
 Transcripts contain whatever you typed, which includes pasted keys and
-customer names. Nothing in the repo is cut from a real session. The Claude
+customer names, so none of it goes into the repo as it stands. The Claude
 fixtures keep the record structure with every prompt replaced by a
-`text-<hash>` placeholder; the Codex one is written by hand. Anything new goes
-the same way, and writing a fixture by hand is usually easier than sanitising
-one: a few lines of JSON carrying the single thing the test pins.
+`text-<hash>` placeholder, and the Codex one is written by hand. The Pi fixtures
+are written by Pi's own code rather than by hand: `internal/agent/pi/testdata/make.mjs`
+drives Pi's SessionManager against a Pi install, so the files hold what Pi really
+writes. The one exception is `real.jsonl`, a single real Pi session with its
+names, home paths, signatures and system prompt taken out, and a test that
+fails if any of them come back. Anything new goes one of these ways, and
+writing a fixture by hand is usually easier than sanitising one: a few lines
+of JSON carrying the single thing the test pins.
 
 ## Commits and pull requests
 

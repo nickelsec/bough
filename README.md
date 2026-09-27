@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  Reads your Claude Code and OpenAI Codex CLI session history, draws what you actually built, and prices it.
+  Reads your Claude Code, OpenAI Codex CLI and Pi session history, draws what you actually built, and prices it.
 </p>
 
 <p align="center">
@@ -11,7 +11,7 @@
   <a href="https://github.com/nickelsec/bough/releases"><img src="https://img.shields.io/github/v/release/nickelsec/bough?color=7C8A46" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-7C8A46" alt="MIT"></a>
   <a href="https://bough.run/docs"><img src="https://img.shields.io/badge/Docs-7C8A46" alt="Documentation"></a>
-  <a href="#agents"><img src="https://img.shields.io/badge/agents-Claude%20Code%20%2F%20Codex-C87941" alt="Agents: Claude Code and Codex"></a>
+  <a href="#agents"><img src="https://img.shields.io/badge/agents-Claude%20Code%20%2F%20Codex%20%2F%20Pi-C87941" alt="Agents: Claude Code, Codex and Pi"></a>
 </p>
 
 <p align="center">
@@ -36,9 +36,10 @@ bough
 That is the whole thing. It finds your projects, asks which one, and opens it
 in your browser.
 
-What you get is a diagram of your own work. A square on the line is a day you
-sat down. Smaller squares hanging off it are the tasks inside that day. Every
-circle is a single prompt you typed.
+What you get is a diagram of your own work. A square on the line is a sitting,
+labelled with the day, the time you started and how long you were at the
+keyboard. Smaller squares hanging off it are the tasks inside that sitting.
+Every circle is a single prompt you typed.
 
 Hover anything and the path back to its day lights up, with a note saying what
 it was. Click it and the full record opens beside the drawing, scrolled to the
@@ -48,6 +49,10 @@ rust rather than green.
 A task carrying a small mark is one that ended in a commit, and the note gives
 you the hash and the message. Everything else in the drawing is worked out from
 your history; this is the part you can go and check.
+
+Dotted lines join sittings that went back to the same files, so work picked up
+again later can be followed across the gap. On a long project there are a lot
+of them, and "What to show" in the rail turns them off.
 
 Behind each task is a faint circle, sized by what that piece of work was
 charged. Hover it and the note breaks the figure down, in tokens and in
@@ -144,11 +149,11 @@ $1232.80 at API rates, priced Sep 2026
 
 ------------------------------------------------------------------------
 31 Aug to 1 Sep Before we move further a small change the product will be...
-               4 tasks, 40 prompts, 4 hours
+16:57          4 tasks, 40 prompts, 4 hours
                kept coming back to hovercheck.js (5 times, 52 lines)
 
   Before we move further a small change the product will be...
-    14 prompts, 5 failures, 131k written, 420x context, $34.77
+    14 prompts, 5 failures, an hour and 29 minutes, 131k written, 420x context, $34.77
     28d4930  Rename the project to bough
     c541dd9  Implement the Claude Code source, and make it cheap to read
 ```
@@ -168,7 +173,7 @@ bough --list           show every project with history
 bough -v               include every prompt in the text view
 bough --json           write the graph as JSON
 bough --no-repo        leave the project's git history unread
-bough --agent=codex    read one agent only: claude, codex, or all
+bough --agent=pi       read one agent only: claude, codex, pi, or all
 bough -o notes.txt     write to a file instead of standard output
 bough --root DIR       read history from here instead of the usual place
 ```
@@ -183,8 +188,8 @@ only ever reads.
 
 ## What it does
 
-Claude Code keeps a transcript of every session. Those transcripts hold the
-shape of what you built, and nothing surfaces it. bough reads them and
+Claude Code, Codex and Pi keep a transcript of every session. Those
+transcripts hold the shape of what you built, and nothing surfaces it. bough reads them and
 rebuilds three levels:
 
 **Prompts** are what you typed, with the files and failures that followed.
@@ -193,9 +198,10 @@ rebuilds three levels:
 next begins is worked out from how long you paused, where the agent compacted
 its context, and whether you changed both subject and files at once.
 
-**Sittings** are the days. People stop for the night and come back to something
-else, and that turns out to be a better guide to what belongs together than
-anything cleverer.
+**Sittings** are the days, or the parts of one. People stop for the night and
+come back to something else, and that turns out to be a better guide to what
+belongs together than anything cleverer. Two sittings can fall on the same
+date, which is why each one also says when it started.
 
 It also notices when a sitting picked up work from an earlier one, and which
 file you kept going back to, and how much of that file actually changed each
@@ -212,22 +218,30 @@ said much.
 
 ## Agents
 
-Claude Code and OpenAI Codex CLI. Both are found automatically, and a project
-worked on with either shows up in the same list.
+Claude Code, OpenAI Codex CLI and Pi. All three are found automatically, and a
+project worked on with any of them shows up in the same list.
 
 ```
 bough --agent=claude      only Claude Code
 bough --agent=codex       only Codex CLI
-bough --agent=all         both, which is the default
+bough --agent=pi          only Pi
+bough --agent=all         all three, which is the default
 ```
 
-Codex support is newer and has had far less exposure than Claude Code, so treat
-its numbers with more suspicion and please report any that look wrong.
+Codex and Pi support are newer and have had far less exposure than Claude Code,
+so treat their numbers with more suspicion and please report any that look
+wrong.
 
-The two agents record different things, so the diagram shows what each one
-actually wrote down rather than inventing the rest. Both carry prompts, tools,
-files, commits and token counts. Codex additionally records work handed to a
-sub-agent, which bough draws inside the prompt that asked for it.
+The agents record different things, so the diagram shows what each one
+actually wrote down rather than inventing the rest. All three carry prompts,
+tools, files, commits and token counts. Codex and Pi also record work handed
+to a sub-agent, which bough draws inside the prompt that asked for it.
+
+Pi can reach dozens of model providers, and bough prices each one at the rates
+published for that provider. A model running on your own machine or network,
+through llama.cpp, Ollama, LM Studio and the like, is priced at nothing and
+marked "(local)". Pi's own `models.json` is what says whether a provider is
+local.
 
 ## What it does not do
 
@@ -237,8 +251,8 @@ have cost had it been charged per token. A flat rate subscription pays none of
 that, and nothing in a transcript says which you were on.
 
 Nothing is priced on a guess. A model with no published rate, or one charged by
-how large each request was, shows its token counts and no figure at all, since
-a wrong number here is worse than no number.
+how large each request was, shows its token counts and NA where the figure would
+be, since a wrong number here is worse than no number.
 
 No writes of any kind, to your history or your repository. No network. Agent
 directories are opened read only and never written to.
@@ -271,6 +285,10 @@ page per agent:
   ([in this repo](docs/format-codex.md)): how items are shaped, how a tool call
   is paired to its result, the replay that spans files rather than sitting
   inside one, and why the input token count already contains the cached one.
+- [The Pi session file format](docs/format-pi.md): a tree rather than a list,
+  forks that copy the whole conversation into a new file, skills stored with
+  their text pasted in, and sub-agents whose cost Pi leaves out of its own
+  totals.
 
 Those pages are probably useful to anyone else reading either format, whatever
 they are building.
@@ -282,6 +300,7 @@ cmd/bough        the command
 internal/agent   the boundary between bough and the agents it reads
   .../claude     reading Claude Code
   .../codex      reading OpenAI Codex CLI rollouts
+  .../pi         reading Pi sessions
 internal/segment prompts into tasks
 internal/rollup  tasks into sittings, and the links between them
 internal/metrics how long, how much, how hard
@@ -309,11 +328,10 @@ work, on three projects, and it picked out the sittings they remembered as the
 hard ones. That is why it exists. It is one person checking a score fitted to
 their own history, which is why it is still off by default.
 
-Claude Code and OpenAI Codex CLI are what bough reads, and they are the whole
-of the focus for now. Getting two agents right is worth more than getting five
-agents roughly, and the second one turned up defects in the first. More agents
-will come once these two are solid; the seam for adding one is documented in
-`internal/agent`.
+Claude Code, OpenAI Codex CLI and Pi are what bough reads, and they are the
+whole of the focus for now. Getting a few agents right is worth more than
+getting many roughly, and each new one has turned up defects in the ones before
+it. The seam for adding one is documented in `internal/agent`.
 
 ## Contributing
 

@@ -38,8 +38,14 @@ Codex records something Claude does not: work handed to a sub-agent, with its
 own prompts and token spend. bough folds that into the turn that asked for it,
 so it adds to that turn's weight rather than appearing as a sitting of its own.
 
+Pi records the most boundaries of the three. A compaction, a branch summary and
+a jump back up the tree with `/tree` all come through as `SegmentHint`, since
+each is Pi saying the work before it and the work after it are different
+attempts. Sub-agents only exist in Pi through an extension, and their work is
+folded into the turn that asked for it, the same as Codex.
+
 Everything else, prompts, tools, files, edits, lines, errors, commits and
-tokens, comes through from both.
+tokens, comes through from all three.
 
 ## Where a task begins
 
