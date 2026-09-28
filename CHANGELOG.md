@@ -7,6 +7,15 @@ Notable changes, newest first. Format follows
 
 Nothing yet.
 
+## 0.7.1 - 2026-09-29
+
+### Fixed
+
+- **Keyboard time could go negative.** A project with sessions that overlapped,
+  such as two agents open at once, could show a total like "-1563 min". Its
+  prompts are now put in time order before the total is worked out, and a
+  step backwards in time counts for nothing.
+
 ## 0.7.0 - 2026-09-27
 
 bough reads Pi now, the open source coding agent people kept asking about in

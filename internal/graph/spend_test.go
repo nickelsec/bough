@@ -247,3 +247,45 @@ func TestHoursSaysOneMinute(t *testing.T) {
 		}
 	}
 }
+
+// Two sessions open at once in the same project. Each sitting is measured on
+// its own and was always right; the project's total ran their prompts end to
+// end, jumped back from the long one's last prompt to the short one's first,
+// and counted the jump as negative time. With a big enough overlap the total
+// went below zero. It is the time spent across both, counted once, and the
+// project ends when its last prompt did.
+func TestOverlappingSessionsAreCountedOnce(t *testing.T) {
+	at := func(h, m int) time.Time { return time.Date(2026, 9, 20, h, m, 0, 0, time.UTC) }
+	var long, short []agent.Turn
+	for m := 0; m <= 8*60; m += 10 {
+		long = append(long, charged(0, "long", "m", agent.Tokens{Output: 1}))
+		long[len(long)-1].At = at(10, 0).Add(time.Duration(m) * time.Minute)
+	}
+	for m := 0; m <= 60; m += 10 {
+		short = append(short, charged(0, "short", "m", agent.Tokens{Output: 1}))
+		short[len(short)-1].At = at(11, 0).Add(time.Duration(m) * time.Minute)
+	}
+
+	opt := DefaultOptions()
+	opt.Now = func() time.Time { return at(23, 0) }
+	g := Build(agent.Project{Name: "p", Path: "/p"},
+		[]agent.Session{{ID: "a", Turns: long}, {ID: "b", Turns: short}}, opt)
+
+	// 10:00 to 18:00 with a prompt at least every ten minutes: eight hours,
+	// however many of the short session's prompts land in between.
+	if g.Totals.ActiveMinutes != 480 {
+		t.Errorf("project active = %d minutes, want 480", g.Totals.ActiveMinutes)
+	}
+	if !g.Totals.End.Equal(at(18, 0)) {
+		t.Errorf("project ends at %v, want 18:00 when its last prompt was", g.Totals.End)
+	}
+	if g.Totals.SpanMinutes != 480 {
+		t.Errorf("project span = %d minutes, want 480", g.Totals.SpanMinutes)
+	}
+	// The sittings are measured on their own and stay as they were.
+	for _, goal := range g.Goals {
+		if m := goal.Stats.ActiveMinutes; m != 480 && m != 60 {
+			t.Errorf("a sitting measured %d minutes", m)
+		}
+	}
+}

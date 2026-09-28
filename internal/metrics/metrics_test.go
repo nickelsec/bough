@@ -184,3 +184,13 @@ func TestAmbient(t *testing.T) {
 		}
 	}
 }
+
+// Time only runs forward. Turns handed over out of order must never take time
+// away: a jump back of a day is well under the break threshold and was being
+// added, which put a negative figure at the keyboard in front of somebody.
+func TestActiveTimeNeverGoesBackwards(t *testing.T) {
+	s := Summarise([]agent.Turn{turn(600), turn(610), turn(0), turn(10)})
+	if s.Active != 20*time.Minute {
+		t.Errorf("active = %v, want 20m: the jump back counts for nothing", s.Active)
+	}
+}

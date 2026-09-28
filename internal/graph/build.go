@@ -140,6 +140,16 @@ func Build(p agent.Project, sessions []agent.Session, opt Options) Graph {
 		})
 	}
 
+	// The project's figures are measured over every prompt in the order they
+	// were typed, not sitting after sitting. Sittings are ordered by when they
+	// began, and two sessions open at once overlap, so laid end to end the
+	// prompts jumped back from one session's last to the other's first. That
+	// jump was counted as time at the keyboard, negative, and a big enough
+	// overlap put the total below zero. The end of the project was whichever
+	// prompt came last in that list rather than the last one typed.
+	sort.SliceStable(everyTurn, func(i, j int) bool {
+		return everyTurn[i].At.Before(everyTurn[j].At)
+	})
 	g.Totals = statsOf(everyTurn, repoRead)
 	return g
 }

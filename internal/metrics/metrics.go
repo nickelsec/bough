@@ -134,7 +134,11 @@ func Summarise(turns []agent.Turn) Summary {
 		}
 
 		if i > 0 && !t.At.IsZero() && !turns[i-1].At.IsZero() {
-			if gap := t.At.Sub(turns[i-1].At); gap <= activeGap {
+			// A gap below zero means the turns arrived out of order. Time does
+			// not run backwards, so it counts for nothing rather than being
+			// taken off: it is under the break threshold, and counting it put
+			// negative minutes at the keyboard in front of somebody.
+			if gap := t.At.Sub(turns[i-1].At); gap >= 0 && gap <= activeGap {
 				s.Active += gap
 			}
 		}
