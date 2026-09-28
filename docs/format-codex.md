@@ -1,5 +1,7 @@
 # The Codex CLI rollout file format
 
+> Read this on the web at [www.bough.run/docs/format/codex](https://www.bough.run/docs/format/codex).
+
 Notes from reading real Codex CLI rollout files, the same way as [the Claude
 Code transcripts](/docs/format/claude-code) and worth their own page.
 

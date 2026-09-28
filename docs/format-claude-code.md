@@ -1,5 +1,7 @@
 # The Claude Code JSONL transcript format
 
+> Read this on the web at [www.bough.run/docs/format/claude-code](https://www.bough.run/docs/format/claude-code).
+
 Notes from reading a real corpus of Claude Code history, since the format is
 not documented by the people who write it and the details matter if you want
 to read the files correctly.

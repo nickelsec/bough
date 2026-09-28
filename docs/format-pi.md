@@ -1,5 +1,7 @@
 # The Pi session file format
 
+> Read this on the web at [www.bough.run/docs/format/pi](https://www.bough.run/docs/format/pi).
+
 Notes from reading Pi's session files, the same way as [the Claude Code
 transcripts](/docs/format/claude-code) and [the Codex rollouts](/docs/format/codex).
 

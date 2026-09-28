@@ -10,7 +10,7 @@
   <a href="https://github.com/nickelsec/bough/actions/workflows/ci.yml"><img src="https://github.com/nickelsec/bough/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/nickelsec/bough/releases"><img src="https://img.shields.io/github/v/release/nickelsec/bough?color=7C8A46" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-7C8A46" alt="MIT"></a>
-  <a href="https://bough.run/docs"><img src="https://img.shields.io/badge/Docs-7C8A46" alt="Documentation"></a>
+  <a href="https://www.bough.run/docs"><img src="https://img.shields.io/badge/Docs-7C8A46" alt="Documentation"></a>
   <a href="#agents"><img src="https://img.shields.io/badge/agents-Claude%20Code%20%2F%20Codex%20%2F%20Pi-C87941" alt="Agents: Claude Code, Codex and Pi"></a>
 </p>
 
@@ -285,7 +285,8 @@ page per agent:
   ([in this repo](docs/format-codex.md)): how items are shaped, how a tool call
   is paired to its result, the replay that spans files rather than sitting
   inside one, and why the input token count already contains the cached one.
-- [The Pi session file format](docs/format-pi.md): a tree rather than a list,
+- [The Pi session file format](https://www.bough.run/docs/format/pi)
+  ([in this repo](docs/format-pi.md)): a tree rather than a list,
   forks that copy the whole conversation into a new file, skills stored with
   their text pasted in, and sub-agents whose cost Pi leaves out of its own
   totals.

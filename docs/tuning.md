@@ -1,5 +1,7 @@
 # Tuning
 
+> Read this on the web at [www.bough.run/docs/tuning](https://www.bough.run/docs/tuning).
+
 Every threshold here was fitted against one developer's history. That is the
 central weakness of this project, and the numbers below are the part most
 likely to be wrong for you.

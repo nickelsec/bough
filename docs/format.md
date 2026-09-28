@@ -1,5 +1,7 @@
 # The transcript formats
 
+> Read this on the web at [www.bough.run/docs/format](https://www.bough.run/docs/format).
+
 Neither Claude Code nor OpenAI Codex CLI documents the files it writes, and the
 details matter if you want to read them correctly. Pi documents its own and is
 open source, which helps, but it has traps of its own. These are notes from
