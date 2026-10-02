@@ -38,6 +38,11 @@ type Project struct {
 	// Name is what the user would call this project, usually the directory name.
 	Name string
 
+	// Folder is the name the project had before the person gave it one of
+	// their own, kept so it can still be found by it. Empty when the project
+	// has not been renamed.
+	Folder string
+
 	// Path is the working directory, recovered from the session records rather
 	// than from any directory name the agent may have mangled.
 	Path string

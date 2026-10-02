@@ -50,9 +50,10 @@ A task carrying a small mark is one that ended in a commit, and the note gives
 you the hash and the message. Everything else in the drawing is worked out from
 your history; this is the part you can go and check.
 
-Dotted lines join sittings that went back to the same files, so work picked up
-again later can be followed across the gap. On a long project there are a lot
-of them, and "What to show" in the rail turns them off.
+Dotted lines can join sittings that went back to the same files, so work picked
+up again later can be followed across the gap. On a long project there are a
+lot of them, so they start hidden, and "What to show" in the rail turns them
+on.
 
 Behind each task is a faint circle, sized by what that piece of work was
 charged. Hover it and the note breaks the figure down, in tokens and in
@@ -176,6 +177,8 @@ bough --no-repo        leave the project's git history unread
 bough --agent=pi       read one agent only: claude, codex, pi, or all
 bough -o notes.txt     write to a file instead of standard output
 bough --root DIR       read history from here instead of the usual place
+bough project-one --rename "Portfolio site"
+                       give a project a name of your own; "" gives the folder's back
 ```
 
 `--json` gives you the whole structure to do something else with. It carries no
@@ -185,6 +188,14 @@ those out for itself.
 Everything happens on your machine. Nothing is sent anywhere, no model is
 called, and everything bough opens, your history and your repository alike, it
 only ever reads.
+
+A project is named after its folder, and when that name is no help, which is
+often the case with the folders Codex names after your first prompt, you can
+give it one of your own with `--rename`. The name is kept in bough's own settings folder
+(`%AppData%\bough` on Windows, `~/Library/Application Support/bough` on a Mac,
+`~/.config/bough` elsewhere), so updating bough keeps it. It belongs to the
+folder, so moving the folder loses it, and the old name still finds the
+project.
 
 ## What it does
 
@@ -254,8 +265,9 @@ Nothing is priced on a guess. A model with no published rate, or one charged by
 how large each request was, shows its token counts and NA where the figure would
 be, since a wrong number here is worse than no number.
 
-No writes of any kind, to your history or your repository. No network. Agent
-directories are opened read only and never written to.
+No writes to your history or your repository. No network. Agent directories
+are opened read only and never written to. The one file bough writes is
+`names.json` in its own settings folder, and only when you rename a project.
 
 ## How the grouping was arrived at
 
@@ -308,6 +320,7 @@ internal/metrics how long, how much, how hard
 internal/graph   the finished structure, ready to serialise
 internal/repo    the project's own git history, read to confirm its commits
 internal/server  the local page, served on loopback only
+internal/names   the names you give your projects
 internal/pick    the list you choose a project from
 internal/banner  the mark it opens with
 assets           the artwork, and the script that sizes it for the page

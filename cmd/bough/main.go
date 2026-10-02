@@ -23,6 +23,7 @@ import (
 	"github.com/nickelsec/bough/internal/agent/pi"
 	"github.com/nickelsec/bough/internal/banner"
 	"github.com/nickelsec/bough/internal/graph"
+	"github.com/nickelsec/bough/internal/names"
 	"github.com/nickelsec/bough/internal/pick"
 	"github.com/nickelsec/bough/internal/repo"
 	"github.com/nickelsec/bough/internal/server"
@@ -76,6 +77,11 @@ func released() string {
 
 func main() {
 	env := Env{In: os.Stdin, Out: os.Stdout, Err: os.Stderr, Dir: workingDir()}
+	// No settings folder means nowhere to keep names, which loses a
+	// convenience and nothing else.
+	if dir, err := names.Dir(); err == nil {
+		env.Settings = dir
+	}
 	if err := run(os.Args[1:], env); err != nil {
 		fmt.Fprintln(os.Stderr, "bough:", err)
 		os.Exit(1)
@@ -97,6 +103,11 @@ type Env struct {
 	// Dir is where bough was run, which decides the project offered first. It
 	// may be empty: the question does not always have an answer.
 	Dir string
+
+	// Settings is the folder holding the names people gave their projects.
+	// Empty means no names are read or kept, which is what the tests want: a
+	// test should never read or change the names on the machine running it.
+	Settings string
 }
 
 func run(args []string, env Env) error {
@@ -114,6 +125,7 @@ func run(args []string, env Env) error {
 		showVer   = fs.Bool("version", false, "print the version and stop")
 		noRepo    = fs.Bool("no-repo", false, "do not read the project's git history")
 		agentFlag = fs.String("agent", "all", "which agent history to read: claude, codex, pi, or all")
+		rename    = fs.String("rename", "", `give the project a name of your own; "" goes back to the folder's`)
 	)
 	fs.Usage = func() {
 		fmt.Fprint(stderr, usage)
@@ -192,8 +204,19 @@ func run(args []string, env Env) error {
 		return fmt.Errorf("no history found; looked for %s", strings.Join(said, " and "))
 	}
 
+	store := openNames(env)
+	applyNames(projects, store)
+
 	if *list {
 		return writeList(stdout, sourcesMap, projects)
+	}
+
+	// Renaming needs to know whether the flag was given at all, since giving
+	// it empty is how a name is taken away.
+	renaming := false
+	fs.Visit(func(f *flag.Flag) { renaming = renaming || f.Name == "rename" })
+	if renaming {
+		return renameProject(projects, name, *rename, store, stdout)
 	}
 
 	target, err := choose(projects, name, env)
@@ -313,7 +336,63 @@ func splitArgs(args []string) (name string, flags []string) {
 }
 
 // valueFlags are the flags that take a separate value.
-var valueFlags = map[string]bool{"root": true, "o": true, "agent": true}
+var valueFlags = map[string]bool{"root": true, "o": true, "agent": true, "rename": true}
+
+// openNames reads the names people gave their projects. A file that will not
+// read is said once and then ignored: it should never cost anyone their
+// history.
+func openNames(env Env) *names.Store {
+	if env.Settings == "" {
+		return nil
+	}
+	store, err := names.Open(env.Settings)
+	if err != nil {
+		fmt.Fprintf(env.Err, "bough: %v; project names are left as they are\n", err)
+	}
+	return store
+}
+
+// applyNames puts each project's own name on it, keeping the folder's name
+// beside it so the project can still be found by what it used to be called.
+func applyNames(projects []agent.Project, store *names.Store) {
+	for i := range projects {
+		if n, ok := store.Name(projects[i].Path); ok && n != projects[i].Name {
+			projects[i].Folder = projects[i].Name
+			projects[i].Name = n
+		}
+	}
+}
+
+// renameProject names a project, or with an empty name gives it back the
+// folder's. The name is kept against the folder, so every agent's history for
+// that folder takes it.
+func renameProject(projects []agent.Project, arg, to string, store *names.Store, w io.Writer) error {
+	if arg == "" {
+		return errors.New(`say which project to rename, as in bough my-project --rename "New name"`)
+	}
+	if store == nil {
+		return errors.New("there is no settings folder on this machine to keep names in")
+	}
+	p, err := choose(projects, arg, Env{})
+	if err != nil {
+		// Two agents in one folder match as two projects, but a name belongs
+		// to the folder, so that is still one answer.
+		matches := matching(projects, arg)
+		if len(matches) == 0 || !oneFolder(matches) {
+			return err
+		}
+		p = matches[0]
+	}
+	if err := store.Set(p.Path, to); err != nil {
+		return err
+	}
+	if n, ok := store.Name(p.Path); ok {
+		fmt.Fprintf(w, "%s is now called %s\n", p.Path, n)
+	} else {
+		fmt.Fprintf(w, "%s is called by its folder's name again\n", p.Path)
+	}
+	return nil
+}
 
 // choose decides which project to read.
 //
@@ -331,15 +410,7 @@ func choose(projects []agent.Project, arg string, env Env) (agent.Project, error
 		return p, nil
 	}
 
-	var matches []agent.Project
-	for _, p := range projects {
-		name := strings.ToLower(p.Name)
-		tagged := fmt.Sprintf("%s [%s]", name, strings.ToLower(p.Source))
-		argLower := strings.ToLower(arg)
-		if strings.Contains(name, argLower) || strings.Contains(tagged, argLower) {
-			matches = append(matches, p)
-		}
-	}
+	matches := matching(projects, arg)
 	switch len(matches) {
 	case 1:
 		return matches[0], nil
@@ -356,6 +427,34 @@ func choose(projects []agent.Project, arg string, env Env) (agent.Project, error
 		}
 		return agent.Project{}, fmt.Errorf("%q matches several projects: %s", arg, strings.Join(names, ", "))
 	}
+}
+
+// matching is every project whose name holds the text. A renamed project also
+// answers to its folder's name, so a habit or a script that used the old name
+// keeps working.
+func matching(projects []agent.Project, arg string) []agent.Project {
+	want := strings.ToLower(arg)
+	var matches []agent.Project
+	for _, p := range projects {
+		name := strings.ToLower(p.Name)
+		tagged := fmt.Sprintf("%s [%s]", name, strings.ToLower(p.Source))
+		folder := strings.ToLower(p.Folder)
+		if strings.Contains(name, want) || strings.Contains(tagged, want) ||
+			(folder != "" && strings.Contains(folder, want)) {
+			matches = append(matches, p)
+		}
+	}
+	return matches
+}
+
+// oneFolder reports whether every project is in the same folder.
+func oneFolder(projects []agent.Project) bool {
+	for _, p := range projects[1:] {
+		if agent.NormalisePath(p.Path) != agent.NormalisePath(projects[0].Path) {
+			return false
+		}
+	}
+	return true
 }
 
 // offer asks which project to read, with the one you are standing in first.
@@ -565,6 +664,8 @@ const usage = `bough shows the shape of the work in a project's AI coding histor
   bough --version    print the version
   bough --no-repo    leave the project's git history unread
   bough --agent=codex read only a specific agent (claude, codex, pi, all)
+  bough my-project --rename "Name"
+                     give a project a name of your own, kept across updates
 
 Anything piped or redirected is written as text, so bough > notes.txt and
 bough | less behave as you would expect.
