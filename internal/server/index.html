@@ -13,14 +13,25 @@
 
 <div id="stage">
   <div id="grid"></div>
-  <div id="tree"></div>
+  <!-- Starts without the links between sittings; see the switch below. -->
+  <div id="tree" class="no-links"></div>
 </div>
 
 <div class="mark">
+  <!-- The way back to every project. Only there when a bough is serving the
+       page: a copy saved to disk has nowhere to go back to. -->
+  <a class="mark-back" id="back" href="/" hidden title="All projects">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 4.5L6.5 10l5.5 5.5"/></svg>
+    <span>Projects</span>
+  </a>
   <img src="/img/logo.png" alt="bough" width="96" height="38">
   <div class="mark-who">
     <div class="mark-title">
       <h1 id="name"></h1>
+      <button type="button" class="mark-rename" id="rename" hidden
+              title="Rename" aria-label="Rename this project">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 2.5l3 3L6 13H3v-3z"/><path d="M9 4l3 3"/></svg>
+      </button>
       <!-- Which agent wrote this history. Filled in for every agent rather
            than only the unfamiliar one: naming just the newcomer implies the
            other is the default, which stopped being true at the second. -->
@@ -213,11 +224,12 @@
         <span class="track"><span class="knob"></span></span>
       </button>
 
-      <!-- On by default, unlike the two above: the lines are part of the
-           drawing until somebody asks for them gone. On a long project they
-           cross everything, and this is how to clear them without losing
-           them. Hidden when there are none to show. -->
-      <button type="button" class="switch" id="f-links" role="switch" aria-checked="true" hidden>
+      <!-- Off by default, like the two above. On a long project the lines
+           cross everything and bury the drawing they are meant to explain,
+           so they are there for whoever wants to follow work picked up
+           again, rather than in everyone's way. Hidden when there are none
+           to show. -->
+      <button type="button" class="switch" id="f-links" role="switch" aria-checked="false" hidden>
         <span class="switch-text">
           Show links between sittings
           <small>The dotted lines join sittings that went back to the same
@@ -316,6 +328,7 @@
 </div>
 
 <script>window.BOUGH = {{.Graph}};</script>
+<script>window.BOUGH_APP = {{.App}};</script>
 <script>{{.Layout}}</script>
 <script>{{.JS}}</script>
 </body>

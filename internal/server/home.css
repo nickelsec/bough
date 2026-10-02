@@ -1,0 +1,877 @@
+/* The home page: every project, as cards.
+ *
+ * It borrows the project page's colours and type from bough.css and undoes the
+ * parts of it that only make sense for a drawing you pan around: the locked
+ * scroll and the hand cursor. This page scrolls like a document.
+ */
+
+html,
+body.home {
+  height: auto;
+  min-height: 100%;
+  cursor: auto;
+}
+
+/* The page scrolls, and only the page: one scrollbar, on the window.
+ *
+ * Its room is kept even when there is nothing to scroll. Filtering seven
+ * projects down to two makes the page short enough to lose the scrollbar, and
+ * the whole layout then jumped sideways by its width, and back again on the
+ * way out of the filter. */
+html {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+/* The scrollbar in the page's own colours, the same slim bar the panels on the
+   project page use: a thumb of the rule colour on the cream ground, darker
+   under the pointer. Left alone the browser draws a grey bar in a white
+   trough, and white is the one value this palette never uses. */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) var(--ground);
+}
+
+html::-webkit-scrollbar {
+  width: 12px;
+}
+
+html::-webkit-scrollbar-track {
+  background: var(--ground);
+}
+
+html::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 8px;
+  background: var(--rule);
+  background-clip: content-box;
+}
+
+html::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-low);
+  background-clip: content-box;
+}
+
+body.home { overflow: visible; }
+
+body.home {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.home-head,
+.home-main,
+.home-foot {
+  width: 100%;
+  max-width: 76rem;
+  margin: 0 auto;
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+/* ---- the heading ------------------------------------------------------- */
+
+/* The mark, the question and the count, stacked down the middle of the page:
+   the front door, before the toolbar and the cards take over the width. */
+.home-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding-top: 3.5rem;
+  padding-bottom: 3rem;
+}
+
+.home-title { margin: 0; }
+
+.home-logo {
+  display: block;
+  width: 150px;
+  height: auto;
+  image-rendering: pixelated;
+}
+
+.home-count {
+  margin: 0.9rem 0 0;
+  font-size: 0.78rem;
+  color: var(--ink-low);
+}
+
+/* ---- search, filter, sort --------------------------------------------- */
+
+/* Search, agent filter and sort are one row of controls, all the same height,
+   so they read as a single toolbar rather than three things of three sizes. */
+.home-tools {
+  --control: 2.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.8rem 1.2rem;
+  margin-bottom: 2.2rem;
+}
+
+.home-search {
+  position: relative;
+  flex: 1 1 22rem;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.home-search svg {
+  position: absolute;
+  left: 0.95rem;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: var(--ink-low);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.home-search input {
+  width: 100%;
+  height: var(--control);
+  padding: 0 2.8rem 0 2.75rem;
+  font: 400 0.9rem/1 var(--mono);
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  border-radius: 0.8rem;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.home-search input::placeholder { color: var(--ink-low); }
+
+.home-search input:focus {
+  background: #fbf7ec;
+  border-color: var(--leaf);
+  box-shadow: 0 0 0 3px rgba(124, 138, 70, 0.18);
+}
+
+/* The browser's own clear button is a grey cross from another design. */
+.home-search input::-webkit-search-cancel-button { display: none; }
+
+.home-search kbd {
+  position: absolute;
+  right: 0.8rem;
+  min-width: 1.4rem;
+  padding: 0.1rem 0.35rem;
+  font: 500 0.72rem/1.3 var(--mono);
+  text-align: center;
+  color: var(--ink-low);
+  border: 1px solid var(--rule);
+  border-radius: 0.35rem;
+  pointer-events: none;
+}
+
+.home-search input:focus ~ kbd { opacity: 0; }
+
+.home-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+/* The agent filter, as a row of pills. One is always pressed. */
+.home-agents {
+  display: flex;
+  align-items: stretch;
+  gap: 0.3rem;
+  height: var(--control);
+  padding: 0.3rem;
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+}
+
+.home-agents[hidden] { display: none; }
+
+.home-agents button {
+  padding: 0 0.95rem;
+  font: 500 0.78rem/1 var(--mono);
+  color: var(--ink-mid);
+  background: none;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.home-agents button:hover { color: var(--ink); }
+
+.home-agents button[aria-pressed="true"] {
+  color: var(--ground);
+  background: var(--deep);
+}
+
+.home-sort {
+  position: relative;
+}
+
+/* As wide as its longest choice, so picking a shorter one does not shift the
+   search bar beside it. */
+.sort-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  min-width: 9.6rem;
+  height: var(--control);
+  padding: 0 1rem 0 1.1rem;
+  font: 500 0.78rem/1 var(--mono);
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  border-radius: 0.8rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.sort-btn:hover { border-color: var(--ink-low); }
+
+.sort-btn[aria-expanded="true"] {
+  border-color: var(--leaf);
+  background: #fbf7ec;
+}
+
+.sort-btn svg {
+  width: 10px;
+  height: 6px;
+  fill: none;
+  stroke: var(--ink-low);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.18s var(--ease);
+}
+
+.sort-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+/* The list opens under the button, rounded and raised like the cards, with a
+   tick on the order in use. */
+.sort-menu {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 10;
+  min-width: 100%;
+  width: max-content;
+  margin: 0;
+  padding: 0.35rem;
+  list-style: none;
+  background: #fbf7ec;
+  border: 1px solid var(--rule);
+  border-radius: 0.8rem;
+  box-shadow: 0 14px 30px -16px rgba(36, 31, 23, 0.4);
+}
+
+.sort-menu[hidden] { display: none; }
+
+.sort-menu li {
+  position: relative;
+  padding: 0.6rem 2.2rem 0.6rem 0.8rem;
+  font: 500 0.78rem/1 var(--mono);
+  color: var(--ink-mid);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.sort-menu li.active {
+  color: var(--ink);
+  background: var(--raised);
+}
+
+.sort-menu li[aria-selected="true"] { color: var(--ink); }
+
+.sort-menu li[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  width: 0.55rem;
+  height: 0.3rem;
+  margin-top: -0.25rem;
+  border-left: 1.5px solid var(--deep);
+  border-bottom: 1.5px solid var(--deep);
+  transform: rotate(-45deg);
+}
+
+/* A ring only for the keyboard. A click leaves nothing behind. */
+.sort-btn:focus { outline: none; }
+
+.sort-btn:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 2px;
+}
+
+
+.home-agents button:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 2px;
+}
+
+/* A toast in the top right corner. Fixed, so it stays in view however far
+   down the cards the page has been scrolled, and nothing in the page moves
+   when it comes or goes. */
+.toast {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.5rem;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 1rem 0.7rem 0.85rem;
+  font-size: 0.74rem;
+  line-height: 1;
+  color: var(--ink-mid);
+  background: #fbf7ec;
+  border: 1px solid var(--rule);
+  border-radius: 0.8rem;
+  box-shadow: 0 12px 28px -14px rgba(36, 31, 23, 0.45);
+  animation: chip-in 0.25s var(--ease);
+}
+
+.status-icon {
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+/* Reading: a small ring turning. */
+.is-busy .status-icon {
+  border: 1.5px solid var(--rule);
+  border-top-color: var(--leaf);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+/* Done: a tick in the working colour. */
+.is-done { color: var(--ink); }
+.is-done .status-icon {
+  width: 0.6rem;
+  height: 0.32rem;
+  margin: 0 0.05rem 0.15rem 0.1rem;
+  border-left: 1.6px solid var(--leaf);
+  border-bottom: 1.6px solid var(--leaf);
+  transform: rotate(-45deg);
+}
+
+/* Failed: the one accent, which only ever means something went wrong. */
+.is-error { color: var(--warm-text); border-color: rgba(190, 106, 49, 0.4); }
+.is-error .status-icon {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--warm);
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@keyframes chip-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---- the cards --------------------------------------------------------- */
+
+/* Each card takes five rows of the grid and shares them with its neighbours,
+   so the figures line up across a row even when one name wraps onto a second
+   line and the one beside it does not. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr));
+  gap: 0 1.1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  position: relative;
+  display: grid;
+  grid-row: span 5;
+  grid-template-rows: subgrid;
+  align-content: start;
+  min-width: 0;
+  margin-bottom: 1.1rem;
+  padding: 1.15rem 1.25rem 1rem;
+  color: inherit;
+  text-decoration: none;
+  background: #fbf7ec;
+  border: 1px solid var(--rule);
+  border-radius: 1rem;
+  box-shadow: 0 1px 0 rgba(36, 31, 23, 0.04);
+  transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease), border-color 0.18s;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  border-color: var(--leaf);
+  box-shadow: 0 10px 24px -14px rgba(74, 85, 34, 0.45);
+}
+
+.card:has(.card-open:focus-visible) {
+  border-color: var(--leaf);
+  box-shadow: 0 0 0 3px rgba(124, 138, 70, 0.3);
+}
+
+/* The whole card opens the project, but only the name is the link: the link
+   is stretched over the card, and the pencil sits above it. A button inside a
+   link is not allowed, and would open the project as well as renaming it. */
+.card-open {
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+}
+
+.card-open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 1rem;
+}
+
+.rename,
+.name-edit {
+  position: relative;
+  z-index: 2;
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1.05rem;
+}
+
+.badge {
+  font: 500 0.6rem/1 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-mid);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 0.25rem 0.5rem;
+  white-space: nowrap;
+}
+
+.badge.is-here {
+  color: var(--deep);
+  border-color: var(--leaf);
+  background: rgba(124, 138, 70, 0.12);
+}
+
+.card-when {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: var(--ink-low);
+  white-space: nowrap;
+}
+
+/* The name, and the pencil beside it. */
+.card-body { display: contents; }
+
+/* The name and its pencil. A grid rather than a wrapping row, so a long name
+   wraps its own words and never pushes the pencil onto a line of its own. */
+.card-name {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) auto;
+  justify-content: start;
+  align-items: start;
+  gap: 0.1rem 0.35rem;
+  min-width: 0;
+}
+
+.card-name .name-field { grid-column: 1 / -1; }
+
+/* One line, cut short with an ellipsis. A name that wraps makes its card a
+   different shape from its neighbours, and the full name is on hover. */
+.card-name h2 {
+  margin: 0;
+  font: 600 1.28rem/1.2 var(--display);
+  /* Dark grey rather than the near black of the page's ink: a grid of cards
+     is a lot of headings at once, and at full ink they shouted. */
+  color: var(--ink-up);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rename {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  margin-top: -0.05rem;
+  padding: 0;
+  color: var(--ink-low);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 0.45rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+
+.rename svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.card:hover .rename,
+.card:focus-within .rename,
+.rename:focus-visible { opacity: 1; }
+
+.rename:hover {
+  color: var(--ink);
+  background: var(--raised);
+  border-color: var(--rule);
+}
+
+.rename:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 1px;
+}
+
+/* A touch screen has no hover to reveal it, so it stays. */
+@media (hover: none) {
+  .rename { opacity: 1; }
+}
+
+/* The name being edited, with its tick and cross inside the right edge. */
+.name-field {
+  position: relative;
+  min-width: 0;
+  margin: -0.2rem 0 0 -0.4rem;
+}
+
+.name-edit {
+  width: 100%;
+  min-width: 0;
+  padding: 0.15rem 3.6rem 0.15rem 0.4rem;
+  font: 600 1.28rem/1.2 var(--display);
+  color: var(--ink);
+  background: var(--ground);
+  border: 1px solid var(--leaf);
+  border-radius: 0.45rem;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(124, 138, 70, 0.18);
+}
+
+.name-edit::placeholder { color: var(--ink-low); font-weight: 400; }
+
+.name-act {
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  margin-top: -0.725rem;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.name-act svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.name-ok { right: 1.85rem; color: var(--deep); }
+.name-no { right: 0.3rem; color: var(--ink-low); }
+.name-ok:hover { background: rgba(124, 138, 70, 0.16); }
+.name-no:hover { color: var(--ink); background: var(--raised); }
+
+.card-path {
+  margin: 0.5rem 0 0;
+  font-size: 0.7rem;
+  color: var(--ink-low);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+}
+
+/* The three figures people came for, set large enough to compare across the
+   grid at a glance. */
+/* No box of its own: the space above and below sets it apart, and a hairline
+   between the three keeps them as three. */
+.card-figures {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 1.5rem 0 1.3rem;
+}
+
+.figure + .figure {
+  padding-left: 1rem;
+  border-left: 1px solid var(--rule);
+}
+
+.figure dt {
+  font: 500 0.6rem/1 var(--mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-low);
+}
+
+.figure dd {
+  margin: 0.4rem 0 0;
+  font: 600 1.15rem/1 var(--display);
+  /* A step lighter than the name above, between the page's two dark greys:
+     the figures are read at a glance, and the name is what the card is. */
+  color: #5a5143;
+  white-space: nowrap;
+}
+
+.figure dd small {
+  font: 400 0.65rem/1 var(--mono);
+  color: var(--ink-low);
+}
+
+/* Two lines, never more: the counts, then when and with what. Anything too
+   long for its line is cut short rather than wrapped, so the cards stay the
+   same shape. */
+.card-foot {
+  display: grid;
+  align-self: end;
+  gap: 0.45rem;
+  padding-top: 0.85rem;
+  font-size: 0.7rem;
+  color: var(--ink-mid);
+  border-top: 1px dashed var(--rule);
+}
+
+.foot-line {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.card-dates { flex: none; }
+
+/* Straight after the dates. A long model name is the one thing here that is
+   cut short, so the dates always show in full. */
+.card-model {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  color: var(--ink-mid);
+}
+
+.card-model-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-model-more {
+  flex: none;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.62rem;
+  color: var(--ink-mid);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+}
+
+.wait.wide { width: 7rem; }
+
+/* Waiting for the figures. A quiet shimmer where they will be, rather than
+   zeros that would read as a project with nothing in it. */
+.wait {
+  display: inline-block;
+  width: 3.4rem;
+  height: 0.95rem;
+  border-radius: 0.3rem;
+  background: linear-gradient(90deg, var(--raised) 0%, var(--sunk) 50%, var(--raised) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@keyframes shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+.card-failed {
+  margin: 1.1rem 0 0;
+  font-size: 0.74rem;
+  color: var(--warm-text);
+}
+
+/* Opening a big project reads all of it and asks git about every commit, which
+   takes a few seconds. The card says so, rather than the page sitting still. */
+.card.opening {
+  pointer-events: none;
+  border-color: var(--leaf);
+}
+
+.card.opening::after {
+  content: "Opening\2026";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 600 0.95rem/1 var(--display);
+  color: var(--deep);
+  background: rgba(251, 247, 236, 0.82);
+  border-radius: 1rem;
+  /* Above the pencil, which sits above the card's link. */
+  z-index: 5;
+}
+
+/* Nothing to rename while the card is on its way somewhere else. */
+.card.opening .rename { visibility: hidden; }
+
+/* ---- nothing found ----------------------------------------------------- */
+
+.home-empty {
+  padding: 4rem 1rem;
+  text-align: center;
+  color: var(--ink-mid);
+}
+
+.home-empty p { margin: 0 0 1rem; }
+
+.home-empty button {
+  padding: 0.55rem 1rem;
+  font: 500 0.78rem/1 var(--mono);
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  border-radius: 0.6rem;
+  cursor: pointer;
+}
+
+/* The foot: the privacy promise on the left, where to find out more on the
+   right, over a hairline that ends the page. */
+.home-foot {
+  margin-top: auto;
+  padding-top: 3.5rem;
+  padding-bottom: 2.2rem;
+}
+
+.foot-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--rule);
+}
+
+.foot-note {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--ink-low);
+}
+
+.home-foot svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.home-foot svg.fill {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* Plain words with their icon after them, the way the links along the top of
+   bough.run are set, so the two read as one product. */
+.foot-links {
+  display: flex;
+  gap: 1.4rem;
+}
+
+.foot-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  font: 500 0.72rem/1 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-mid);
+  text-decoration: none;
+  transition: color 0.12s var(--ease);
+}
+
+.foot-links a:hover { color: var(--warm-text); }
+
+/* A version is read as it is written: "v0.8.0", not "V0.8.0". */
+.foot-links .foot-version {
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+.foot-version:not([href]) { cursor: default; }
+.foot-version:not([href]):hover { color: var(--ink-mid); }
+
+.foot-links a:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 2px;
+}
+
+@media (max-width: 40rem) {
+  .home-head,
+  .home-main,
+  .home-foot {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  .home-head {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+  }
+  .home-logo { width: 124px; }
+  .home-tools { flex-direction: column; align-items: stretch; }
+  .home-search { flex-basis: auto; }
+  .home-agents { overflow-x: auto; }
+  .home-search kbd { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .card:hover { transition: none; transform: none; }
+  .wait,
+  .status-chip,
+  .is-busy .status-icon { animation: none; }
+}

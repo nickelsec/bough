@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your projects · bough</title>
+<link rel="icon" href="/img/icon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="/img/icon-180.png">
+<style>{{.Fonts}}</style>
+<style>{{.CSS}}</style>
+<style>{{.HomeCSS}}</style>
+</head>
+<body class="home">
+
+<header class="home-head">
+  <!-- The mark is the page's heading, so the page still has one for anyone
+       reading it with a screen reader. -->
+  <h1 class="home-title"><img class="home-logo" src="/img/logo.png" alt="bough" width="150" height="60"></h1>
+  <p class="home-count" id="home-count">Your projects</p>
+</header>
+
+<main class="home-main">
+  <!-- Finding a project comes before anything else on the page. With a dozen
+       or more, scrolling a grid for one name is slower than typing three
+       letters of it, so the search is the first thing under the heading and
+       "/" jumps to it from anywhere. -->
+  <div class="home-tools">
+    <label class="home-search">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/></svg>
+      <input id="q" type="search" placeholder="Find a project, a folder or an agent"
+             autocomplete="off" spellcheck="false" aria-label="Find a project">
+      <kbd aria-hidden="true">/</kbd>
+    </label>
+
+    <div class="home-controls">
+      <!-- Only shown when more than one agent wrote history, since a filter
+           with one choice is not a filter. -->
+      <div class="home-agents" id="agents" role="group" aria-label="Show one agent" hidden></div>
+
+      <!-- A menu of its own rather than a select. The browser draws a select's
+           list itself, as a square box in its own colours, and nothing on
+           this page can change that. -->
+      <div class="home-sort" id="sort-box">
+        <button type="button" class="sort-btn" id="sort" aria-haspopup="listbox"
+                aria-expanded="false" aria-controls="sort-menu">
+          <span id="sort-label">Most recent</span>
+          <svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>
+        </button>
+        <ul class="sort-menu" id="sort-menu" role="listbox" aria-label="Sort projects" hidden>
+          <li role="option" data-value="recent">Most recent</li>
+          <li role="option" data-value="time">Most time</li>
+          <li role="option" data-value="cost">Most cost</li>
+          <li role="option" data-value="name">Name</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <ul class="cards" id="cards"></ul>
+
+  <div class="home-empty" id="nothing" hidden>
+    <p>No project matches <strong id="nothing-q"></strong>.</p>
+    <button type="button" id="clear">Clear the search</button>
+  </div>
+</main>
+
+<footer class="home-foot">
+  <div class="foot-inner">
+    <p class="foot-note">
+      Everything here was read from your own machine. Nothing leaves it.
+    </p>
+    <!-- Links out. They open in a new tab, so the page full of your projects
+         stays where it was. Nothing is fetched from either until clicked. -->
+    <nav class="foot-links" aria-label="About bough">
+      <!-- Which bough this is. Filled in by the page: a release links to its
+           notes, and a build from a working copy says so instead. -->
+      <a class="foot-version" id="version" target="_blank" rel="noopener noreferrer" hidden></a>
+      <a href="https://github.com/nickelsec/bough" target="_blank" rel="noopener noreferrer">
+        <span>GitHub</span>
+        <svg viewBox="0 0 16 16" aria-hidden="true" class="fill"><path d="M8 .2a8 8 0 00-2.53 15.59c.4.07.55-.17.55-.38v-1.33c-2.22.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.71 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.77-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 014 0c1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 008 .2z"/></svg>
+      </a>
+      <a href="https://www.bough.run" target="_blank" rel="noopener noreferrer">
+        <span>bough.run</span>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><path d="M1.75 8h12.5M8 1.75c1.7 1.75 2.5 3.8 2.5 6.25S9.7 12.5 8 14.25M8 1.75C6.3 3.5 5.5 5.55 5.5 8s.8 4.5 2.5 6.25"/></svg>
+      </a>
+    </nav>
+  </div>
+</footer>
+
+<!-- Notes about what is happening, in the corner and out of the way of the
+     cards: the history still being read, or a rename that just landed. -->
+<div class="toast" id="status" role="status" aria-live="polite"></div>
+
+<script>window.BOUGH_HOME = {{.Home}};</script>
+<script>{{.JS}}</script>
+</body>
+</html>

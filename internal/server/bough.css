@@ -257,6 +257,137 @@ body {
   white-space: nowrap;
 }
 
+/* Back to every project. A quiet pill at the very start of the mark, where a
+   way back is looked for first, and set apart from the logo so the two never
+   read as one button. */
+.mark-back {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 2rem;
+  padding: 0 0.75rem 0 0.5rem;
+  font: 500 0.74rem/1 var(--mono);
+  color: var(--ink-mid);
+  text-decoration: none;
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.mark-back[hidden] { display: none; }
+
+.mark-back svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mark-back:hover {
+  color: var(--ink);
+  border-color: var(--leaf);
+  background: var(--ground);
+}
+
+.mark-back:focus-visible,
+.mark-rename:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 2px;
+}
+
+/* The pencil beside the name. Quiet until the name is pointed at. */
+.mark-rename {
+  pointer-events: auto;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  color: var(--ink-low);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+
+.mark-rename[hidden] { display: none; }
+
+.mark-rename svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mark-rename:hover {
+  opacity: 1;
+  color: var(--ink);
+  background: var(--raised);
+  border-color: var(--rule);
+}
+
+.mark-name-field {
+  position: relative;
+  pointer-events: auto;
+  margin: -0.2rem 0;
+}
+
+.mark-name-edit {
+  width: 18rem;
+  max-width: 55vw;
+  padding: 0.15rem 3.4rem 0.15rem 0.4rem;
+  font: 600 1.05rem/1.15 var(--display);
+  color: var(--ink);
+  background: var(--ground);
+  border: 1px solid var(--leaf);
+  border-radius: 0.4rem;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(124, 138, 70, 0.18);
+}
+
+.mark-name-edit::placeholder { color: var(--ink-low); font-weight: 400; }
+
+.mark-name-act {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin-top: -0.675rem;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0.35rem;
+  cursor: pointer;
+}
+
+.mark-name-act svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mark-name-ok { right: 1.7rem; color: var(--deep); }
+.mark-name-no { right: 0.3rem; color: var(--ink-low); }
+.mark-name-ok:hover { background: rgba(124, 138, 70, 0.16); }
+.mark-name-no:hover { color: var(--ink); background: var(--raised); }
+
 .mark .where {
   margin: 0.15rem 0 0;
   font-size: 0.7rem;

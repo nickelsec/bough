@@ -126,6 +126,7 @@ func run(args []string, env Env) error {
 		noRepo    = fs.Bool("no-repo", false, "do not read the project's git history")
 		agentFlag = fs.String("agent", "all", "which agent history to read: claude, codex, pi, or all")
 		rename    = fs.String("rename", "", `give the project a name of your own; "" goes back to the folder's`)
+		pickOne   = fs.Bool("pick", false, "choose the project in the terminal, then open it in the browser")
 	)
 	fs.Usage = func() {
 		fmt.Fprint(stderr, usage)
@@ -219,6 +220,24 @@ func run(args []string, env Env) error {
 		return renameProject(projects, name, *rename, store, stdout)
 	}
 
+	// The browser is the default, opening on every project at once. A name,
+	// or --pick, opens on that one project instead, with the rest still a
+	// click away.
+	if !*asJSON && useBrowser(*asText, *out, stdout) {
+		h := &library{
+			sources: sources, byName: sourcesMap, store: store, here: env.Dir,
+			noRepo: *noRepo, tool: released(), warn: stderr,
+		}
+		start, err := opening(projects, name, *pickOne, env)
+		if errors.Is(err, pick.ErrCancelled) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		return browse(h, start, stderr)
+	}
+
 	target, err := choose(projects, name, env)
 	if errors.Is(err, pick.ErrCancelled) {
 		// Backing out is a decision, not a failure. It reaches main as a value
@@ -279,9 +298,6 @@ func run(args []string, env Env) error {
 		return enc.Encode(g)
 	}
 
-	if useBrowser(*asText, *out, stdout) {
-		return browse(g, stderr)
-	}
 	return graph.WriteText(w, g, *verbose)
 }
 
@@ -299,19 +315,28 @@ func useBrowser(textWanted bool, outFile string, stdout io.Writer) bool {
 	return ok && term.IsTerminal(int(f.Fd()))
 }
 
-// browse serves the graph and waits for the reader to finish with it.
-func browse(g graph.Graph, stderr io.Writer) error {
+// opening is where the browser starts: every project, unless one was named or
+// is to be picked from the list first.
+func opening(projects []agent.Project, name string, picking bool, env Env) (string, error) {
+	if name == "" && !picking {
+		return "/", nil
+	}
+	target, err := choose(projects, name, env)
+	if err != nil {
+		return "", err
+	}
+	return "/p/" + projectID(target), nil
+}
+
+// browse runs bough in the browser and waits for the reader to finish with it.
+func browse(app server.App, start string, stderr io.Writer) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	err := server.Serve(ctx, g, func(url string) {
-		fmt.Fprintf(stderr, "bough is showing %s at %s\n", g.Project.Name, url)
+	return server.Serve(ctx, app, start, func(url string) {
+		fmt.Fprintf(stderr, "bough is open at %s\n", url)
 		fmt.Fprintf(stderr, "press ctrl-c when you are done\n")
 	})
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // splitArgs separates the project name from the flags, so either order works.
@@ -656,8 +681,9 @@ func writeList(w io.Writer, sources map[string]agent.Source, projects []agent.Pr
 
 const usage = `bough shows the shape of the work in a project's AI coding history.
 
-  bough              choose a project and open it in a browser
+  bough              open every project in the browser
   bough my-project   open a project by name
+  bough --pick       choose a project in the terminal, then open it
   bough --text       write to the terminal instead
   bough --list       show which projects have history
   bough --json       write the graph as JSON

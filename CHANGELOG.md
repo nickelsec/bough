@@ -7,6 +7,32 @@ Notable changes, newest first. Format follows
 
 Nothing yet.
 
+## 0.8.0 - 2026-10-02
+
+`bough` now opens on every project at once, and any project can be given a
+name of its own.
+
+### Added
+
+- **A home page.** `bough` opens a card for every project with its agent, time
+  at the keyboard, cost, prompts and when you last worked on it. Search,
+  narrow to one agent, sort by time or cost, and move between projects without
+  starting bough again.
+
+- **Names of your own.** Rename a project from its card, from inside it, or
+  with `bough my-project --rename "Name"`. Names live in bough's settings
+  folder, so updates keep them, and the folder's name still finds the project.
+  It is the only file bough writes.
+
+- **`--pick`** brings back the terminal list, then opens what you choose.
+
+### Changed
+
+- The links between sittings start hidden. "What to show" turns them on.
+
+- The local server answers only to its own address, and renaming needs a token
+  from the page, so another website cannot reach your history through it.
+
 ## 0.7.1 - 2026-09-29
 
 ### Fixed

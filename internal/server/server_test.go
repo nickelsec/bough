@@ -43,11 +43,11 @@ func start(t *testing.T, g graph.Graph) string {
 	t.Cleanup(cancel)
 
 	urls := make(chan string, 1)
-	go Serve(ctx, g, func(u string) { urls <- u })
+	go Serve(ctx, &fake{g: g}, "/", func(u string) { urls <- u })
 
 	select {
 	case url := <-urls:
-		return url
+		return strings.TrimSuffix(url, "/")
 	case <-time.After(5 * time.Second):
 		t.Fatal("the server never reported an address")
 		return ""
@@ -77,7 +77,7 @@ func TestServesOnLoopbackOnly(t *testing.T) {
 
 func TestServesThePage(t *testing.T) {
 	url := start(t, sample())
-	resp, body := get(t, url+"/")
+	resp, body := get(t, url+page)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status %d, want 200", resp.StatusCode)
@@ -96,7 +96,7 @@ func TestServesThePage(t *testing.T) {
 // disk, so everything it needs is already inside it.
 func TestPageFetchesNothingExternal(t *testing.T) {
 	url := start(t, sample())
-	_, body := get(t, url+"/")
+	_, body := get(t, url+page)
 
 	// The server's own address is allowed to appear, and so is the SVG
 	// namespace, which is an identifier rather than somewhere to fetch from.
@@ -115,7 +115,7 @@ func TestPageFetchesNothingExternal(t *testing.T) {
 func TestGraphIsInlinedAndParses(t *testing.T) {
 	g := sample()
 	url := start(t, g)
-	_, body := get(t, url+"/")
+	_, body := get(t, url+page)
 
 	const marker = "window.BOUGH = "
 	i := strings.Index(body, marker)
@@ -174,7 +174,7 @@ func TestEmptyGraphStillRenders(t *testing.T) {
 		Schema:  graph.SchemaVersion,
 		Project: graph.Project{Name: "empty", Agent: "claude-code"},
 	})
-	resp, body := get(t, url+"/")
+	resp, body := get(t, url+page)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status %d, want 200", resp.StatusCode)
@@ -190,7 +190,7 @@ func TestShutdownIsClean(t *testing.T) {
 	urls := make(chan string, 1)
 	done := make(chan error, 1)
 
-	go func() { done <- Serve(ctx, sample(), func(u string) { urls <- u }) }()
+	go func() { done <- Serve(ctx, &fake{g: sample()}, "/", func(u string) { urls <- u }) }()
 	<-urls
 	cancel()
 
@@ -211,7 +211,7 @@ func TestPromptsCannotBreakOutOfTheScript(t *testing.T) {
 	g.Goals[0].Tasks[0].Turns[0].Text = `look at </script><script>alert(1)</script> this`
 
 	url := start(t, g)
-	_, body := get(t, url+"/")
+	_, body := get(t, url+page)
 
 	// The dangerous sequence must not survive into the page as written.
 	if strings.Contains(body, "</script><script>alert") {
@@ -232,7 +232,7 @@ func TestProjectNameIsEscaped(t *testing.T) {
 	g.Project.Name = `a<b"c&d`
 
 	url := start(t, g)
-	_, body := get(t, url+"/")
+	_, body := get(t, url+page)
 
 	if strings.Contains(body, `<title>a<b`) {
 		t.Error("the project name went into the title unescaped")

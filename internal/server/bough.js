@@ -66,9 +66,9 @@
     to: null,
     substantialOnly: false,
     hardOnly: false,
-    // The dotted lines between sittings. On unless somebody turns them off,
-    // so unlike the rest of these, the default is the one that does nothing.
-    links: true,
+    // The dotted lines between sittings. Off until somebody turns them on:
+    // on a long project they cross the whole drawing.
+    links: false,
     // What the work had to cost to stay lit, and which measure that reads.
     // Zero is off rather than a floor everything clears, so the filter counts
     // as running only once it has been moved.
@@ -1392,9 +1392,9 @@
       });
       filters.substantialOnly = false;
       filters.hardOnly = false;
-      // Clearing puts the lines back, since showing them is the default.
-      document.getElementById("f-links").setAttribute("aria-checked", "true");
-      showLinks(true);
+      // Clearing takes the lines away again, since hiding them is the default.
+      document.getElementById("f-links").setAttribute("aria-checked", "false");
+      showLinks(false);
       refilter();
     });
 
@@ -1535,7 +1535,7 @@
       file: Boolean(filters.file),
       when: Boolean(filters.from || filters.to),
       cost: filters.least > 0,
-      show: filters.substantialOnly || filters.hardOnly || !filters.links
+      show: filters.substantialOnly || filters.hardOnly || filters.links
     };
 
     document.querySelectorAll(".rail-btn[data-panel]").forEach(function (tab) {
@@ -1713,9 +1713,88 @@
 
 
 
+  // served turns on what only works with a bough behind the page: the way back
+  // to every project, and renaming this one. A copy saved to disk has neither,
+  // and shows neither rather than two controls that do nothing.
+  function served() {
+    var app = window.BOUGH_APP;
+    if (!app) return;
+
+    var back = document.getElementById("back");
+    back.href = app.home || "/";
+    back.hidden = false;
+
+    var pen = document.getElementById("rename");
+    var h1 = document.getElementById("name");
+    pen.hidden = false;
+    pen.addEventListener("click", function () {
+      var was = h1.textContent;
+      // The name, with a tick to keep it and a cross to leave it, inside the
+      // box's right edge. Enter and Esc do the same; clicking away keeps it.
+      var wrap = document.createElement("div");
+      wrap.className = "mark-name-field";
+      var input = document.createElement("input");
+      input.className = "mark-name-edit";
+      input.value = was;
+      input.maxLength = 80;
+      input.placeholder = app.folder || "";
+      input.setAttribute("aria-label", "New name for this project");
+      wrap.appendChild(input);
+      [["mark-name-ok", "Save (Enter)", "Save the name", '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>', true],
+       ["mark-name-no", "Cancel (Esc)", "Cancel", '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>', false]].forEach(function (b) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "mark-name-act " + b[0];
+        btn.title = b[1];
+        btn.setAttribute("aria-label", b[2]);
+        btn.innerHTML = b[3];
+        // Holding the focus in the box, since leaving it saves.
+        btn.addEventListener("pointerdown", function (ev) { ev.preventDefault(); });
+        btn.addEventListener("click", function (ev) { ev.preventDefault(); finish(b[4]); });
+        wrap.appendChild(btn);
+      });
+      h1.hidden = true;
+      pen.hidden = true;
+      h1.parentNode.insertBefore(wrap, h1);
+      input.focus();
+      input.select();
+
+      var done = false;
+      function finish(save) {
+        if (done) return;
+        done = true;
+        var wanted = input.value.trim();
+        wrap.remove();
+        h1.hidden = false;
+        pen.hidden = false;
+        if (!save || wanted === was) return;
+        fetch("/api/name", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Bough-Token": app.token },
+          body: JSON.stringify({ id: app.id, name: wanted })
+        }).then(function (r) {
+          if (!r.ok) throw new Error(r.statusText);
+          return r.json();
+        }).then(function (j) {
+          h1.textContent = j.name;
+          graph.project.name = j.name;
+          document.title = j.name + " · bough";
+        }, function () {
+          h1.textContent = was;
+        });
+      }
+      input.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter") { ev.preventDefault(); finish(true); }
+        if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); finish(false); }
+      });
+      input.addEventListener("blur", function () { finish(true); });
+    });
+  }
+
   function chrome() {
     document.getElementById("name").textContent = graph.project.name;
     document.getElementById("where").textContent = graph.project.path;
+    served();
 
     // Named for every agent, not only the unfamiliar one. Showing it for Codex
     // alone made Claude Code look like the absence of an agent rather than a

@@ -22,7 +22,7 @@ func TestThePageNamesTheAgent(t *testing.T) {
 			Schema:  graph.SchemaVersion,
 			Project: graph.Project{Name: "a project", Path: "/p", Agent: source},
 		}
-		b, err := render(g)
+		b, err := render(g, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -52,7 +52,7 @@ func TestThePageSpellsAgentsLikeTheTerminal(t *testing.T) {
 			nil,
 			graph.Options{Now: func() time.Time { return time.Time{} }},
 		)
-		b, err := render(g)
+		b, err := render(g, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -75,15 +75,19 @@ func TestThePageSpellsAgentsLikeTheTerminal(t *testing.T) {
 	}
 }
 
-// The dotted lines between sittings can be turned off from "What to show",
-// and they start on: the drawing is complete until somebody asks otherwise.
-func TestTheLinksSwitchStartsOn(t *testing.T) {
+// The dotted lines between sittings can be turned on from "What to show", and
+// they start off: on a long project they cross the whole drawing. The switch
+// and the drawing have to agree about that from the first frame.
+func TestTheLinksSwitchStartsOff(t *testing.T) {
 	page, err := assets.ReadFile("index.html")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(page), `id="f-links" role="switch" aria-checked="true"`) {
-		t.Error("the links switch is missing or does not start on")
+	if !strings.Contains(string(page), `id="f-links" role="switch" aria-checked="false"`) {
+		t.Error("the links switch is missing or does not start off")
+	}
+	if !strings.Contains(string(page), `<div id="tree" class="no-links">`) {
+		t.Error("the drawing starts with the links showing while the switch says off")
 	}
 	css, err := assets.ReadFile("bough.css")
 	if err != nil {

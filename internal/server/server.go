@@ -21,11 +21,13 @@ import (
 	"github.com/nickelsec/bough/internal/graph"
 )
 
-// Serve renders a graph in the browser and waits until the caller stops it.
+// Serve runs bough in the browser until the caller stops it: every project on
+// the home page, each one a click away.
 //
+// start is the path to open first, "/" for the home page or a project's own.
 // The address is reported through announce before the browser is opened, so a
 // terminal that cannot open one still tells the reader where to look.
-func Serve(ctx context.Context, g graph.Graph, announce func(url string)) error {
+func Serve(ctx context.Context, app App, start string, announce func(url string)) error {
 	// Port zero asks the operating system for a free one, which avoids both
 	// guessing and colliding with whatever else is running.
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -34,19 +36,25 @@ func Serve(ctx context.Context, g graph.Graph, announce func(url string)) error 
 	}
 	defer func() { _ = listener.Close() }()
 
-	page, err := render(g)
+	s, err := newSite(app)
 	if err != nil {
 		return err
 	}
+	s.refresh()
 
-	url := "http://" + listener.Addr().String()
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
+	go s.work(ctx)
+
+	host := listener.Addr().String()
+	url := "http://" + host + start
 	if announce != nil {
 		announce(url)
 	}
-	open(url)
+	openBrowser(url)
 
 	srv := &http.Server{
-		Handler:           routes(page),
+		Handler:           s.routes(host),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -66,26 +74,14 @@ func Serve(ctx context.Context, g graph.Graph, announce func(url string)) error 
 	}
 }
 
-// routes wires up the page and the files it needs.
-func routes(page []byte) http.Handler {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		// The page is built once and never changes while the process runs, so
-		// there is nothing to revalidate.
-		w.Header().Set("Cache-Control", "no-store")
-		// A failed write means the browser went away mid-response, which is
-		// normal and leaves nothing to do.
-		_, _ = w.Write(page)
-	})
-
-	mux.Handle("/img/", http.FileServer(http.FS(assets)))
-	return mux
+// pageApp is what a project page needs to know about the bough serving it: the
+// way home, and what to send to rename the project. A page saved to disk has
+// none of it, and leaves out the controls that would need it.
+type pageApp struct {
+	Home   string `json:"home"`
+	ID     string `json:"id"`
+	Token  string `json:"token"`
+	Folder string `json:"folder,omitempty"`
 }
 
 // render builds the page with the graph already inside it.
@@ -99,7 +95,7 @@ func routes(page []byte) http.Handler {
 // the template package drags in reflection and the crypto tree behind its
 // contextual escaping. That cost eight megabytes of binary for four
 // replacements that need one escaping rule between them.
-func render(g graph.Graph) ([]byte, error) {
+func render(g graph.Graph, app *pageApp) ([]byte, error) {
 	parts := map[string]string{}
 	for _, name := range []string{"index.html", "fonts.css", "bough.css", "layout.js", "bough.js"} {
 		body, err := readAsset(name)
@@ -113,6 +109,10 @@ func render(g graph.Graph) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("encoding the graph: %w", err)
 	}
+	served, err := json.Marshal(app)
+	if err != nil {
+		return nil, err
+	}
 
 	replace := strings.NewReplacer(
 		"{{.Title}}", escapeHTML(g.Project.Name),
@@ -121,8 +121,42 @@ func render(g graph.Graph) ([]byte, error) {
 		"{{.Layout}}", parts["layout.js"],
 		"{{.JS}}", parts["bough.js"],
 		"{{.Graph}}", escapeScript(string(data)),
+		"{{.App}}", escapeScript(string(served)),
 	)
 	return []byte(replace.Replace(parts["index.html"])), nil
+}
+
+// renderHome builds the home page with the list of projects inside it. The
+// figures on each card come later, from /api/summaries, since working them
+// out reads every history and the page should not wait for that.
+func renderHome(cards []Card, token, version string) ([]byte, error) {
+	parts := map[string]string{}
+	for _, name := range []string{"home.html", "fonts.css", "bough.css", "home.css", "home.js"} {
+		body, err := readAsset(name)
+		if err != nil {
+			return nil, err
+		}
+		parts[name] = body
+	}
+	if cards == nil {
+		cards = []Card{}
+	}
+	data, err := json.Marshal(struct {
+		Cards   []Card `json:"cards"`
+		Token   string `json:"token"`
+		Version string `json:"version,omitempty"`
+	}{cards, token, version})
+	if err != nil {
+		return nil, fmt.Errorf("encoding the projects: %w", err)
+	}
+	replace := strings.NewReplacer(
+		"{{.Fonts}}", parts["fonts.css"],
+		"{{.CSS}}", parts["bough.css"],
+		"{{.HomeCSS}}", parts["home.css"],
+		"{{.JS}}", parts["home.js"],
+		"{{.Home}}", escapeScript(string(data)),
+	)
+	return []byte(replace.Replace(parts["home.html"])), nil
 }
 
 // escapeHTML makes text safe to drop into the page body. Project names come
@@ -157,6 +191,10 @@ func readAsset(name string) (string, error) {
 	b, err := io.ReadAll(f)
 	return string(b), err
 }
+
+// openBrowser is open, held in a variable so the tests can run a server without
+// a browser window appearing for each one.
+var openBrowser = open
 
 // open asks the desktop to show a page.
 //

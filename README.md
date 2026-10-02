@@ -33,10 +33,12 @@ afternoon lost to one bug.
 bough
 ```
 
-That is the whole thing. It finds your projects, asks which one, and opens it
-in your browser.
+That is the whole thing. It finds your projects and opens them in your
+browser, a card for each with your time at the keyboard and what it cost.
+Search them, narrow them to one agent, or sort by time or cost, then click one
+to open it. Projects, at the top left, takes you back.
 
-What you get is a diagram of your own work. A square on the line is a sitting,
+Inside a project you get a diagram of your own work. A square on the line is a sitting,
 labelled with the day, the time you started and how long you were at the
 keyboard. Smaller squares hanging off it are the tasks inside that sitting.
 Every circle is a single prompt you typed.
@@ -169,6 +171,7 @@ opening a window.
 
 ```
 bough project-one      open a project by name
+bough --pick           choose a project in the terminal, then open it
 bough --text           write to the terminal instead
 bough --list           show every project with history
 bough -v               include every prompt in the text view
@@ -191,7 +194,8 @@ only ever reads.
 
 A project is named after its folder, and when that name is no help, which is
 often the case with the folders Codex names after your first prompt, you can
-give it one of your own with `--rename`. The name is kept in bough's own settings folder
+give it one of your own, with the pencil beside its name or with `--rename`.
+The name is kept in bough's own settings folder
 (`%AppData%\bough` on Windows, `~/Library/Application Support/bough` on a Mac,
 `~/.config/bough` elsewhere), so updating bough keeps it. It belongs to the
 folder, so moving the folder loses it, and the old name still finds the
@@ -319,9 +323,9 @@ internal/rollup  tasks into sittings, and the links between them
 internal/metrics how long, how much, how hard
 internal/graph   the finished structure, ready to serialise
 internal/repo    the project's own git history, read to confirm its commits
-internal/server  the local page, served on loopback only
+internal/server  the local pages, served on loopback only
 internal/names   the names you give your projects
-internal/pick    the list you choose a project from
+internal/pick    the terminal list behind --pick
 internal/banner  the mark it opens with
 assets           the artwork, and the script that sizes it for the page
 ```
